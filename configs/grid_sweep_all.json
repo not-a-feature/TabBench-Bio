@@ -1,0 +1,18 @@
+{
+  "_doc": "All 44 classification + 13 regression Bio datasets. This result tree is seeded from the frozen 40+13 run, then completed via prepare -> sharded array -> finalize. The source tree is copied read-only and never extended in place.",
+  "_samples_doc": "5000 is omitted: the largest training split in the corpus is 3118 rows, so every cell on that budget was a duplicate of the full-sample cell and produced no fits.",
+  "caps": [2000, 10000, 25000, null],
+  "samples": [20, 50, 100, 200, 500, 1000, null],
+  "datasets": "datasets/bio_classification.json",
+  "datasets_regression": "datasets/bio_regression.json",
+  "models": "models/all.json",
+  "model_cells": {"AUTOGLUON": ["cap_10000_n100", "cap_full"]},
+  "cv_folds": 5,
+  "time_limit": 3600,
+  "test_size": 0.2,
+  "random_state": 42,
+  "min_samples_per_class": 10,
+  "output": "results/feature_sweep_all_v4",
+  "reuse_results_from": "results/feature_sweep_all_v3",
+  "cache_dir": ".cache/grid_all"
+}

@@ -1,0 +1,76 @@
+name: Dataset or model request
+description: Propose a biomedical dataset or learning system for TabBench Bio
+title: "[Request]: "
+body:
+  - type: dropdown
+    id: request_type
+    attributes:
+      label: Request type
+      options:
+        - Dataset
+        - Model
+    validations:
+      required: true
+
+  - type: input
+    id: name
+    attributes:
+      label: Name
+      description: Use the canonical dataset or model name.
+      placeholder: e.g. GSE40279 or TabPFN v2.5
+    validations:
+      required: true
+
+  - type: input
+    id: source_url
+    attributes:
+      label: Upstream source
+      description: Link to the authoritative dataset record, model repository, or paper.
+      placeholder: https://...
+    validations:
+      required: true
+
+  - type: textarea
+    id: rationale
+    attributes:
+      label: Why should it be included?
+      description: Describe the biomedical relevance and what the request adds to the benchmark.
+    validations:
+      required: true
+
+  - type: textarea
+    id: benchmark_details
+    attributes:
+      label: Benchmark details
+      description: For datasets, include modality, task, target, sample and feature counts. For models, include supported tasks, implementation, dependencies, and expected compute requirements.
+      placeholder: |
+        Modality or model family:
+        Task type:
+        Target or supported outputs:
+        Dataset dimensions or compute requirements:
+    validations:
+      required: true
+
+  - type: textarea
+    id: provenance
+    attributes:
+      label: License, access, and citation
+      description: State the license, access restrictions, version or release, and preferred citation.
+    validations:
+      required: true
+
+  - type: textarea
+    id: notes
+    attributes:
+      label: Additional context
+      description: Add preprocessing requirements, known caveats, integration notes, or related benchmark results.
+
+  - type: checkboxes
+    id: checklist
+    attributes:
+      label: Request checklist
+      options:
+        - label: I linked an authoritative upstream source and identified a stable version or record where available.
+          required: true
+        - label: I described licensing or access conditions relevant to reproducible benchmarking.
+          required: true

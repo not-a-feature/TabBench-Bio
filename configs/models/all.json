@@ -1,0 +1,115 @@
+[
+  {
+    "key": "DUMMY",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "CAT",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "GBM",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "KNN",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "LR",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "RF",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "XGB",
+    "device": "gpu",
+    "solo": false
+  },
+  {
+    "key": "XT",
+    "device": "cpu",
+    "solo": false
+  },
+  {
+    "key": "NN_TORCH",
+    "device": "gpu",
+    "solo": false
+  },
+  {
+    "key": "REALMLP",
+    "device": "gpu",
+    "solo": false
+  },
+  {
+    "key": "TABM",
+    "device": "gpu",
+    "solo": false
+  },
+  {
+    "_doc": "Advisory post-cap features x train-row observations from the 2026-08 full-grid run. None are enforced: every legacy OOM/model-limit cell is retried under the new memory handling, and only a newly observed OOM triggers sample fallback. MITRA's fixed 8k allocation and TabPFN-Wide's inference batching have changed; TabFM's observed fit boundary is not treated as certain either.",
+    "key": "MITRA",
+    "device": "gpu",
+    "solo": true,
+    "max_cells": 32000000,
+    "memory_prior_version": 1,
+    "enforce_memory_prior": false
+  },
+  {
+    "key": "REALTABPFN-V2",
+    "device": "gpu",
+    "solo": true
+  },
+  {
+    "key": "REALTABPFN-V2.5",
+    "device": "gpu",
+    "solo": true
+  },
+  {
+    "key": "TABPFN-V3",
+    "device": "gpu",
+    "solo": true
+  },
+  {
+    "key": "TABPFN-WIDE",
+    "device": "gpu",
+    "solo": true,
+    "max_cells": 54000000,
+    "memory_prior_version": 1,
+    "enforce_memory_prior": false
+  },
+  {
+    "key": "TABFM",
+    "device": "gpu",
+    "solo": true,
+    "max_cells": 8500000,
+    "memory_prior_version": 1,
+    "enforce_memory_prior": false
+  },
+  {
+    "key": "TABDPT",
+    "device": "gpu",
+    "solo": true
+  },
+  {
+    "key": "TABICL",
+    "device": "gpu",
+    "solo": true
+  },
+  {
+    "_doc": "AutoML reference, not a ranked peer: runs AutoGluon's native extreme preset without overriding its portfolio, under the benchmark's one-hour per-unit time limit.",
+    "key": "AUTOGLUON",
+    "device": "gpu",
+    "solo": true,
+    "presets": "extreme",
+    "ensemble": true
+  }
+]
