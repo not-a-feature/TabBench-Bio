@@ -1030,7 +1030,7 @@ def build_dashboard(
             "contact_url": "https://github.com/not-a-feature/TabBench-Bio/issues",
             "affiliation": "Methods in Medical Informatics, University of Tübingen",
             "plot_excluded_models": ["DUMMY"],
-            "configured_model_count": len(configured_models),
+            "configured_model_count": len(configured_models) - 2,
             "evaluation_points_per_model": evaluation_points_per_model,
         },
         "progress": progress,
