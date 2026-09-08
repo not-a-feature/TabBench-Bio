@@ -37,8 +37,7 @@ GENERATED_DATA = PROJECT_ROOT / "tex" / "generated" / "data"
 GENERATED_MANIFEST = PROJECT_ROOT / "tex" / "generated" / "manifest.json"
 PRELIMINARY_DATA = PROJECT_ROOT / "results" / "publication_snapshot"
 PUBLIC_SITE_DIR = PROJECT_ROOT.parent / "TabBench-Bio"
-DEFAULT_PAPER_URL = "paper/TabBench_Bio.pdf"
-DEFAULT_MANUSCRIPT = PROJECT_ROOT / "tex" / "tabbench_bio_arxiv.pdf"
+DEFAULT_PAPER_URL = "https://arxiv.org/abs/XXXX.XXXXX"
 DEFAULT_RESULTS_SQLITE = (
     PROJECT_ROOT / "results" / "feature_sweep_all_v4" / "results.sqlite"
 )
@@ -1254,13 +1253,7 @@ def main() -> None:
     parser.add_argument(
         "--arxiv-url",
         default=DEFAULT_PAPER_URL,
-        help="Public manuscript URL; defaults to the PDF copied into the site",
-    )
-    parser.add_argument(
-        "--manuscript",
-        type=Path,
-        default=DEFAULT_MANUSCRIPT,
-        help="PDF copied to paper/TabBench_Bio.pdf",
+        help="External arXiv abstract URL; defaults to a placeholder until submission",
     )
     parser.add_argument(
         "--results-sqlite",
@@ -1297,6 +1290,8 @@ def main() -> None:
         help="Ignore the validated per-cell cache and recompute every domain Elo row",
     )
     args = parser.parse_args()
+    if not args.arxiv_url.startswith("https://arxiv.org/abs/"):
+        parser.error("--arxiv-url must be an external https://arxiv.org/abs/ URL")
     monitoring_dir = args.monitoring_dir.resolve()
     site_dir = args.site_dir.resolve()
     monitoring_exports = discover_monitoring_exports(monitoring_dir)
@@ -1367,11 +1362,6 @@ def main() -> None:
     write_latex_leaderboard(
         strict_dashboard["reference"], site_dir / "data" / "leaderboard_table.tex"
     )
-    manuscript = args.manuscript.resolve()
-    assert manuscript.is_file(), manuscript
-    manuscript_target = site_dir / "paper" / "TabBench_Bio.pdf"
-    manuscript_target.parent.mkdir(parents=True, exist_ok=True)
-    shutil.copy2(manuscript, manuscript_target)
     write_agent_metadata(site_dir, dashboard, args.project_url)
     social_preview = site_dir / "assets" / "og.png"
     subprocess.run(
@@ -1389,6 +1379,16 @@ def main() -> None:
     social_url = f"https://tabbench-bio.eu/assets/og.png?v={social_version}"
     index_path = site_dir / "index.html"
     index = index_path.read_text(encoding="utf-8")
+    paper_label = "arXiv (coming soon)" if args.arxiv_url == DEFAULT_PAPER_URL else "Read on arXiv"
+    index, paper_replacements = re.subn(
+        r'(<a id="paper-link"[^>]*href=")[^"]+("[^>]*>).*?</a>',
+        lambda match: (
+            match[1] + escape(args.arxiv_url, {'"': "&quot;"}) + match[2]
+            + paper_label + ' <span aria-hidden="true">↗</span></a>'
+        ),
+        index,
+    )
+    assert paper_replacements == 1
     index, og_replacements = re.subn(
         r'(<meta property="og:image" content=")[^"]+("[^>]*>)',
         rf"\g<1>{social_url}\g<2>",
