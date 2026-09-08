@@ -1,0 +1,17 @@
+# Line endings are normalised to LF in the repository. Windows checkouts still get
+# CRLF in the working tree for editing; only what git stores is forced to LF, so a
+# file edited on Windows and a file edited on the cluster no longer show up as a
+# whole-file diff against each other.
+* text=auto
+
+# Anything the cluster executes must be LF in the working tree as well: a stray CR
+# makes bash fail with an unreadable "\r: command not found".
+*.sh      text eol=lf
+*.sbatch  text eol=lf
+init.sh   text eol=lf
+
+*.png  binary
+*.jpg  binary
+*.pdf  binary
+*.pkl  binary
+*.parquet binary
