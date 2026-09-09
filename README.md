@@ -176,3 +176,9 @@ Override the cache root with `$TABBENCH_BIO_CACHE` or the `cache_dir` config key
 ## License
 
 Apache-2.0 — see [LICENSE](LICENSE).
+
+## Paper citation
+
+Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441
+
+[arXiv](https://arxiv.org/abs/2609.07441) · [DOI](https://doi.org/10.48550/arXiv.2609.07441)

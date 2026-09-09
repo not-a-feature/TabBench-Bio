@@ -37,7 +37,7 @@ GENERATED_DATA = PROJECT_ROOT / "tex" / "generated" / "data"
 GENERATED_MANIFEST = PROJECT_ROOT / "tex" / "generated" / "manifest.json"
 PRELIMINARY_DATA = PROJECT_ROOT / "results" / "publication_snapshot"
 PUBLIC_SITE_DIR = PROJECT_ROOT.parent / "TabBench-Bio"
-DEFAULT_PAPER_URL = "https://arxiv.org/abs/XXXX.XXXXX"
+DEFAULT_PAPER_URL = "https://arxiv.org/abs/2609.07441"
 DEFAULT_RESULTS_SQLITE = (
     PROJECT_ROOT / "results" / "feature_sweep_all_v4" / "results.sqlite"
 )
@@ -368,13 +368,13 @@ The leading intervals overlap, so the displayed order should not be interpreted 
 
 If you read or use the benchmark, website, or published result artifacts, cite:
 
-Kreuer, J.; Hellmig, J.; Braitinger, J.; Ouaari, S.; Pfeifer, N. (2026). TabBench-Bio (Version 0.1.0).
+Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441
 
 - [Citation File Format metadata]({project_url}/CITATION.cff)
-- Citation target: [TabBench-Bio repository](https://github.com/not-a-feature/TabBench-Bio); this will move to the arXiv DOI when available
-- Authors: Jules Kreuer, Julia Hellmig, Julius Braitinger, Sofiane Ouaari, and Nico Pfeifer
-- DOI: not yet available
-- arXiv: not yet available
+- Citation target: [TabBench-Bio paper](https://doi.org/10.48550/arXiv.2609.07441)
+- Authors: Jules Kreuer, Sofiane Ouaari, Julia Hellmig, Julius Braitinger, and Nico Pfeifer
+- DOI: [10.48550/arXiv.2609.07441](https://doi.org/10.48550/arXiv.2609.07441)
+- arXiv: [2609.07441](https://arxiv.org/abs/2609.07441)
 
 ## Optional
 
@@ -1379,7 +1379,7 @@ def main() -> None:
     social_url = f"https://tabbench-bio.eu/assets/og.png?v={social_version}"
     index_path = site_dir / "index.html"
     index = index_path.read_text(encoding="utf-8")
-    paper_label = "arXiv (coming soon)" if args.arxiv_url == DEFAULT_PAPER_URL else "Read on arXiv"
+    paper_label = "Read on arXiv"
     index, paper_replacements = re.subn(
         r'(<a id="paper-link"[^>]*href=")[^"]+("[^>]*>).*?</a>',
         lambda match: (
