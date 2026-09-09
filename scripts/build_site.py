@@ -145,6 +145,7 @@ SITEMAP_PATHS = (
     "artifacts.html",
     "changelog.html",
     "llms.txt",
+    "skill.md",
     "citation.html",
     "CITATION.cff",
     "CITATION.bib",
@@ -367,7 +368,13 @@ The leading intervals overlap, so the displayed order should not be interpreted 
 
 {evaluated_models}.
 
-{overlap_note}## Primary pages
+{overlap_note}## Agent skill
+
+Here is a skill for your agent: [TabBench-Bio model selection]({project_url}/skill.md).
+Use it to match task, modality, budgets and compute constraints, and interpret uncertainty and training-data overlap.
+Download the Markdown file directly; no repository clone is needed.
+
+## Primary pages
 
 - [Benchmark and interactive results]({project_url}/)
 - [Dataset registry]({project_url}/datasets.html)
@@ -375,6 +382,10 @@ The leading intervals overlap, so the displayed order should not be interpreted 
 - [Manuscript]({paper_url})
 
 ## Machine-readable data
+
+- [Dashboard JSON]({project_url}/data/dashboard.json): modality-specific rankings, costs, coverage, analysis views and model flags.
+- [Leaderboard JSON]({project_url}/data/leaderboard.json): aggregate rankings.
+- [Dataset index JSON]({project_url}/data/datasets/index.json): task-specific metrics and links to per-dataset scores.
 
 {sqlite_line}
 
@@ -421,6 +432,15 @@ def write_agent_metadata(
     project_url: str,
 ) -> None:
     project_url = project_url.rstrip("/")
+    shutil.copytree(
+        PROJECT_ROOT / "skills" / "biomedical-tabular-model-selection",
+        site_dir / "skills" / "biomedical-tabular-model-selection",
+        dirs_exist_ok=True,
+    )
+    shutil.copyfile(
+        PROJECT_ROOT / "skills" / "biomedical-tabular-model-selection" / "SKILL.md",
+        site_dir / "skill.md",
+    )
     build_date = datetime.now(UTC).date().isoformat()
     (site_dir / "robots.txt").write_text(
         f"User-agent: *\nAllow: /\n\nSitemap: {project_url}/sitemap.xml\n",

@@ -182,3 +182,21 @@ Apache-2.0 — see [LICENSE](LICENSE).
 Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441
 
 [arXiv](https://arxiv.org/abs/2609.07441) · [DOI](https://doi.org/10.48550/arXiv.2609.07441)
+
+## Agent skill for model selection
+
+Use [biomedical-tabular-model-selection](skills/biomedical-tabular-model-selection/SKILL.md)
+to compare methods for a biomedical dataset using the current published snapshot.
+It accounts for modality, sample/feature budgets, uncertainty, failures, cost and
+training-data overlap. It does not assume the reference leader is best for every task.
+
+Install the skill in a compatible agent with:
+
+```sh
+npx skills add https://tabbench-bio.eu/skill.md
+```
+
+This downloads only the Markdown skill, without cloning the benchmark repository.
+A browsing agent can read the [hosted skill](https://tabbench-bio.eu/skill.md)
+and follow its linked data reference. Publication alone does not automatically
+install or activate the skill in other agents.
