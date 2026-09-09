@@ -126,7 +126,7 @@ def test_llms_metadata_describes_strict_primary_and_adaptive_sensitivity():
             {"task": "Classification", "modality": "Gene expression"},
             {"task": "Regression", "modality": "Molecular properties"},
         ],
-        "models": {"LR": {"display": "Logistic Regression"}},
+        "models": {"LR": {"display": "Logistic Regression", "training_data_overlap": False}},
         "cell_options": [{"id": "cap_10000_n100"}],
         "reference": [
             {
@@ -157,6 +157,16 @@ def test_llms_metadata_describes_strict_primary_and_adaptive_sensitivity():
     assert "data/raw/" not in text
     assert "Canonical results SQLite: release upload pending" in text
     assert "CITATION.cff" in text
+    assert "## Training-data overlap" not in text
+    dashboard["models"]["TABDPT"] = {"display": "TabDPT", "training_data_overlap": True}
+    dashboard["models"]["NEW"] = {"display": "New model", "training_data_overlap": True}
+    annotated = build_site.build_llms_text(dashboard, "https://tabbench-bio.eu")
+    for name in ("TabDPT", "New model"):
+        assert f"† {name}: Part of the benchmark training data was used in the training process of this model." in annotated
+    assert "† Logistic Regression" not in annotated
+    dashboard["models"]["NEW"]["training_data_overlap"] = False
+    assert "† New model" not in build_site.build_llms_text(dashboard, "https://tabbench-bio.eu")
+
 
 
 def test_artifact_index_contains_only_canonical_sqlite(tmp_path, monkeypatch):

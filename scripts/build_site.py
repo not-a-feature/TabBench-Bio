@@ -307,6 +307,20 @@ def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
     evaluated_models = ", ".join(
         sorted(str(row["display"]) for row in dashboard["models"].values())
     )
+    flagged_models = sorted(
+        str(model["display"]) for model in dashboard["models"].values()
+        if model["training_data_overlap"]
+    )
+    overlap_note = ""
+    if flagged_models:
+        disclaimers = "\n".join(
+            f"- † {name}: Part of the benchmark training data was used in the training process of this model."
+            for name in flagged_models
+        )
+        overlap_note = (
+            "## Training-data overlap\n\n" + disclaimers
+            + "\n\nThese models remain in the benchmark results but are excluded from the Reference leaders podium and social card.\n\n"
+        )
     status = progress["status"]
     paper_url = str(meta["paper_url"])
     if not paper_url.startswith(("https://", "http://")):
@@ -353,7 +367,7 @@ The leading intervals overlap, so the displayed order should not be interpreted 
 
 {evaluated_models}.
 
-## Primary pages
+{overlap_note}## Primary pages
 
 - [Benchmark and interactive results]({project_url}/)
 - [Dataset registry]({project_url}/datasets.html)
