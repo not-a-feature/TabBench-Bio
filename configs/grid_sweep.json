@@ -1,0 +1,20 @@
+{
+  "_doc": "Config for the 2-D feature x sample HDLSS grid sweep. 'caps' = bio_max_features buckets (null/'full' = keep every feature). 'samples' = stratified train-row caps applied train-only post-split (null = full train set). 'cv_folds' runs every cell x dataset as its own stratified k-fold CV; the fold partition seed is the CV repeat (not the cell), so all cells share one partition and the learning curve varies only the feature/sample budget on a fixed test set. 'datasets', 'datasets_regression' and 'models' are each an inline list or a path (relative to this file) to a JSON array. Run: scripts/feature_sweep.py --grid-config configs/grid_sweep.json.",
+
+  "caps": [2000, 10000, 25000, null],
+  "samples": [20, 50, 100, 200, 500, 1000, 5000, null],
+
+  "datasets": "datasets/bio_classification.json",
+  "datasets_regression": "datasets/bio_regression.json",
+
+  "models": "models/all.json",
+
+  "cv_folds": 5,
+  "time_limit": 3600,
+  "test_size": 0.2,
+  "random_state": 42,
+  "min_samples_per_class": 10,
+
+  "output": "results/feature_sweep",
+  "cache_dir": ".cache"
+}
