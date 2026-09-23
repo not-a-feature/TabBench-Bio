@@ -1,0 +1,14 @@
+TabBench-Bio
+Copyright 2026 KI-Werkstatt
+Licensed under the European Union Public Licence 1.2 (EUPL-1.2).
+
+Third-party code
+---------------
+src/tabbench_bio/_vendor/tabarena_elo_utils.py is from TabArena
+(https://github.com/autogluon/tabarena), commit
+e61ecc362d4460fe98e12caad3fad1a0d7863494,
+packages/bencheval/src/bencheval/elo_utils.py.
+It remains under Apache-2.0; see licenses/Apache-2.0.txt.
+Its source header records the provenance and modifications.
+
+Dataset and separately installed model licences are unchanged.

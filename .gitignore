@@ -1,0 +1,48 @@
+# Python environments and build outputs
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+build/
+dist/
+
+# Local caches, model files, and generated results
+.cache/
+.tmp/
+/results/
+/models/
+/logs/
+/site/
+docs/_build/
+src/tabbench_bio/bio/data/local/
+*.sqlite*
+*.db
+*.pkl
+*.pt
+*.pth
+*.safetensors
+*.log
+
+# Credentials and machine-specific settings
+.env
+.env.*
+.credentials/
+.pypirc
+.licenses/
+.vscode/
+.idea/
+
+# Test and formatting artifacts
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage*
+htmlcov/
+coverage.xml
+
+# Generated public site snapshots (built via scripts/publish_codeberg_site.py)
+website-swiss/
+
+# Default custom-model example output
+/my_model_results/

@@ -1,0 +1,10 @@
+{
+  "_doc": "Benchmark-wide exclusions, applied across models and folds, including frozen runs. Historical attempts remain available. These uncapped cells are excluded by explicit compute-budget policy after repeated baseline fit timeouts: gp-maize-FT and gp-switchgrass-HT carry 244,781 and 217,150 native features, and at full width the constant predictor itself exhausts the 3600-second budget before fitting begins. Both datasets remain in scope at every capped feature budget, where they complete normally. Cells listed here are those where the sample budget binds for the dataset; n=500 and n=1,000 are already out of scope for both.",
+  "excluded_dataset_cells": {
+    "cap_full_n20": ["gp-maize-FT_0", "gp-switchgrass-HT_0"],
+    "cap_full_n50": ["gp-maize-FT_0", "gp-switchgrass-HT_0"],
+    "cap_full_n100": ["gp-maize-FT_0", "gp-switchgrass-HT_0"],
+    "cap_full_n200": ["gp-maize-FT_0", "gp-switchgrass-HT_0"],
+    "cap_full": ["gp-maize-FT_0", "gp-switchgrass-HT_0"]
+  }
+}

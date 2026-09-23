@@ -1,0 +1,6 @@
+include CONTRIBUTING.md CITATION.cff CITATION.bib requirements-autogluon-fork.txt
+recursive-include benchmark_my_model *.py *.md
+recursive-include configs *.json
+recursive-include scripts *.py
+recursive-include tests *.py
+recursive-include skills *.md
