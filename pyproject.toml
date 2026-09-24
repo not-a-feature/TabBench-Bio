@@ -37,6 +37,7 @@ dependencies = [
     "scikit-learn==1.9.0",
     "matplotlib>=3.5,<4.0",
     "tqdm>=4.64,<5.0",
+    "threadpoolctl>=3.1,<4.0",
 ]
 
 [project.optional-dependencies]
@@ -132,7 +133,10 @@ where = ["src"]
 "" = "src"
 
 [tool.setuptools.package-data]
-tabbench_bio = ["bio/data/*.json"]
+tabbench_bio = [
+    "bio/data/*.json", "web/*", "web/.nojekyll", "web/js/*", "web/assets/*", "web/assets/fonts/*",
+    "web/skills/*/*", "web/skills/*/agents/*", "web/skills/*/references/*",
+]
 
 [tool.black]
 line-length = 100
@@ -146,6 +150,7 @@ known_first_party = ["tabbench_bio"]
 [tool.ruff]
 line-length = 100
 target-version = "py311"
+extend-exclude = ["src/tabbench_bio/web"]
 
 [tool.ruff.lint]
 select = ["E", "F", "W", "I", "N", "UP"]

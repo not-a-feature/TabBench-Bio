@@ -1,0 +1,6 @@
+interface:
+  display_name: "Biomedical Tabular Model Selection — TabBench-Bio"
+  short_description: "Select biomedical tabular models using benchmark evidence"
+  default_prompt: "Use $biomedical-tabular-model-selection to shortlist machine learning methods for my biomedical dataset, accounting for data size, compute budget and training-data overlap."
+policy:
+  allow_implicit_invocation: true

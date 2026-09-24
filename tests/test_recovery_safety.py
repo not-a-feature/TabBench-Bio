@@ -114,7 +114,7 @@ def test_existing_grid_config_is_immutable(tmp_path):
     kwargs = {
         "datasets": ["toy"],
         "datasets_regression": [],
-        "models": [{"key": "DUMMY", "device": "cpu", "solo": False}],
+        "models": [{"key": "DUMMY", "device": "cpu"}],
         "n_rep": None,
         "cv_folds": 2,
         "time_limit": 60,

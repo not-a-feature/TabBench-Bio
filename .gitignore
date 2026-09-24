@@ -1,5 +1,6 @@
 # Python environments and build outputs
 .venv/
+.venvs/
 venv/
 __pycache__/
 *.py[cod]
@@ -41,8 +42,8 @@ src/tabbench_bio/bio/data/local/
 htmlcov/
 coverage.xml
 
-# Generated public site snapshots (built via scripts/publish_codeberg_site.py)
-website-swiss/
+# Generated public site
+website.cache/
 
 # Default custom-model example output
 /my_model_results/

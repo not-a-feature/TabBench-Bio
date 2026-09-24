@@ -42,8 +42,8 @@ DEFAULT_BASE = 1000.0
 DEFAULT_ANCHOR = "RF"
 DEFAULT_SCALE = 400.0
 
-#: Bootstrap rounds for the Elo confidence intervals. Matches TabArena's default.
-DEFAULT_N_BOOT = 100
+#: Bootstrap rounds for the Elo confidence intervals, matching the paper.
+DEFAULT_N_BOOT = 2000
 
 
 def fold_scores(

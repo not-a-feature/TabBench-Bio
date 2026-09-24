@@ -2,235 +2,182 @@
 
 [Website](https://tabbench-bio.eu) · [GitHub](https://github.com/not-a-feature/TabBench-Bio) · [Codeberg](https://codeberg.org/not_a_feature/TabBench-Bio)
 
-**A benchmark for machine learning on high-dimensional biological data.**
+TabBench-Bio benchmarks machine learning on biological tables with many features and few
+samples, such as gene-expression and methylation data. It downloads datasets, fixes the
+train/test splits, fits models and ranks their predictions using fold-level Elo.
+The full configuration covers 30 classification and 13 regression datasets.
 
-This is the public source repository for the benchmark package. The generated website is
-published separately from the Codeberg deployment repository's `pages` branch.
+This repository contains the package and experiment definitions. The
+[published website](https://tabbench-bio.eu) is built from Codeberg's `pages` branch.
 
-TabBench-Bio evaluates tabular models on high-dimensional, low-sample-size (HDLSS)
-biological datasets - gene-expression, methylation, and other omics matrices where the
-number of features (genes/probes) vastly exceeds the number of samples. It provides a
-reproducible **fetch → split → fit → score → rank** pipeline built on
-[AutoGluon](https://auto.gluon.ai), with dataset loaders for public biological repositories
-and a configurable registry of curated biomedical tasks.
+## Install
 
----
-
-## Installation
+Clone the repository and install the package with its dataset loaders:
 
 ```bash
 git clone https://github.com/not-a-feature/TabBench-Bio.git
 cd TabBench-Bio
 uv venv --python 3.12
-uv pip install -e .                 # core
-uv pip install -e ".[bio]"          # + dataset loaders
+uv pip install -e ".[bio]"
 ```
 
-**The AutoGluon benchmark runner requires the AutoGluon fork** that removes the 500-feature cap on
-tabular foundation models. Install the fork before the local package with its full
-set of optional dependencies:
+The [scikit-learn example](benchmark_my_model/README.md) works with this installation.
+Registered models run in separate [environment profiles](environments/README.md).
+Install the profile declared by your model before running it. For the existing
+models that use `standard`, on Linux:
 
 ```bash
-uv pip install -r requirements-autogluon-fork.txt
-uv pip install -e ".[full]"
+uv venv .venvs/standard --python 3.12
+uv pip install --python .venvs/standard/bin/python -r environments/standard.txt
 ```
 
----
+The profile installs the required AutoGluon fork and model dependencies.
+Compatible models can share a profile. The [model guide](benchmark_my_model/INTEGRATION.md)
+explains how to give a new model its own environment.
 
-## Quick start
+## Run a benchmark
 
-**Bring your own model:** start with [benchmark_my_model](benchmark_my_model/README.md).
-It needs no AutoGluon fork, evaluates every configured fold, and produces a local HTML
-report, Elo figure, leaderboard CSV, and fold metrics. The default example fits fresh
-local baselines; `--baseline` compares against a published SQLite bundle on frozen splits.
-
-Use `uv run --no-sync` to run commands in the environment created above:
+To try your own scikit-learn model, edit `benchmark_my_model/my_model.py` and run:
 
 ```bash
-# Run the feature × sample grid
-uv run --no-sync python scripts/feature_sweep.py --grid-config configs/grid_sweep_all.json
-
-# Select one compute lane when using a scheduler
-uv run --no-sync python scripts/feature_sweep.py --grid-config configs/grid_sweep_all.json --include-device cpu
-
-# Run or rank one grid cell
-uv run --no-sync tabbench-bio run --config results/feature_sweep_all/cap_full/config.json --step predictions
-uv run --no-sync tabbench-bio run --config results/feature_sweep_all/cap_full/config.json --step metrics
-uv run --no-sync tabbench-bio leaderboard --results-dir results/feature_sweep_all/cap_full
+uv run --no-sync python benchmark_my_model/run.py --output my_model_results
 ```
 
-The full configuration selects 30 classification and 13 regression datasets.
-Use `python scripts/feature_sweep.py --help` for worker and resource settings.
-Keep the configuration and `split_manifest.json` with the results when resuming;
-changing either can invalidate comparisons.
+This fits your model and local baselines, then saves an HTML report, Elo plot and CSV
+results. Its `--baseline` option compares against published predictions on frozen splits.
 
-The repository separates the package (`src/tabbench_bio/`), experiment definitions
-(`configs/`), reusable commands (`scripts/`), and regression tests (`tests/`).
+For resumable runs and SQLite results, [register an adapter](benchmark_my_model/INTEGRATION.md).
+The model command runs the reference cell by default. Add `--full-grid` for all 28 cells:
 
-Load a single dataset directly:
-
-```python
-from tabbench_bio import load_bio_as_dataset
-
-ds = load_bio_as_dataset("TCGA-TCGA-BRCA_Gene-Expression-Quantification", cache_dir=".cache/bio")
-df = ds.to_dataframe()        # features + "target" column
+```bash
+uv run --no-sync tabbench-bio MYMODEL
+uv run --no-sync tabbench-bio MYMODEL --full-grid
 ```
 
----
+The command selects `.venvs/<profile>/` automatically, including on Slurm.
+The lower-level `run` command and `scripts/feature_sweep.py` use their current Python
+environment, so run them in a profile that supports every selected model.
+Keep each run's configuration and `split_manifest.json` with its results.
+Resuming relies on those settings and row identities staying fixed.
 
-## Datasets
+## Datasets and models
 
-Datasets are defined in
-[`src/tabbench_bio/bio/data/bio_datasets.json`](src/tabbench_bio/bio/data/bio_datasets.json),
-where each entry has a stable `bio_id`. Without Python changes, you can:
+The [dataset registry](src/tabbench_bio/bio/data/bio_datasets.json) gives each task a
+stable `bio_id`. Edit it to add datasets from a supported source, or set
+`TABBENCH_BIO_DATASETS` to your own registry file. A run config selects tasks through
+`datasets_classification` and `datasets_regression`.
 
-- Add or enable datasets and set their target, problem type, or feature cap.
-- Point `$TABBENCH_BIO_DATASETS` at your own JSON file to replace the registry entirely.
-- Select datasets in a run config through `datasets_classification` and
-  `datasets_regression`.
+TCGA, GEO and public OpenML downloads need no credentials. Kaggle requires
+`~/.kaggle/kaggle.json`. Some tasks also need local embedding files.
+The [contributor guide](CONTRIBUTING.md#adding-a-dataset) explains how to add and check a dataset.
 
-TCGA, GEO, and public OpenML datasets need no credentials. Kaggle downloads require a
-`~/.kaggle/kaggle.json` API token.
+The [model roster](configs/models/all.json) includes linear models, trees, neural
+networks and tabular foundation models. `DUMMY` provides a constant baseline, and
+Random Forest anchors Elo at 1000. New adapters need an entry in
+`src/tabbench_bio/models/custom.py`, including their environment profile.
 
----
+## Merge results and build the website
 
-## Models
+Combine a new model run with an existing database:
 
-Model names map to AutoGluon's registry:
+```bash
+uv run --no-sync tabbench-bio merge results.sqlite results/my_model/results.sqlite \
+  --output results/combined/results.sqlite
+```
 
-- **Built-in tabular** - `LR`, `RF`, `XT`, `KNN`, `GBM`, `XGB`, `CAT`
-- **Tabular foundation** - `TABPFN`/`REALTABPFN-V2`/`REALTABPFN-V2.5`, `TABPFN-V3`,
-  `TABPFN-WIDE`, `TABPFN-WIDE-5K-NE3`, `TABFM`,
-  `TABDPT`, `TABICL`, `TABM`, `MITRA`, `REALMLP`, `NN_TORCH`
-- **`AUTOGLUON`** - AutoGluon's native `extreme` preset with a one-hour time limit at the
-  two compute-intensive reference cells
-- **Baseline** - `DUMMY`, a constant predictor
+The output path must be new. The merge checks cell settings and held-out targets,
+removes duplicate attempts and leaves both inputs unchanged. It also accepts result
+directories containing writer databases.
 
-The bundled model roster lives in [`configs/models/all.json`](configs/models/all.json).
+The `website/` submodule tracks Codeberg's `pages` branch. Initialise and update it
+before building from the repository root:
 
----
+```bash
+git submodule update --init website
+git -C website switch pages
+git -C website pull --ff-only
+uv run --no-sync tabbench-bio leaderboard results/combined/results.sqlite --workers 4
+python -m http.server 8000 --directory website
+```
 
-## Pipeline & outputs
+Open `http://localhost:8000/`. The build writes the dashboard, model cards, dataset
+pages and JSON data to `website/`. Per-cell PNG plots and CSV tables go in the
+Git-ignored `website/local/` directory. It generates no per-cell HTML reports or SVGs.
+Use `--out preview` to build elsewhere.
 
-`tabbench-bio run` runs two steps:
+The input database stays read-only. Building needs no raw datasets, GPU or LaTeX,
+and publishes nothing automatically. See the
+[model guide](benchmark_my_model/INTEGRATION.md#merge-and-generate-plots) for publishing
+and cache settings. The released database and SHA-256 checksum are listed in the
+[artifact browser](https://tabbench-bio.eu/artifacts.html).
 
-1. **predictions** - fit each (model, dataset, seed) and store predictions, probabilities,
-   logs, and run statistics in transactional SQLite writer bundles.
-2. **metrics** - compute per-(seed, dataset, model) classification/regression metrics into
-   `results/<run>/metrics/`.
+## Read a leaderboard
 
-`Leaderboard.from_results_dir(...)` loads fold metrics produced by a local run. Published
-TabBench Bio results use a single, content-addressed SQLite bundle: attempts point to
-compressed ground-truth, prediction, and probability blobs, while metrics are recomputed
-on read. The loader opens that file using SQLite `mode=ro` and never creates a writer,
-metrics CSV, journal, or cache:
+Load a published SQLite bundle in Python:
 
 ```python
 from tabbench_bio import Leaderboard
 
-sqlite_path = "tabbench-bio-results-v0.1.0.sqlite"
+sqlite_path = "results.sqlite"
 print(Leaderboard.sqlite_cells(sqlite_path))
-
 leaderboard = Leaderboard.from_sqlite(sqlite_path, cell="cap_10000_n100")
 print(leaderboard.rank())
 ```
 
-The site's Elo compares models on matching cross-validation folds, weighted by the reciprocal of
-each target's fold count; confidence intervals resample whole targets. Incomplete
-model–target pairs are omitted, failures use recorded DUMMY metrics, and pools without
-Random Forest have no Elo. Fold means are descriptive summaries, not Elo inputs.
-
-The same operation is available from the CLI:
+Or print one cell and export its plot and table:
 
 ```bash
-uv run --no-sync tabbench-bio leaderboard \
-  --sqlite tabbench-bio-results-v0.1.0.sqlite \
+uv run --no-sync tabbench-bio leaderboard --sqlite results.sqlite \
   --cell cap_10000_n100 --plot --csv leaderboard.csv
 ```
 
-`rank()`, the terminal summary, and `--plot` all use fold-level Bradley–Terry Elo,
-with Random Forest fixed at 1000 and target-bootstrap 95% intervals. Normalized `Score`
-remains descriptive. Without RF and a comparable model, Elo/Rank are unavailable;
-there is no implicit score-ranking fallback. `--task` selects both printed and plotted results.
+`rank()`, the terminal summary and plots use Bradley-Terry Elo from matching
+cross-validation folds. Each fold has weight `1 / target_fold_count`, and the 95%
+intervals resample whole targets. The default is 2,000 bootstrap rounds, matching the
+paper. Normalised `Score` and fold means are descriptive summaries.
 
-Use `leaderboard.evaluate_and_add(...)` with the matching cell config and any
-scikit-learn-compatible estimator to compare a new model in memory:
+Strict results use recorded DUMMY metrics for failed fits and omit incomplete
+model-target fold sets. Elo needs RF and at least one comparable model.
+The website also provides adaptive and conditional views, explained in the model guide.
+Use `--task` to select classification or regression.
 
-```python
-from sklearn.dummy import DummyClassifier
+## Caches
 
-leaderboard.evaluate_and_add(
-    "My model",
-    DummyClassifier(strategy="most_frequent"),
-    config_path="results/feature_sweep/cap_10000_n100/config.json",
-    task="classification",
-)
-print(leaderboard.rank())
-```
+Dataset caches hold source downloads, assembled tables and prepared splits. Set
+`cache_dir` in a run config or `TABBENCH_BIO_CACHE` for the biological dataset cache.
 
-The estimator is cloned for each configured fold. Model failures abort this convenience
-API; incomplete custom results are not silently ranked. SQLite-backed comparisons check
-the cell budget and held-out row IDs/labels. The example folder prepares frozen splits and
-saves outputs; `evaluate_and_add` itself only updates the in-memory leaderboard.
+Website builds cache fold metrics in `<out>.cache/fold_metrics.sqlite` and Elo in
+`data/dashboard.json`. Reuse the same output directory to avoid repeating work.
+Changed inputs, calculation code or relevant settings invalidate cached results.
+Completed metric batches survive an interrupted build. Elo is saved after a full build.
+Keep the metric cache locally. Deleting it forces recalculation.
 
-The canonical database and its SHA-256 checksum are listed in the
-[artifact browser](https://tabbench-bio.eu/artifacts.html).
+`--workers` controls both metric and Elo calculations. Progress bars show completed
+folds and comparison pools, elapsed time and estimated time remaining.
 
-The canonical built site is published from the orphan `pages` branch of the
-[Codeberg deployment repository](https://codeberg.org/not_a_feature/TabBench-Bio) at
-[tabbench-bio.eu](https://tabbench-bio.eu). GitHub `main` contains public code only; Codeberg
-`main` is only a deployment-repository notice.
+## Licence
 
-Maintainers publish a complete built site with:
-
-```bash
-uv run --no-sync python scripts/publish_codeberg_site.py --site-dir /path/to/built/site
-```
-
-The deployment helper appends a commit to Codeberg `pages`. Generated site and result files
-do not belong on GitHub `main`.
-
----
-
-## Caching
-
-Two layers keep re-runs cheap (everything under `<cache_dir>`):
-
-- **Source caches** - TCGA matrices (`bio/tcga_raw/`), GEO SOFT files (`bio/geo_raw/`),
-  and OpenML/Kaggle native caches.
-- **Unified dataset cache** - the assembled dataset (`bio/datasets/<bio_id>.pkl`) and the
-  prepared train/test splits (`datasets_processed/seed_N/`).
-
-Override the cache root with `$TABBENCH_BIO_CACHE` or the `cache_dir` config key.
-
----
-
-## License
-
-EUPL-1.2 — see [LICENSE](LICENSE). The vendored TabArena Elo helper retains
-Apache-2.0; see [NOTICE](NOTICE) and [its licence](licenses/Apache-2.0.txt).
-Dataset and model licences remain those of their respective providers.
+EUPL-1.2. See [LICENSE](LICENSE). The vendored TabArena Elo helper retains Apache-2.0,
+as recorded in [NOTICE](NOTICE) and [its licence](licenses/Apache-2.0.txt).
+Datasets and models retain their providers' licences.
 
 ## Paper citation
 
-Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441
-
-[arXiv](https://arxiv.org/abs/2609.07441) · [DOI](https://doi.org/10.48550/arXiv.2609.07441)
+Kreuer, J., Ouaari, S., Hellmig, J., Braitinger, J., and Pfeifer, N. (2026).
+TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables.
+[arXiv:2609.07441](https://arxiv.org/abs/2609.07441).
+[DOI: 10.48550/arXiv.2609.07441](https://doi.org/10.48550/arXiv.2609.07441).
 
 ## Agent skill for model selection
 
-Use [biomedical-tabular-model-selection](skills/biomedical-tabular-model-selection/SKILL.md)
-to compare methods for a biomedical dataset using the current published snapshot.
-It accounts for modality, sample/feature budgets, uncertainty, failures, cost and
-training-data overlap. It does not assume the reference leader is best for every task.
-
-Install the skill in a compatible agent with:
+The [model-selection skill](skills/biomedical-tabular-model-selection/SKILL.md) helps an
+agent compare published results for a dataset's modality and feature/sample budgets,
+including uncertainty, failures, cost and training-data overlap. Install it in a
+compatible agent with:
 
 ```sh
 npx skills add https://tabbench-bio.eu/skill.md
 ```
 
-This downloads only the Markdown skill, without cloning the benchmark repository.
-A browsing agent can read the [hosted skill](https://tabbench-bio.eu/skill.md)
-and follow its linked data reference. Publication alone does not automatically
-install or activate the skill in other agents.
+This downloads the Markdown skill. A browsing agent can also read the
+[hosted version](https://tabbench-bio.eu/skill.md) directly.

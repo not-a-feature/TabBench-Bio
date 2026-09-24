@@ -20,8 +20,7 @@ def test_cpu_budget_counts_only_active_pools(total, gpus, workers):
 def test_gpu_scope_removes_cpu_tier_without_mutating_frozen_spec():
     original = {
         "full_cfg": "config.json",
-        "gpu_solo_cfg": "config_gpu_solo.json",
-        "gpu_shared_cfg": "config_gpu_shared.json",
+        "gpu_cfgs": ["config_gpu.json"],
         "cpu_cfg": "config_cpu.json",
         "n_splits": 5,
         "tag": "cap 2000/n=20",
@@ -29,7 +28,6 @@ def test_gpu_scope_removes_cpu_tier_without_mutating_frozen_spec():
 
     scoped = _scope_cell_specs([original], {"gpu"})
 
-    assert scoped[0]["gpu_solo_cfg"] == "config_gpu_solo.json"
-    assert scoped[0]["gpu_shared_cfg"] == "config_gpu_shared.json"
+    assert scoped[0]["gpu_cfgs"] == ["config_gpu.json"]
     assert scoped[0]["cpu_cfg"] is None
     assert original["cpu_cfg"] == "config_cpu.json"

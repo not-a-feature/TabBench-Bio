@@ -16,6 +16,7 @@ Pickle is used to match the split-cache convention (no extra deps).
 from __future__ import annotations
 
 import os
+import pickle
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -47,17 +48,20 @@ def dataset_cache_path(root: str | Path, bio_id: str) -> Path:
     return Path(root) / "datasets" / f"{_safe(bio_id)}.pkl"
 
 
+class _RawDatasetUnpickler(pickle.Unpickler):
+    def find_class(self, module: str, name: str):
+        if module == "tabarena_bio.bio.loaders.base" and name == "BioRawDataset":
+            module = "tabbench_bio.bio.loaders.base"
+        return super().find_class(module, name)
+
+
 def load_cached_raw(root: str | Path, bio_id: str) -> BioRawDataset | None:
-    """Load a cached :class:`BioRawDataset`, or ``None`` if absent/unreadable."""
+    """Load a current or legacy cached dataset, or return ``None`` if absent."""
     path = dataset_cache_path(root, bio_id)
     if not path.exists():
         return None
-    try:
-        return pd.read_pickle(path)
-    except Exception:
-        # A corrupt/partial cache should not be fatal — drop it and re-fetch.
-        path.unlink(missing_ok=True)
-        return None
+    with path.open("rb") as handle:
+        return _RawDatasetUnpickler(handle).load()
 
 
 def save_cached_raw(root: str | Path, raw: BioRawDataset) -> Path:

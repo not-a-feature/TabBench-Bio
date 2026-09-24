@@ -118,8 +118,8 @@ MODEL_DISPLAY: dict[str, str] = {
     "REALMLP": "RealMLP",
     "TABPFN": "TabPFN",
     "REALTABPFN-V2": "RealTabPFN v2",
-    "REALTABPFN-V2.5": "RealTabPFN v2.5",
-    "TABPFN-V3": "TabPFN v3",
+    "REALTABPFN-V2.5": "RealTabPFN 2.5",
+    "TABPFN-V3": "TabPFN 3",
     "TABPFN-WIDE": "TabPFN Wide (8k)",
     "TABPFN-WIDE-5K-NE3": "TabPFN Wide 5k (ne3)",
     "TABFM": "TabFM",
@@ -643,7 +643,7 @@ def _build_grid(out_dir: str) -> dict | None:
     domains = ["all"] + (distinct_domains if len(distinct_domains) > 1 else [])
 
     def _cell_elo_rows(cell: pd.DataFrame, metric: str) -> list[dict] | None:
-        elo = compute_elo(fold_scores(cell, None, clf_metric=metric), n_boot=100)
+        elo = compute_elo(fold_scores(cell, None, clf_metric=metric))
         if elo.empty:
             return None
         elo = elo.sort_values("Elo", ascending=False)

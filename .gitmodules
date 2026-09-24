@@ -1,0 +1,4 @@
+[submodule "website"]
+	path = website
+	url = git@codeberg.org:not_a_feature/TabBench-Bio.git
+	branch = pages

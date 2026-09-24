@@ -29,12 +29,16 @@ import argparse
 import logging
 import sys
 import warnings
+from pathlib import Path
 
+import pandas as pd
+
+from tabbench_bio.elo import DEFAULT_N_BOOT
+from tabbench_bio.logging_utils import LOG_FORMAT
+from tabbench_bio.model_run import run_model
 from tabbench_bio.split_manifest import freeze_manifest
 
 warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
-
-from tabbench_bio.logging_utils import LOG_FORMAT  # noqa: E402
 
 
 def _apply_run_filters(config, args):
@@ -95,6 +99,8 @@ def cmd_run(args):
 
     if args.output:
         config["output_dir"] = args.output
+    if args.cache_dir:
+        config["cache_dir"] = args.cache_dir
 
     _apply_run_filters(config, args)
 
@@ -124,9 +130,51 @@ def cmd_run(args):
         compute_metrics_from_predictions(config)
 
 
+def _write_leaderboard_exports(lb, destination: Path, task: str) -> None:
+    """Write the CSV table and PNG figure for one cell and task."""
+    destination.mkdir(parents=True, exist_ok=True)
+    ranking = lb.rank(task)
+    ranking.to_csv(destination / "leaderboard.csv", index=False)
+    if not ranking.empty and ranking["Elo"].notna().any():
+        figure = lb.plot(task=task)
+        figure.savefig(destination / "elo.png", dpi=200, bbox_inches="tight")
+
+
 def cmd_leaderboard(args):
     """Print a leaderboard built from a result directory or published SQLite bundle."""
     from tabbench_bio.leaderboard import Leaderboard
+
+    if args.database or not (args.sqlite or args.results_dir):
+        database = Path(args.database or "results/merged/results.sqlite")
+        output = Path(args.out or "website")
+        from tabbench_bio.dashboard import build_website
+
+        dashboard, frames = build_website(
+            database,
+            output,
+            cells=[args.cell] if args.cell else None,
+            workers=args.workers,
+            n_boot=args.bootstrap_rounds,
+            reference_cell=args.reference_cell,
+            results_url=args.results_url,
+        )
+        for option in dashboard["cell_options"]:
+            cell = option["id"]
+            assert Path(cell).name == cell and cell not in (".", ".."), f"Invalid cell: {cell}"
+            lb = Leaderboard(
+                frames["regression"][frames["regression"]["cell"] == cell],
+                frames["classification"][frames["classification"]["cell"] == cell],
+            )
+            if args.task == "overall":
+                lb._ratings["overall"] = pd.DataFrame(
+                    [row for row in dashboard["cell_elo"] if row["cell"] == cell],
+                    columns=["model_id", "Elo", "Elo_lo", "Elo_hi", "n_targets"],
+                )
+            print(f"\n{cell}\n{lb.summary(task=args.task)}")
+            destination = output / "local" / cell / args.task
+            _write_leaderboard_exports(lb, destination, args.task)
+            print(f"Local exports: {destination}")
+        return
 
     lb = (
         Leaderboard.from_sqlite(args.sqlite, cell=args.cell)
@@ -170,7 +218,8 @@ def cmd_info(_args):
     print("A benchmark for ML on high-dimensional biological data (GEO/TCGA/Kaggle/OpenML).")
     print()
     print("  Source: https://github.com/not-a-feature/TabBench-Bio")
-    print("  PyPI:   pip install tabbench-bio")
+    print('  Install from the clone: uv pip install -e ".[bio]"')
+    print("  Model environments: see environments/README.md")
 
 
 def cmd_results(args):
@@ -180,11 +229,15 @@ def cmd_results(args):
         consolidate_results,
         import_legacy_results,
         install_snapshots,
+        merge_results,
         snapshot_database,
         snapshot_writers,
     )
 
-    if args.result_action == "import-legacy":
+    if args.result_action == "merge":
+        path = merge_results(args.source, args.output)
+        print(f"Merged result bundles into {path}")
+    elif args.result_action == "import-legacy":
         path = import_legacy_results(args.results_dir, bundle_writer=args.writer_id)
         print(f"Imported legacy artifacts into {path}")
     elif args.result_action == "freeze-splits":
@@ -223,6 +276,31 @@ def main():
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
 
+    model_p = sub.add_parser(
+        "model",
+        help="Run MODELKEY in its environment profile (also: tabbench-bio MODELKEY)",
+        description="Run a model in its installed .venvs/<profile> environment.",
+    )
+    model_p.add_argument("model_key")
+    model_p.add_argument(
+        "--full-grid", action="store_true", help="Run all 28 cells; default: reference cell"
+    )
+    model_p.add_argument("--output", help="Result root; default: results/<modelkey>")
+    model_p.add_argument("--cache-dir", help="Dataset cache; also accepts TABBENCH_CACHE_DIR")
+    model_p.add_argument(
+        "--threads",
+        type=int,
+        default=32,
+        help="Model/library threads, independent of CPU allocation (default: 32)",
+    )
+    model_p.add_argument("--device", choices=["cpu", "gpu"], help="Override the registered device")
+    model_p.set_defaults(func=run_model)
+
+    simple_merge = sub.add_parser("merge", help="Merge databases or result roots into a new file")
+    simple_merge.add_argument("source", nargs="+", help="Input databases or result roots")
+    simple_merge.add_argument("--output", default="results/merged/results.sqlite")
+    simple_merge.set_defaults(func=cmd_results, result_action="merge")
+
     # ---- run ----
     run_p = sub.add_parser("run", help="Run the benchmark pipeline")
     run_p.add_argument("--config", required=True, help="Path to config JSON")
@@ -233,6 +311,9 @@ def main():
         help="Pipeline step (default: all). 'prepare' only warms the split cache.",
     )
     run_p.add_argument("--output", default=None, help="Override output directory")
+    run_p.add_argument(
+        "--cache-dir", help="Override the runtime cache without changing frozen settings"
+    )
     run_p.add_argument("--seed-index", type=int, default=None, help="Run only this seed index")
     run_p.add_argument("--model", default=None, help="Run only this model")
     run_p.add_argument(
@@ -285,7 +366,33 @@ def main():
     lb_p = sub.add_parser(
         "leaderboard", help="Show a leaderboard from a result directory or SQLite bundle"
     )
-    lb_source = lb_p.add_mutually_exclusive_group(required=True)
+    lb_source = lb_p.add_mutually_exclusive_group()
+    lb_source.add_argument(
+        "database",
+        nargs="?",
+        help="SQLite database (default: results/merged/results.sqlite); generates website and local exports",
+    )
+    lb_p.add_argument(
+        "--out", help="Website directory; PNG/CSV exports go in local/ (default: website/)"
+    )
+    lb_p.add_argument(
+        "--workers", type=int, default=1, help="Parallel fold-metric and dashboard Elo workers"
+    )
+    lb_p.add_argument(
+        "--bootstrap-rounds",
+        type=int,
+        default=DEFAULT_N_BOOT,
+        help=f"Target-bootstrap rounds for dashboard and overall reports (default: {DEFAULT_N_BOOT})",
+    )
+    lb_p.add_argument(
+        "--reference-cell",
+        help="Website reference cell (default: cap_10000_n100, or first available)",
+    )
+    lb_p.add_argument(
+        "--results-url",
+        default="",
+        help="Optional URL of this exact database for the website download link",
+    )
     lb_source.add_argument("--results-dir", help="Pipeline results directory")
     lb_source.add_argument("--sqlite", help="Published TabBench Bio results.sqlite file")
     lb_p.add_argument("--cell", help="Feature/sample cell within a multi-cell SQLite bundle")
@@ -320,6 +427,20 @@ def main():
     # ---- transactional results ----
     results_p = sub.add_parser("results", help="Manage transactional result bundles")
     results_sub = results_p.add_subparsers(dest="result_action", required=True)
+    merge_p = results_sub.add_parser(
+        "merge", help="Combine separate model runs into a new SQLite database"
+    )
+    merge_p.add_argument(
+        "--source",
+        action="append",
+        required=True,
+        help="Source SQLite file or result root (repeat for each input)",
+    )
+    merge_p.add_argument(
+        "--output", required=True, help="New database path; must not already exist"
+    )
+    merge_p.set_defaults(func=cmd_results)
+
     freeze_p = results_sub.add_parser(
         "freeze-splits", help="Freeze a consistent complete CV split manifest"
     )
@@ -369,11 +490,14 @@ def main():
     info_p = sub.add_parser("info", help="Show package and ecosystem info")
     info_p.set_defaults(func=cmd_info)
 
-    args = parser.parse_args()
+    arguments = sys.argv[1:]
+    if arguments and not arguments[0].startswith("-") and arguments[0] not in sub.choices:
+        arguments = ["model", *arguments]
+    args = parser.parse_args(arguments)
 
-    if not hasattr(args, "func"):
+    if args.command is None:
         parser.print_help()
-        sys.exit(0)
+        return
 
     args.func(args)
 
