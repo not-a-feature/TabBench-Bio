@@ -6,10 +6,12 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 
 | Profile | Models |
 |---|---|
-| `standard` | Existing model roster, using the established `full` extra |
+| `standard` | Existing model roster except TabPFN 3.5, using the established `full` extra |
+| `tabpfn35` | TabPFN 3.5, using its separate extra |
 
 The model roster in `configs/models/all.json` declares these assignments. Entries in
-`src/tabbench_bio/models/custom.py` take precedence.
+`src/tabbench_bio/models/custom.py` take precedence. TabPFN-Wide and TabPFN 3.5 require
+different versions of the `tabpfn` package, so they use separate profiles.
 
 Install a profile from the repository root, replacing `standard` with its name:
 

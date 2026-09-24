@@ -41,6 +41,14 @@ dependencies = [
 ]
 
 [project.optional-dependencies]
+# Separate from models: TabPFN-Wide 0.3 requires tabpfn==8.0.3.
+tabpfn35 = [
+    "tabbench-bio[autogluon]",
+    "torch==2.13.0",
+    "tabpfn==9.0.0",
+    "tabpfn-extensions>=0.4.0",
+    "nvidia-ml-py>=12.0",
+]
 # Model fitting via AutoGluon. The fork (requirements-autogluon-fork.txt) lifts the
 # 500-feature cap on tabular foundation models — required for HDLSS omics matrices.
 autogluon = [

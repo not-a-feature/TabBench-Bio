@@ -1,0 +1,4 @@
+# TabPFN 3.5 requires a different tabpfn version from TabPFN-Wide.
+# Install from the repository root.
+-r ../requirements-autogluon-fork.txt
+-e .[bio,tabpfn35]

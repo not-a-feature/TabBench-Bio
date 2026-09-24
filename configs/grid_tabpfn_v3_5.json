@@ -1,0 +1,15 @@
+{
+  "_doc": "TabPFN-3.5 reference-cell run. Override caps/samples for a wider grid; keep results separate from v0.1.0.",
+  "caps": [10000],
+  "samples": [100],
+  "datasets": "datasets/bio_classification.json",
+  "datasets_regression": "datasets/bio_regression.json",
+  "models": [{"key": "TABPFN-V3.5", "device": "gpu", "environment": "tabpfn35"}],
+  "cv_folds": 5,
+  "time_limit": 3600,
+  "test_size": 0.2,
+  "random_state": 42,
+  "min_samples_per_class": 10,
+  "output": "results/tabpfn_v3_5",
+  "cache_dir": ".cache"
+}

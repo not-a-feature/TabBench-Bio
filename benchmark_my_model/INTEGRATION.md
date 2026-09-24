@@ -257,7 +257,8 @@ source a token file through `TABPFN_CREDENTIAL_FILE`.
 GPU runs use one benchmark worker per GPU. The multi-model feature sweep follows
 the same policy: model entries need `"device": "gpu"`, with no `solo` flag.
 The lower-level `run` command and `scripts/feature_sweep.py` use their current Python
-interpreter. Launch them from a profile that supports all selected models.
+interpreter. Launch them from a profile that supports all selected models. The
+separate V3.5 launcher uses `.venvs/tabpfn35/` and also runs its version smoke test.
 Installing or registering a model submits no jobs.
 
 For a small comparison using scikit-learn alone, see [Benchmark my model](README.md).

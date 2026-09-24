@@ -57,6 +57,8 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
     hp: dict = {}
     for name in models:
         key = name.upper()
+        if key == "TABPFNV35":
+            key = "TABPFN-V3.5"
         if key in CUSTOM_MODELS:
             module, class_name = CUSTOM_MODELS[key]["adapter"].split(":")
             cls = vars(import_module(module))[class_name]
