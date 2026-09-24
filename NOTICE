@@ -12,3 +12,9 @@ It remains under Apache-2.0; see licenses/Apache-2.0.txt.
 Its source header records the provenance and modifications.
 
 Dataset and separately installed model licences are unchanged.
+
+Bundled website libraries
+-------------------------
+Plotly.js cartesian 2.35.2 and JSZip 3.10.1 are distributed under their MIT
+licences in src/tabbench_bio/web/assets/. Atkinson Hyperlegible Next fonts
+retain the SIL Open Font License in web/assets/fonts/OFL.txt.

@@ -2,20 +2,18 @@ import json
 
 import pandas as pd
 
-from scripts import build_site
+from tabbench_bio import dashboard as build_site
 
 
-def test_dataset_explorer_exports_each_cell_and_preserves_metric_means(tmp_path, monkeypatch):
-    inputs = tmp_path / "inputs"
-    inputs.mkdir()
-    pd.DataFrame(
+def test_dataset_explorer_exports_each_cell_and_preserves_metric_means(tmp_path):
+    classification = pd.DataFrame(
         [
             {"dataset": "classification", "cell": "small", "model": "RF", "f1_macro__mean": 0.25},
             {"dataset": "classification", "cell": "large", "model": "RF", "f1_macro__mean": 0.75},
             {"dataset": "classification", "cell": "large", "model": "ALT", "f1_macro__mean": None},
         ]
-    ).to_csv(inputs / "sweep_summary_strict.csv", index=False)
-    pd.DataFrame(
+    ).to_dict("records")
+    regression = pd.DataFrame(
         [
             {
                 "dataset": "regression",
@@ -42,8 +40,7 @@ def test_dataset_explorer_exports_each_cell_and_preserves_metric_means(tmp_path,
                 "r2": 0.8,
             },
         ]
-    ).to_csv(inputs / "sweep_metrics_regression_strict.csv", index=False)
-    monkeypatch.setattr(build_site, "GENERATED_DATA", inputs)
+    )
     dashboard = {
         "meta": {"reference_cell": "small"},
         "models": {"RF": {}, "ALT": {}},
@@ -67,7 +64,7 @@ def test_dataset_explorer_exports_each_cell_and_preserves_metric_means(tmp_path,
             },
         ],
     }
-    build_site.write_dataset_explorer(tmp_path / "site", dashboard)
+    build_site.write_dataset_explorer(tmp_path / "site", dashboard, classification, regression)
     output = tmp_path / "site" / "data" / "datasets"
     index = json.loads((output / "index.json").read_text("utf-8"))
     assert len(index["datasets"]) == 2

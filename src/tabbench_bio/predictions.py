@@ -18,6 +18,7 @@ Usage
 
 import copy
 import gc
+import json
 import logging
 import os
 import random
@@ -45,6 +46,7 @@ from tabbench_bio.gpu_exclusivity import (
 )
 from tabbench_bio.logging_utils import LOG_FORMAT, run_file_logger
 from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
+from tabbench_bio.models.custom import CUSTOM_MODELS
 from tabbench_bio.result_store import ResultRepository, StoredAttempt
 from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
@@ -63,6 +65,9 @@ CLASSIFICATION_ONLY_MODELS: set[str] = {
     "TABPFN-WIDE",
     "TABPFN-WIDE-5K-NE3",
 }
+CLASSIFICATION_ONLY_MODELS.update(
+    key for key, entry in CUSTOM_MODELS.items() if entry["classification_only"]
+)
 # Bump only when memory handling changes materially. OOMs written by an older version are
 # retried once; current-version OOMs remain terminal on ordinary restarts.
 MEMORY_RETRY_VERSION = 1
@@ -967,6 +972,8 @@ def compute_predictions(
                         "inference_cpu_energy_j": None,
                     }
 
+                    if "TABBENCH_MODEL_HARDWARE" in os.environ:
+                        record["hardware"] = json.loads(os.environ["TABBENCH_MODEL_HARDWARE"])
                     if (
                         "TABBENCH_BIO_RESOURCE_TIER" in os.environ
                         and os.environ["TABBENCH_BIO_RESOURCE_TIER"] == "l40s"

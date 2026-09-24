@@ -192,7 +192,7 @@ def main():
         "table{border-collapse:collapse;width:100%;font-size:15px}td,th{padding:12px;text-align:left;"
         "border-bottom:1px solid #e2e8f0}th{background:#eff6ff}a{color:#2563eb}</style><main>"
         f"<h1>TabBench-Bio · {html.escape(args.name)}</h1><p>{html.escape(mode)}.</p>"
-        "<p>Fold-level Bradley–Terry Elo; Random Forest = 1000. Intervals resample datasets. "
+        "<p>Fold-level Bradley-Terry Elo; Random Forest = 1000. Intervals resample datasets. "
         "A small dataset subset is a smoke test, not a benchmark-wide claim. Baseline coverage may differ.</p>"
         '<img src="leaderboard.svg" alt="Elo ratings and 95 percent target-bootstrap intervals">'
         + table

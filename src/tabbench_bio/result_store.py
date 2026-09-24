@@ -26,7 +26,12 @@ from pathlib import Path
 
 import pandas as pd
 
-from tabbench_bio.split_manifest import load_manifest, split_versions, validate_truth
+from tabbench_bio.split_manifest import (
+    consistent_truth_hashes,
+    load_manifest,
+    split_versions,
+    validate_truth,
+)
 
 SCHEMA_VERSION = 1
 CANONICAL_FILENAME = "results.sqlite"
@@ -766,24 +771,79 @@ def install_snapshots(
     return installed
 
 
-def _copy_database_rows(source: Path, destination: sqlite3.Connection) -> None:
+def _merge_cell_config(existing: dict, incoming: dict, cell: str) -> dict:
+    dataset_keys = {"datasets_classification", "datasets_regression"}
+    roster_keys = {"models", "model_limits", "model_overrides"} | dataset_keys
+    left, right = _normalise_config(existing), _normalise_config(incoming)
+    differences = {
+        key
+        for key in (left.keys() | right.keys()) - roster_keys
+        if key not in left or key not in right or left[key] != right[key]
+    }
+    assert not differences, f"Incompatible configuration for {cell}: {sorted(differences)}"
+    shared_models = set(left["models"]) & set(right["models"])
+    merged = dict(left)
+    merged["models"] = list(dict.fromkeys([*left["models"], *right["models"]]))
+    for key in dataset_keys & (left.keys() | right.keys()):
+        assert key in left and key in right, f"Missing {key} for {cell}"
+        if left[key] != right[key]:
+            assert isinstance(left[key], list) and isinstance(right[key], list), (
+                f"Resolve {key} to explicit dataset lists before merging {cell}"
+            )
+            merged[key] = list(dict.fromkeys([*left[key], *right[key]]))
+    if dataset_keys <= merged.keys() and all(isinstance(merged[k], list) for k in dataset_keys):
+        assert not set(merged["datasets_classification"]) & set(merged["datasets_regression"]), (
+            f"Dataset task types conflict for {cell}"
+        )
+    for key in ("model_limits", "model_overrides"):
+        for model in shared_models | (left[key].keys() & right[key].keys()):
+            assert (model in left[key]) == (model in right[key]), (
+                f"Incompatible {key} for {cell}/{model}"
+            )
+            if model in left[key]:
+                assert left[key][model] == right[key][model], (
+                    f"Incompatible {key} for {cell}/{model}"
+                )
+        merged[key] = {**left[key], **right[key]}
+    return merged
+
+
+def _copy_database_rows(
+    source: Path, destination: sqlite3.Connection, *, merge_models: bool = False
+) -> None:
     with closing(_connect(source, read_only=True)) as connection:
         metadata = dict(connection.execute("SELECT key, value FROM metadata"))
         assert int(metadata["schema_version"]) == SCHEMA_VERSION, source
         destination_metadata = dict(destination.execute("SELECT key, value FROM metadata"))
-        assert metadata["experiment_id"] == destination_metadata["experiment_id"], source
+        if not merge_models:
+            assert metadata["experiment_id"] == destination_metadata["experiment_id"], source
+        else:
+            assert not connection.execute("PRAGMA foreign_key_check").fetchall(), source
         for cell, config_json, config_hash in connection.execute(
             "SELECT cell, config_json, config_sha256 FROM cells"
         ):
             existing = destination.execute(
                 "SELECT config_json, config_sha256 FROM cells WHERE cell = ?", (cell,)
             ).fetchone()
-            assert existing is None or existing == (config_json, config_hash), (
-                source,
-                cell,
-                existing,
-                config_hash,
-            )
+            if merge_models:
+                assert _sha256(config_json.encode("utf-8")) == config_hash, (source, cell)
+                if existing is not None:
+                    merged = _merge_cell_config(
+                        json.loads(existing[0]), json.loads(config_json), cell
+                    )
+                    config_json = _canonical_json(merged)
+                    config_hash = _sha256(config_json.encode("utf-8"))
+                    destination.execute(
+                        "UPDATE cells SET config_json = ?, config_sha256 = ? WHERE cell = ?",
+                        (config_json, config_hash, cell),
+                    )
+            else:
+                assert existing is None or existing == (config_json, config_hash), (
+                    source,
+                    cell,
+                    existing,
+                    config_hash,
+                )
             destination.execute(
                 "INSERT OR IGNORE INTO cells VALUES (?, ?, ?)", (cell, config_json, config_hash)
             )
@@ -795,14 +855,15 @@ def _copy_database_rows(source: Path, destination: sqlite3.Connection) -> None:
                 "FROM blobs WHERE sha256 = ?",
                 (row[0],),
             ).fetchone()
+            if merge_models or existing is not None:
+                assert row[2] == "zlib", (source, row[0])
+                payload = zlib.decompress(row[4])
+                assert len(payload) == row[3] and _sha256(payload) == row[0], (source, row[0])
             if existing is not None:
-                assert existing[2] == row[2] == "zlib", (source, row[0])
+                assert existing[2] == "zlib", (source, row[0])
                 existing_payload = zlib.decompress(existing[4])
-                incoming_payload = zlib.decompress(row[4])
                 assert len(existing_payload) == existing[3], (source, row[0])
-                assert len(incoming_payload) == row[3], (source, row[0])
-                assert _sha256(existing_payload) == row[0], (source, row[0])
-                assert incoming_payload == existing_payload, (source, row[0])
+                assert payload == existing_payload, (source, row[0])
             destination.execute("INSERT OR IGNORE INTO blobs VALUES (?, ?, ?, ?, ?)", row)
         for row in connection.execute(_ATTEMPT_SELECT):
             existing = destination.execute(
@@ -855,6 +916,70 @@ def consolidate_results(results_root: str | os.PathLike[str]) -> Path:
         os.replace(temporary, destination)
     finally:
         temporary.unlink(missing_ok=True)
+    return destination
+
+
+def merge_results(sources: list[str | os.PathLike[str]], output: str | os.PathLike[str]) -> Path:
+    """Combine separate model runs into a new, validated SQLite result bundle.
+
+    Each source is a database or a result root containing a canonical database
+    and/or writer bundles. Inputs are read-only; the output must not exist.
+    """
+    destination = Path(output).resolve()
+    assert not destination.exists(), f"Output already exists: {destination}"
+    paths = []
+    for source in sources:
+        path = Path(source).resolve()
+        if path.is_dir():
+            bundles = [path / CANONICAL_FILENAME] if (path / CANONICAL_FILENAME).is_file() else []
+            bundles.extend(sorted((path / WRITER_DIRECTORY).glob("*.sqlite")))
+            assert bundles, f"No result bundles under {path}"
+            paths.extend(bundles)
+        else:
+            assert path.is_file(), f"Missing source database: {path}"
+            paths.append(path)
+    paths = list(dict.fromkeys(paths))
+    assert paths, "At least one source database is required"
+    assert destination not in paths, "Output must be separate from every input"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".merge-results-", dir=destination.parent) as work:
+        temporary = Path(work) / CANONICAL_FILENAME
+        provenance = []
+        with closing(_connect(temporary)) as connection:
+            _initialise(
+                connection, experiment_id=destination.parent.name, bundle_writer="canonical"
+            )
+            connection.commit()
+            for source in paths:
+                snapshot = snapshot_database(source, Path(work) / "source.sqlite")
+                with closing(_connect(snapshot, read_only=True)) as reader:
+                    provenance.append(
+                        {
+                            "filename": source.name,
+                            "snapshot_sha256": _sha256_file(snapshot),
+                            "metadata": dict(reader.execute("SELECT key, value FROM metadata")),
+                            "cells": dict(reader.execute("SELECT cell, config_json FROM cells")),
+                        }
+                    )
+                _copy_database_rows(snapshot, connection, merge_models=True)
+                snapshot.unlink()
+            _assert_consistent_passes(connection)
+            with closing(connection.execute(_ATTEMPT_SELECT)) as cursor:
+                consistent_truth_hashes(_attempt_from_row(row) for row in cursor)
+            missing = connection.execute(
+                "SELECT attempt_id FROM attempts WHERE status = 'pass' "
+                "AND (prediction_sha256 IS NULL OR ground_truth_sha256 IS NULL) LIMIT 1"
+            ).fetchone()
+            assert missing is None, f"Passing attempt lacks prediction or ground truth: {missing}"
+            connection.execute(
+                "INSERT INTO metadata VALUES ('merge_sources', ?)", (_canonical_json(provenance),)
+            )
+            connection.commit()
+            assert connection.execute("PRAGMA integrity_check").fetchone() == ("ok",)
+            assert not connection.execute("PRAGMA foreign_key_check").fetchall()
+        temporary.chmod(0o640)
+        # Linking publishes the complete file and refuses a concurrently created output.
+        os.link(temporary, destination)
     return destination
 
 

@@ -20,6 +20,7 @@ import os
 import shutil
 import uuid
 from contextlib import nullcontext
+from importlib import import_module
 from typing import Any
 
 import torch
@@ -27,6 +28,7 @@ from pandas import DataFrame, Series
 
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
+from tabbench_bio.models.custom import CUSTOM_MODELS
 
 try:
     from autogluon.common import TabularDataset
@@ -55,6 +57,11 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
     hp: dict = {}
     for name in models:
         key = name.upper()
+        if key in CUSTOM_MODELS:
+            module, class_name = CUSTOM_MODELS[key]["adapter"].split(":")
+            cls = vars(import_module(module))[class_name]
+            hp[cls] = [{**gpu_arg}]
+            continue
         # TabPFN-Wide is a separate package, not in AutoGluon's registry; map it to
         # our AutoGluon wrapper (see tabbench_bio.models.tabpfn_wide).
         if key in ("TABPFN-WIDE", "TABPFNWIDE"):

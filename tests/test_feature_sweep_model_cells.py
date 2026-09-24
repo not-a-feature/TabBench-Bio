@@ -2,7 +2,7 @@
 
 from scripts.feature_sweep import _models_for_cell
 
-MODELS = ["RF", {"key": "AUTOGLUON", "device": "gpu", "solo": True}]
+MODELS = ["RF", {"key": "AUTOGLUON", "device": "gpu"}]
 MODEL_CELLS = {"AUTOGLUON": ["cap_10000_n100", "cap_full"]}
 
 

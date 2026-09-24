@@ -129,8 +129,7 @@ def test_cpu_scheduler_completes_other_units_before_propagating_failure(monkeypa
 def test_empty_device_pool_schedules_only_cpu_units(monkeypatch, finalize_cells):
     spec = {
         "full_cfg": "config.json",
-        "gpu_solo_cfg": "config_gpu_solo.json",
-        "gpu_shared_cfg": "config_gpu_shared.json",
+        "gpu_cfgs": ["config_gpu.json"],
         "cpu_cfg": "config_cpu.json",
         "n_splits": 2,
         "tag": "cap 2000/n=20",
@@ -153,8 +152,6 @@ def test_empty_device_pool_schedules_only_cpu_units(monkeypatch, finalize_cells)
     feature_sweep.run_grid_parallel(
         [spec],
         devices=[],
-        workers_per_device=1,
-        solo_workers=1,
         gpu_worker_cpus=1,
         cpu_workers=2,
         cpu_worker_cpus=4,

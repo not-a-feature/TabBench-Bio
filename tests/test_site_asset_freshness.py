@@ -1,252 +1,204 @@
+"""The packaged dashboard builds from SQLite, without repository or paper files."""
+
 import hashlib
 import json
 
 import pandas as pd
 import pytest
 
-from scripts import build_site
+from tabbench_bio import dashboard
+from tabbench_bio.cli import main
+from tabbench_bio.config import config_for_cell
+from tabbench_bio.elo import compute_elo, fold_scores
+from tabbench_bio.leaderboard import Leaderboard
+from tabbench_bio.result_store import ResultRepository, consolidate_results
 
 
-def sha256(path):
-    return hashlib.sha256(path.read_bytes()).hexdigest()
-
-
-def test_dataset_metadata_must_match_current_configuration(tmp_path, monkeypatch):
-    classification = tmp_path / "classification.json"
-    regression = tmp_path / "regression.json"
-    classification.write_text(json.dumps(["old", "new"]), encoding="utf-8")
-    regression.write_text(json.dumps(["regression"]), encoding="utf-8")
-    monkeypatch.setattr(build_site, "CLASSIFICATION_DATASETS", classification)
-    monkeypatch.setattr(build_site, "REGRESSION_DATASETS", regression)
-
-    with pytest.raises(AssertionError, match="missing=\\['new'\\]"):
-        build_site.assert_dataset_metadata_current(
-            [{"dataset_id": "old"}, {"dataset_id": "regression"}]
+@pytest.fixture
+def database(tmp_path):
+    root = tmp_path / "results"
+    for n in (20, 50):
+        cell = root / f"cap_100_n{n}"
+        config = config_for_cell(
+            100,
+            n,
+            datasets=["toy"],
+            datasets_regression=["reg"],
+            models=["RF", "DUMMY", "NEW", "PARTIAL"],
+            limits={},
+            overrides={},
+            n_rep=1,
+            cv_folds=2,
+            time_limit=60,
+            out_dir=str(cell),
+            cache_dir=".cache",
+            test_size=0.2,
+            random_state=42,
+            min_samples_per_class=2,
         )
-
-    build_site.assert_dataset_metadata_current(
-        [
-            {"dataset_id": "old"},
-            {"dataset_id": "new"},
-            {"dataset_id": "regression"},
-        ]
-    )
-
-
-def test_generated_input_manifest_must_match_files(tmp_path, monkeypatch):
-    current_input = tmp_path / "input.json"
-    current_input.write_text("current", encoding="utf-8")
-    manifest = tmp_path / "manifest.json"
-    manifest.write_text(
-        json.dumps(
-            {
-                "inputs": [
-                    {
-                        "path": "input.json",
-                        "sha256": sha256(current_input),
+        repository = ResultRepository(cell, config)
+        for seed in (0, 1):
+            for dataset, values in (("toy", [0, 0, 1, 1]), ("reg", [1.0, 2.0, 3.0, 4.0])):
+                truth = pd.DataFrame({"target": values}, index=range(seed * 4, seed * 4 + 4))
+                for model in config["models"]:
+                    if model == "PARTIAL" and seed == 1:
+                        continue
+                    failed = n == 50 and model == "NEW" and dataset == "toy" and seed == 0
+                    record = {
+                        "dataset": dataset + "_0",
+                        "model": model,
+                        "status": "fail" if failed else "pass",
+                        "reason": "fit_oom" if failed else "",
+                        "n_train_samples": n,
+                        "train_time_s": 1.0 if n == 20 else 10.0,
+                        "inference_time_s": 0.5,
                     }
-                ]
-            }
-        ),
-        encoding="utf-8",
-    )
-    monkeypatch.setattr(build_site, "PROJECT_ROOT", tmp_path)
-    monkeypatch.setattr(build_site, "GENERATED_MANIFEST", manifest)
-
-    build_site.assert_generated_inputs_current()
-    current_input.write_text("stale", encoding="utf-8")
-
-    with pytest.raises(AssertionError, match="input.json"):
-        build_site.assert_generated_inputs_current()
-
-
-def test_site_build_writes_current_latex_leaderboard(tmp_path):
-    output = tmp_path / "leaderboard_table.tex"
-    reference = [
-        {
-            "model_id": "AUTOGLUON",
-            "display": "AutoGluon",
-            "Elo": 1200,
-            "Elo_lo": 1100,
-            "Elo_hi": 1300,
-            "n_targets": 57,
-            "f1_macro": 0.8,
-        },
-        {
-            "model_id": "TABPFN-WIDE",
-            "display": "TabPFN Wide (8k)",
-            "Elo": 1100,
-            "Elo_lo": 1000,
-            "Elo_hi": 1200,
-            "n_targets": 44,
-            "f1_macro": 0.75,
-        },
-        {
-            "model_id": "DUMMY",
-            "display": "Constant",
-            "Elo": 500,
-            "Elo_lo": 400,
-            "Elo_hi": 600,
-            "n_targets": 57,
-            "f1_macro": 0.2,
-        },
-    ]
-
-    build_site.write_latex_leaderboard(reference, output)
-
-    table = output.read_text(encoding="utf-8")
-    assert "1 & TabPFN Wide (8k) & 1100 & [1000, 1200] & 44 & 0.750" in table
-    assert "AutoGluon" not in table
-    assert "Constant" not in table
+                    prediction = (
+                        truth.assign(target=[0, 0, 1, 0])
+                        if model == "RF"
+                        else truth.assign(target=0)
+                    )
+                    proba = (
+                        pd.DataFrame(
+                            {0: [0.9, 0.8, 0.2, 0.1], 1: [0.1, 0.2, 0.8, 0.9]}, index=truth.index
+                        )
+                        if dataset == "toy"
+                        else None
+                    )
+                    repository.write(
+                        record,
+                        seed=seed,
+                        ground_truth=truth,
+                        prediction=None if failed else prediction,
+                        probability=None if failed else proba,
+                    )
+    return consolidate_results(root)
 
 
-def test_sitemap_keeps_citation_and_machine_readable_routes():
-    sitemap = build_site.build_sitemap("https://tabbench-bio.eu", "2026-08-30")
-
-    assert "https://tabbench-bio.eu/citation.html" in sitemap
-    assert "https://tabbench-bio.eu/CITATION.cff" in sitemap
-    assert "https://tabbench-bio.eu/data/raw/index.json" not in sitemap
-
-
-def test_llms_metadata_describes_strict_primary_and_adaptive_sensitivity():
-    dashboard = {
-        "meta": {
-            "snapshot_utc": "2026-08-30T18:30:00Z",
-            "configured_model_count": 1,
-            "evaluation_points_per_model": 10,
-            "paper_url": "https://arxiv.org/abs/XXXX.XXXXX",
-        },
-        "progress": {
-            "recorded": 8,
-            "expected": 10,
-            "fraction": 0.8,
-            "status": {"pass": 7, "skip": 1, "fail": 0},
-        },
-        "datasets": [
-            {"task": "Classification", "modality": "Gene expression"},
-            {"task": "Regression", "modality": "Molecular properties"},
-        ],
-        "models": {"LR": {"display": "Logistic Regression", "training_data_overlap": False}},
-        "cell_options": [{"id": "cap_10000_n100"}],
-        "reference": [
-            {
-                "display": "Logistic Regression",
-                "cell_label": "p=10,000, n=100",
-                "Elo": 1000,
-                "Elo_lo": 900,
-                "Elo_hi": 1100,
-                "n_targets": 2,
-            }
-        ],
-        "raw_exports": [
-            {
-                "format": "sqlite3",
-                "available": False,
-                "path": "",
-                "records": 123,
-                "bytes": 456,
-                "sha256": "abc123",
-            }
-        ],
-    }
-
-    text = build_site.build_llms_text(dashboard, "https://tabbench-bio.eu")
-
-    assert "2 registered datasets: 1 classification, 1 regression" in text
-    assert "primary charts and rankings use strict nominal-cell results" in text
-    assert "data/raw/" not in text
-    assert "Canonical results SQLite: release upload pending" in text
-    assert "CITATION.cff" in text
-    assert "## Training-data overlap" not in text
-    dashboard["models"]["TABDPT"] = {"display": "TabDPT", "training_data_overlap": True}
-    dashboard["models"]["NEW"] = {"display": "New model", "training_data_overlap": True}
-    annotated = build_site.build_llms_text(dashboard, "https://tabbench-bio.eu")
-    for name in ("TabDPT", "New model"):
-        assert (
-            f"† {name}: Part of the benchmark training data was used in the training process of this model."
-            in annotated
+def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, monkeypatch):
+    original = hashlib.sha256(database.read_bytes()).hexdigest()
+    monkeypatch.chdir(tmp_path)
+    output = tmp_path / "site"
+    payload, strict = dashboard.build_website(database, output, n_boot=8)
+    parsed = json.loads((output / "data/dashboard.json").read_text())
+    assert parsed["schema_version"] == 9
+    assert set(parsed["analysis_views"]) == {"strict", "adaptive", "conditional"}
+    assert parsed["models"]["NEW"]["category"] == "Custom"
+    assert parsed["meta"]["reference_cell"] == "cap_100_n20"
+    assert parsed["progress"]["recorded"] < parsed["progress"]["expected"]
+    assert "PARTIAL" not in {row["model_id"] for row in payload["cell_elo"]}
+    for cell in ("cap_100_n20", "cap_100_n50"):
+        lb = Leaderboard.from_sqlite(database, cell=cell)
+        expected = compute_elo(fold_scores(lb._clf_metrics, lb._reg_metrics), n_boot=8)
+        actual = [row for row in payload["cell_elo"] if row["cell"] == cell]
+        assert {row["model_id"]: row["Elo"] for row in actual} == dict(
+            zip(expected.model_id, expected.Elo)
         )
-    assert "† Logistic Regression" not in annotated
-    dashboard["models"]["NEW"]["training_data_overlap"] = False
-    assert "† New model" not in build_site.build_llms_text(dashboard, "https://tabbench-bio.eu")
-
-
-def test_artifact_index_contains_only_canonical_sqlite(tmp_path, monkeypatch):
-    sqlite_path = tmp_path / "results.sqlite"
-    sqlite_path.write_bytes(b"database")
-    monkeypatch.setattr(build_site, "_sqlite_attempt_count", lambda path: 123)
-
-    exports = build_site.build_artifact_index(sqlite_path, "https://example.test/results.sqlite")
-
-    assert len(exports) == 1
-    assert exports[0]["format"] == "sqlite3"
-    assert exports[0]["available"] is True
-
-
-def test_leaderboard_export_contains_both_analysis_views(tmp_path):
-    output = tmp_path / "leaderboard.json"
-    dashboard = {
-        "meta": {"snapshot_utc": "2026-09-02T20:30:05Z", "reference_cell": "cap_10000_n100"},
-        "models": {"LR": {"display": "Logistic Regression"}},
-        "cell_options": [{"id": "cap_10000_n100"}],
-        "reference": [{"model_id": "LR", "Elo": 1000}],
-        "cell_elo": [{"cell": "cap_10000_n100", "model_id": "LR", "Elo": 1000}],
-        "analysis_views": {
-            "strict": {"reference": [{"model_id": "LR"}], "cell_elo": []},
-            "adaptive": {"reference": [{"model_id": "LR"}], "cell_elo": []},
-        },
-    }
-
-    entry = build_site.write_leaderboard_export(dashboard, output)
-    payload = json.loads(output.read_text(encoding="utf-8"))
-
-    assert set(payload["analysis_views"]) == {"strict", "adaptive"}
-    assert payload["primary_analysis_view"] == "strict"
-    assert entry["path"] == "data/leaderboard.json"
-
-
-def test_adaptive_cost_uses_the_reused_source_cell_timing(tmp_path, monkeypatch):
-    generated = tmp_path / "generated"
-    generated.mkdir()
-    pd.DataFrame(
-        [
-            {
-                "cell": "cap_100_n100",
-                "dataset": "dataset-id",
-                "key": "target-id",
-                "seed": 0,
-                "model": "MODEL",
-                "f1_macro": 0.8,
-                "fallback": True,
-                "reused_from_cell": "cap_100_n50",
-            }
-        ]
-    ).to_csv(generated / "sweep_metrics_classification_adaptive.csv", index=False)
-    run_stats = tmp_path / "run_stats.csv"
-    pd.DataFrame(
-        [
-            {
-                "cell": "cap_100_n50",
-                "seed": 0,
-                "dataset": "target-id",
-                "model": "MODEL",
-                "status": "pass",
-                "train_time_s": 3.0,
-                "inference_time_s": 0.5,
-            }
-        ]
-    ).to_csv(run_stats, index=False)
-    monkeypatch.setattr(build_site, "GENERATED_DATA", generated)
-
-    rows = build_site.build_cost_grid(
-        {"MODEL": {"display": "Model", "category": "Classical"}},
-        [{"dataset_id": "dataset-id", "modality": "Modality"}],
-        ["cap_100_n100"],
-        ["all", "Modality"],
-        ["f1_macro"],
-        {"run_stats": run_stats},
-        "_adaptive",
+    costs = parsed["analysis_views"]["adaptive"]["cost_grid"]
+    new_cost = next(
+        row
+        for row in costs
+        if row["cell"] == "cap_100_n50" and row["model_id"] == "NEW" and row["domain"] == "all"
     )
+    assert new_cost["train_time_s"] == 5.5  # Median of the source and nominal successful fits.
+    assert strict["classification"].query("model == 'RF'")["roc_auc"].eq(1).all()
+    registry = json.loads((output / "data/datasets/index.json").read_text())
+    assert len(registry["datasets"]) == 2
+    for dataset in registry["datasets"]:
+        scores = json.loads((output / "data/datasets" / dataset["scores_file"]).read_text())
+        assert scores["dataset_id"] == dataset["dataset_id"]
+        assert scores["scores"]
+    assert not list(output.rglob("*.tex"))
+    assert (output / "models.html").is_file()
+    assert (output / "assets/plotly-cartesian.min.js").is_file()
+    for asset in (dashboard.PACKAGE_ROOT / "web").rglob("*"):
+        if asset.is_file() and asset.name not in {"llms.txt", "robots.txt", "sitemap.xml"}:
+            relative = asset.relative_to(dashboard.PACKAGE_ROOT / "web")
+            assert (output / relative).read_bytes() == asset.read_bytes(), relative
+    guide = (output / "llms.txt").read_text(encoding="utf-8")
+    for section in (
+        "Current reference results",
+        "Evaluated models",
+        "Agent skill",
+        "Citation",
+        "Machine-readable data",
+    ):
+        assert f"## {section}" in guide
+    assert "2 registered datasets: 1 classification, 1 regression." in guide
+    assert parsed["meta"]["snapshot_utc"] in guide
+    assert "downloadable LaTeX" not in guide
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == original
+    assert not list(database.parent.glob("results.sqlite-*"))
+    assert str(database.parent) not in (output / "data/dashboard.json").read_text()
+    monkeypatch.setattr(
+        dashboard, "compute_elo", lambda *a, **k: pytest.fail("Unchanged Elo should be cached")
+    )
+    monkeypatch.setattr(
+        "tabbench_bio.leaderboard._sqlite_frame",
+        lambda *a: pytest.fail("Unchanged fold metrics should be cached"),
+    )
+    assert (tmp_path / "site.cache/fold_metrics.sqlite").is_file()
+    assert not list(output.rglob("*.sqlite"))
+    dashboard.build_website(database, output, n_boot=8)
 
-    assert {row["cell"] for row in rows} == {"cap_100_n100"}
-    assert {row["train_time_s"] for row in rows} == {3.0}
+
+def test_cli_writes_matching_reports_and_website(database, tmp_path, monkeypatch):
+    output = tmp_path / "web"
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "tabbench-bio",
+            "leaderboard",
+            str(database),
+            "--out",
+            str(output),
+            "--bootstrap-rounds",
+            "8",
+            "--workers",
+            "2",
+        ],
+    )
+    main()
+    payload = json.loads((output / "data/leaderboard.json").read_text())
+    for cell in ("cap_100_n20", "cap_100_n50"):
+        report = output / "local" / cell / "overall"
+        assert (report / "elo.png").is_file()
+        assert not (report / "elo.svg").exists()
+        assert not (report / "report.html").exists()
+        table = pd.read_csv(report / "leaderboard.csv").dropna(subset=["Elo"])
+        assert dict(zip(table.model_id, table.Elo)) == {
+            row["model_id"]: row["Elo"] for row in payload["cell_elo"] if row["cell"] == cell
+        }
+
+
+@pytest.mark.parametrize("task", ["classification", "regression"])
+def test_incomplete_database_without_rf_builds_an_empty_ranking(tmp_path, task):
+    root = tmp_path / "empty"
+    config = config_for_cell(
+        100,
+        20,
+        datasets=["toy"] if task == "classification" else [],
+        datasets_regression=["toy"] if task == "regression" else [],
+        models=["NEW"],
+        limits={},
+        overrides={},
+        n_rep=1,
+        cv_folds=2,
+        time_limit=60,
+        out_dir=str(root / "cap_100_n20"),
+        cache_dir=".cache",
+        test_size=0.2,
+        random_state=42,
+        min_samples_per_class=2,
+    )
+    repository = ResultRepository(root / "cap_100_n20", config)
+    repository.write(
+        {"dataset": "toy_0", "model": "NEW", "status": "fail", "reason": "fit_error"}, seed=0
+    )
+    database = consolidate_results(root)
+    result, _ = dashboard.build_website(database, tmp_path / "site", n_boot=8)
+    assert result["cell_elo"] == []
+    assert result["reference"] == []
+    assert result["cost_grid"] == []
+    assert result["progress"]["fraction"] == 0.5

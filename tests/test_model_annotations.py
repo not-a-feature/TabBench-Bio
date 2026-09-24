@@ -1,15 +1,21 @@
 import json
+from pathlib import Path
 
-from scripts import build_site, generate_social_preview
+from scripts import generate_social_preview
+from tabbench_bio import dashboard as build_site
 from tabbench_bio.config import parse_models
 
 
 def test_existing_model_roster_contains_annotation():
-    models = json.loads(build_site.MODEL_CONFIG.read_text(encoding="utf-8"))
+    models = json.loads(
+        (Path(__file__).resolve().parents[1] / "configs/models/all.json").read_text(
+            encoding="utf-8"
+        )
+    )
     tabdpt = next(model for model in models if model["key"] == "TABDPT")
     assert tabdpt["training_data_overlap"] is True
     assert build_site.model_meta("TABDPT")["training_data_overlap"] is True
-    assert ("TABDPT", "gpu", True) in parse_models(models)
+    assert ("TABDPT", "gpu") in parse_models(models)
 
 
 def test_annotation_applies_to_new_model(monkeypatch):

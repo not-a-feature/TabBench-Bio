@@ -59,11 +59,11 @@ class ClassificationMetrics:
         if y_proba is not None:
             try:
                 metrics["roc_auc"] = self.roc_auc(y_true, y_proba)
-            except Exception:
+            except ValueError:
                 metrics["roc_auc"] = np.nan
             try:
                 metrics["log_loss"] = self.log_loss(y_true, y_proba)
-            except Exception:
+            except ValueError:
                 metrics["log_loss"] = np.nan
         return metrics
 
@@ -106,9 +106,21 @@ class ClassificationMetrics:
 
     def log_loss(self, y_true, y_proba) -> float:
         """Cross-entropy. Accepts 1-D proba for binary or 2-D (n_samples, n_classes)."""
+        y_proba = np.asarray(y_proba, dtype=np.float64)
+        assert np.isfinite(y_proba).all() and ((0 <= y_proba) & (y_proba <= 1)).all(), (
+            "Class probabilities must be finite and between 0 and 1"
+        )
         if y_proba.ndim == 1:
             # Binary: sklearn log_loss wants 2-D for >=2 classes; build it.
             y_proba = np.column_stack([1.0 - y_proba, y_proba])
+        assert y_proba.ndim == 2, "Class probabilities must be a vector or matrix"
+        row_sums = y_proba.sum(axis=1, keepdims=True)
+        assert np.allclose(row_sums, 1.0, rtol=0, atol=1e-6), (
+            "Class probabilities must sum to one; "
+            f"maximum row-sum error: {np.max(np.abs(row_sums - 1.0)):.6g}"
+        )
+        # CSV restores float32 predictions as float64. Correct only rounding-sized drift.
+        y_proba = y_proba / row_sums
         return float(log_loss(y_true, y_proba, labels=np.unique(y_true)))
 
     def confusion_matrix(self, y_true, y_pred, normalize=None) -> np.ndarray:

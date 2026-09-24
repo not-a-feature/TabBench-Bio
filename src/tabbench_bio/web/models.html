@@ -1,0 +1,64 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Model strengths and weaknesses across dataset modalities and training budgets.">
+  <meta name="theme-color" content="#f4f5f1">
+  <link rel="canonical" href="https://tabbench-bio.eu/models.html">
+  <title>Models · TabBench-Bio</title>
+  <link rel="icon" href="assets/favicon.svg?v=20260821-4" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.min.css?v=20260914-lighter-background">
+</head>
+<body data-page="models">
+  <header class="site-header">
+    <a class="wordmark" href="index.html" aria-label="TabBench-Bio home"><span class="wordmark-mark" aria-hidden="true"></span><span>TabBench-<strong>Bio</strong></span></a>
+    <nav aria-label="Primary navigation"><a href="index.html#explore">Explore</a><a href="datasets.html">Datasets</a><a href="models.html" aria-current="page">Models</a><a href="artifacts.html">Artifacts</a><a href="changelog.html">Changelog</a><a href="https://github.com/not-a-feature/TabBench-Bio">GitHub</a></nav>
+    <button id="theme-toggle" class="theme-button" type="button" aria-label="Switch to dark theme" aria-pressed="false" title="Switch to dark theme"><span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span><span class="theme-icon theme-icon-moon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M20.7 15.1A8.5 8.5 0 0 1 8.9 3.3 8.5 8.5 0 1 0 20.7 15.1Z"></path></svg></span></button>
+  </header>
+  <main id="top">
+    <section class="page-hero shell"><div class="section-heading"><div><p class="eyebrow">Model cards</p><h1>Strengths and weaknesses across budgets.</h1></div><p>Compare models across dataset modalities and training budgets using strict, fold-level Macro-F1 Elo.</p></div></section>
+    <section class="section section-muted"><div class="shell">
+      <article class="panel panel-main model-card" aria-labelledby="model-card-title">
+        <div class="panel-head model-card-head">
+          <div>
+            <p class="panel-kicker">Model profile</p>
+            <h2 id="model-card-title"><span id="model-card-name">—</span></h2>
+            <div class="model-card-title-meta"><span id="model-card-family">—</span><span id="model-card-limit">—</span></div>
+          </div>
+          <div class="controls">
+            <label>Model<select id="model-card-model" aria-label="Model card model"></select></label>
+            <label>Compare with<select id="model-card-comparator" aria-label="Model card comparison model"></select></label>
+            <label>Feature cap<select id="model-card-cap" aria-label="Model card feature cap"></select></label>
+          </div>
+        </div>
+        <p id="model-card-overlap-warning" class="model-card-limit-warning" hidden></p>
+        <p class="model-card-disclaimer"><strong>Default parameters.</strong> Peer models use their prespecified benchmark-default configuration without per-dataset tuning. This card describes that configuration, not the best achievable tuned model.</p>
+        <div class="model-card-content">
+          <h4 class="model-card-map-title">Operating map</h4>
+          <p id="model-card-caption" class="model-card-caption">Macro-F1 Elo relative to Random Forest. Columns are training-sample caps; rows are dataset modalities. Small labels show the number of binding targets.</p>
+          <div class="model-card-grid-wrap">
+            <div id="model-card-grid" class="model-card-grid" role="table" aria-label="Model performance by modality and sample budget"></div>
+          </div>
+          <div class="model-card-foot">
+            <div class="model-card-legend" aria-label="Operating map legend">
+              <div id="model-card-scale-label">Elo difference vs. Random Forest</div>
+              <div class="model-card-scale" aria-hidden="true"></div>
+              <div id="model-card-scale-ticks" class="model-card-scale-ticks"></div>
+              <div class="model-card-scale-note">Fixed nonlinear scale; extremes capped at ±1,000 Elo.</div>
+              <span><i class="model-card-key model-card-key-missing" aria-hidden="true"></i>No result / comparison unavailable</span>
+            </div>
+            <p id="model-card-summary" aria-live="polite"></p>
+          </div>
+        </div>
+      </article>
+    </div></section>
+  </main>
+  <footer><div class="shell footer-inner"><div class="footer-identity"><a class="university-logo" href="https://uni-tuebingen.de/" target="_blank" rel="noreferrer" aria-label="University of Tübingen"><img src="assets/university-of-tuebingen.svg" alt="University of Tübingen" loading="lazy" decoding="async"></a><div class="footer-copy"><strong>TabBench-Bio</strong><a href="https://uni-tuebingen.de/fakultaeten/mathematisch-naturwissenschaftliche-fakultaet/fachbereiche/informatik/lehrstuehle/methods-in-medical-informatics/" target="_blank" rel="noreferrer">Methods in Medical Informatics, University of Tübingen <span aria-hidden="true">↗</span></a><span>Maintained by <a href="https://juleskreuer.eu/" target="_blank" rel="noreferrer">Jules Kreuer <span aria-hidden="true">↗</span></a></span></div></div><div class="footer-links"><a href="imprint.html">Imprint &amp; Privacy</a></div></div></footer>
+  <div id="load-error" class="load-error" hidden></div>
+  <script src="js/analytics.js?v=20260908-optout"></script>
+  <script src="js/app.js?v=20260923-v010-release"></script>
+</body>
+</html>

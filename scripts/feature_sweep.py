@@ -23,17 +23,11 @@ fold partition seed is the CV *repeat* (not the cell), so all cells share one pa
 the learning curve varies only the feature/sample budget on a fixed test set. Set
 ``cv_folds`` to ``null`` for the legacy repeated-holdout sweep with ``n_rep`` repetitions per cell.
 
-Parallelism: the model list is split by device tag (``configs/models/all.json``) and streamed
-through three concurrent pools — GPU ``solo`` models (memory-heavy foundation models) pinned
-one-per-GPU so they never share VRAM, the remaining light GPU models packed several per GPU,
-and CPU-tagged models in a separate GPU-free pool — so GPUs and idle cores saturate at once
-without a co-tenant fit OOMing or silently degrading a foundation model's context. Each
-``(cell, seed, tier)`` unit is leak-free and disjoint on disk (split-cache key folds in cap,
-train_subsample and seed), so a crashed unit just leaves a gap a rerun resumes. GPUs come from
-the environment (``CUDA_VISIBLE_DEVICES`` / ``SLURM_GPUS_ON_NODE``, or ``NUM_GPUS`` to force a
-count); ``GPU_WORKERS_PER_DEVICE`` packs several *shared* (non-solo) units per GPU;
-``CPU_POOL_WORKERS`` sets the CPU pool width. A cell's metrics run once (CPU-only) after every
-pool finishes its seeds. Tag a model ``"solo": true`` in the model list to give it a whole GPU.
+Parallelism: GPU models run one worker per GPU; CPU models use a separate GPU-free
+pool. Each ``(cell, seed, device config)`` unit can resume independently. GPUs come from
+``CUDA_VISIBLE_DEVICES`` / ``SLURM_GPUS_ON_NODE``, or ``NUM_GPUS`` to force a count.
+``CPU_POOL_WORKERS`` sets the CPU pool width. A cell's metrics run once after all its
+workers finish. Existing split GPU configs are also scheduled exclusively.
 Use ``--include-device gpu`` or ``--include-device cpu`` to schedule just one model lane while
 leaving the frozen per-cell experiment configs unchanged.
 
@@ -57,10 +51,14 @@ import subprocess
 import sys
 import threading
 import time
+from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timedelta
+from queue import Queue
 
 import pandas as pd
 
+from tabbench_bio.config import cell_name as _cell_dirname
+from tabbench_bio.config import config_for_cell as _config_for_cell
 from tabbench_bio.config import model_limits, model_overrides, parse_models, resolve_list
 from tabbench_bio.io_utils import atomic_to_csv, atomic_write_json
 from tabbench_bio.result_store import consolidate_results
@@ -110,20 +108,12 @@ def _scope_cell_specs(cell_specs: list[dict], model_devices) -> list[dict]:
     for spec in cell_specs:
         item = dict(spec)
         if "gpu" not in selected:
-            item["gpu_solo_cfg"] = None
-            item["gpu_shared_cfg"] = None
+            item["gpu_cfgs"] = []
         if "cpu" not in selected:
             item["cpu_cfg"] = None
-        if item["gpu_solo_cfg"] or item["gpu_shared_cfg"] or item["cpu_cfg"]:
+        if item["gpu_cfgs"] or item["cpu_cfg"]:
             scoped.append(item)
     return scoped
-
-
-def _cell_dirname(cap: int | None, n_train: int | None) -> str:
-    """Per-cell results dir. Full-sample cells reuse the 1-D sweep's ``cap_<cap>/``;
-    an uncapped feature run (``cap is None``) lives under ``cap_full/``."""
-    cap_s = "full" if cap is None else str(cap)
-    return f"cap_{cap_s}" if n_train is None else f"cap_{cap_s}_n{n_train}"
 
 
 def _models_for_cell(models: list, model_cells: dict[str, list[str]], cap, n_train) -> list:
@@ -140,63 +130,6 @@ def _models_for_cell(models: list, model_cells: dict[str, list[str]], cap, n_tra
         if (entry if isinstance(entry, str) else entry["key"]) not in model_cells
         or cell in model_cells[entry if isinstance(entry, str) else entry["key"]]
     ]
-
-
-def _config_for_cell(
-    cap,
-    n_train,
-    *,
-    datasets,
-    datasets_regression,
-    models,
-    limits,
-    overrides,
-    n_rep,
-    cv_folds,
-    time_limit,
-    out_dir,
-    cache_dir,
-    test_size,
-    random_state,
-    min_samples_per_class,
-):
-    # cv_folds set => stratified k-fold per cell x dataset (n_repetitions pinned to 1);
-    # None => legacy holdout with n_rep repetitions.
-    return {
-        "datasets_classification": datasets,
-        "datasets_regression": datasets_regression,
-        "test_size": test_size,
-        "n_repetitions": 1 if cv_folds is not None else n_rep,
-        "cv_folds": cv_folds,
-        "random_state": random_state,
-        "cache_dir": cache_dir,
-        "output_dir": out_dir,
-        "models": models,
-        "model_limits": limits,
-        "model_overrides": overrides,
-        "autogluon_time_limit": time_limit,
-        # Run-wide fitting regime: one library-default configuration per model, no HPO, no
-        # bagging. Roster entries may override it (see config.model_overrides); AUTOGLUON does,
-        # which is why it is reported as a best-case AutoML reference and not a ranked peer.
-        "autogluon_presets": "medium_quality",
-        "optimize": False,
-        "ensemble": False,
-        "num_hpo_trials": 0,
-        "min_samples_per_class": min_samples_per_class,
-        "group_regression_splits": False,
-        "bio_max_features": cap,
-        "max_classes": None,
-        # Sample axis: cap TRAINING rows (stratified, train-only). null = all rows.
-        "train_subsample": n_train,
-        "subsample": None,
-        # KNN's AutoGluon preprocessor drops every column carrying a NaN, which on the sparse
-        # metagenomic abundance matrices leaves it nothing to fit ("No valid features to train
-        # KNeighbors"); an explicit train-fitted median makes the unit measure the model.
-        "nan_policy": {"default": "native", "KNN": "median"},
-        "exclude_keys": [],
-        "exclude_datasets": [],
-        "exclude_targets": [],
-    }
 
 
 def _gpu_devices() -> list[str]:
@@ -230,12 +163,9 @@ def _write_cell_config(
 ) -> dict:
     """Write a grid cell's configs and return its scheduling spec.
 
-    Four configs share one ``out_dir``: ``config.json`` (full model list — drives the
-    once-per-cell metrics step) plus the device/tier subsets the pools fit in parallel, each
-    written only when non-empty — ``config_gpu_solo.json`` (memory-heavy models pinned
-    one-per-GPU), ``config_gpu_shared.json`` (light GPU models packed several per GPU) and
-    ``config_cpu.json`` (the GPU-free pool). ``n_splits`` is the CV fold count when
-    ``cv_folds`` is set, else the holdout repetition count.
+    ``config.json`` contains the full roster for metrics. ``config_gpu.json`` and
+    ``config_cpu.json`` contain the non-empty device subsets. Existing legacy GPU
+    configs remain unchanged and run with the same exclusive GPU scheduling.
     """
     out_dir = os.path.join(out_root, _cell_dirname(cap, n_train))
     os.makedirs(out_dir, exist_ok=True)
@@ -246,41 +176,45 @@ def _write_cell_config(
     if os.path.isfile(existing_full_path):
         config_paths = {
             "full_cfg": existing_full_path,
-            "gpu_solo_cfg": os.path.join(out_dir, "config_gpu_solo.json"),
-            "gpu_shared_cfg": os.path.join(out_dir, "config_gpu_shared.json"),
+            "gpu_cfgs": [
+                os.path.join(out_dir, name)
+                for name in ("config_gpu.json", "config_gpu_solo.json", "config_gpu_shared.json")
+                if os.path.isfile(os.path.join(out_dir, name))
+            ],
             "cpu_cfg": os.path.join(out_dir, "config_cpu.json"),
         }
         with open(existing_full_path, encoding="utf-8") as handle:
             frozen = json.load(handle)
-        assert (
-            frozen["bio_max_features"] == cap
-        ), f"Existing cell {out_dir} has feature cap {frozen['bio_max_features']}, not {cap}."
-        assert (
-            frozen["train_subsample"] == n_train
-        ), f"Existing cell {out_dir} has sample cap {frozen['train_subsample']}, not {n_train}."
-        assert os.path.normpath(frozen["output_dir"]) == os.path.normpath(
-            out_dir
-        ), f"Existing cell config points to {frozen['output_dir']}, not {out_dir}."
+        assert frozen["bio_max_features"] == cap, (
+            f"Existing cell {out_dir} has feature cap {frozen['bio_max_features']}, not {cap}."
+        )
+        assert frozen["train_subsample"] == n_train, (
+            f"Existing cell {out_dir} has sample cap {frozen['train_subsample']}, not {n_train}."
+        )
+        assert os.path.normpath(frozen["output_dir"]) == os.path.normpath(out_dir), (
+            f"Existing cell config points to {frozen['output_dir']}, not {out_dir}."
+        )
 
+        if not os.path.isfile(config_paths["cpu_cfg"]):
+            config_paths["cpu_cfg"] = None
+        tier_paths = [*config_paths["gpu_cfgs"]]
+        if config_paths["cpu_cfg"]:
+            tier_paths.append(config_paths["cpu_cfg"])
         tier_models = []
-        for key in ("gpu_solo_cfg", "gpu_shared_cfg", "cpu_cfg"):
-            path = config_paths[key]
-            if not os.path.isfile(path):
-                config_paths[key] = None
-                continue
+        for path in tier_paths:
             with open(path, encoding="utf-8") as handle:
                 tier = json.load(handle)
             for invariant in ("bio_max_features", "train_subsample", "output_dir"):
-                assert (
-                    tier[invariant] == frozen[invariant]
-                ), f"Frozen tier config {path} differs from config.json on {invariant}."
+                assert tier[invariant] == frozen[invariant], (
+                    f"Frozen tier config {path} differs from config.json on {invariant}."
+                )
             tier_models.extend(tier["models"])
-        assert len(tier_models) == len(
-            set(tier_models)
-        ), f"Frozen tier configs under {out_dir} schedule a model more than once."
-        assert set(tier_models) == set(
-            frozen["models"]
-        ), f"Frozen tier configs under {out_dir} do not partition config.json models."
+        assert len(tier_models) == len(set(tier_models)), (
+            f"Frozen tier configs under {out_dir} schedule a model more than once."
+        )
+        assert set(tier_models) == set(frozen["models"]), (
+            f"Frozen tier configs under {out_dir} do not partition config.json models."
+        )
 
         requested_pairs = parse_models(models)
         requested = _config_for_cell(
@@ -320,9 +254,8 @@ def _write_cell_config(
     pairs = parse_models(models)
     limits = model_limits(models)  # per-model size skips; same map in every tier's config
     overrides = model_overrides(models)  # per-model fitting-regime opt-outs (AutoGluon reference)
-    gpu_solo = [k for k, dev, solo in pairs if dev == "gpu" and solo]
-    gpu_shared = [k for k, dev, solo in pairs if dev == "gpu" and not solo]
-    cpu_models = [k for k, dev, _ in pairs if dev == "cpu"]
+    gpu_models = [k for k, dev in pairs if dev == "gpu"]
+    cpu_models = [k for k, dev in pairs if dev == "cpu"]
 
     def _dump(name, model_keys):
         path = os.path.join(out_dir, name)
@@ -347,16 +280,14 @@ def _write_cell_config(
         return path
 
     full_cfg = _dump("config.json", [k for k, *_ in pairs])
-    gpu_solo_cfg = _dump("config_gpu_solo.json", gpu_solo) if gpu_solo else None
-    gpu_shared_cfg = _dump("config_gpu_shared.json", gpu_shared) if gpu_shared else None
+    gpu_cfgs = [_dump("config_gpu.json", gpu_models)] if gpu_models else []
     cpu_cfg = _dump("config_cpu.json", cpu_models) if cpu_models else None
 
     label = "full" if n_train is None else f"n={n_train}"
     cap_lbl = "full" if cap is None else cap
     return {
         "full_cfg": full_cfg,
-        "gpu_solo_cfg": gpu_solo_cfg,
-        "gpu_shared_cfg": gpu_shared_cfg,
+        "gpu_cfgs": gpu_cfgs,
         "cpu_cfg": cpu_cfg,
         "n_splits": cv_folds if cv_folds is not None else n_rep,
         "tag": f"cap {cap_lbl}/{label}",
@@ -454,101 +385,27 @@ def _run_cpu_units(cpu_units, cpu_workers, cpu_worker_cpus, prediction_args, fin
         raise failures[0]
 
 
-class _GpuAllocator:
-    """Weighted per-device slot allocator for the grid's GPU pool.
-
-    Each device has ``capacity`` (= ``GPU_WORKERS_PER_DEVICE``) slots. A *shared* unit takes
-    one slot, so up to ``capacity`` light GPU models pack a device; a *solo* unit takes the
-    whole device (all ``capacity`` slots), so a memory-heavy foundation model never shares
-    VRAM with a co-tenant fit. ``solo_workers`` further caps how many solo units run
-    concurrently across *all* devices (default = one per device); lowering it runs the heavy
-    foundation models (MITRA, ...) fewer-at-a-time to ease host-RAM pressure, leaving the
-    spare GPUs to the shared tier. Solo requests take priority — new shared acquisitions wait
-    while a queued solo unit could still start — so a steady trickle of shared units can't
-    starve a solo unit of a fully-free GPU, yet shared units keep packing GPUs once the solo
-    cap is saturated. Progress is guaranteed: running units are never blocked from releasing,
-    so a waiting solo unit always drains its device eventually."""
-
-    def __init__(self, devices, capacity, solo_workers=None):
-        self._free = {d: capacity for d in devices}
-        self._cap = capacity
-        self._solo_cap = len(devices) if solo_workers is None else solo_workers
-        self._solo_running = 0
-        self._solo_waiting = 0
-        self._cv = threading.Condition()
-
-    def acquire(self, solo):
-        """Block until a device is free, claim it, and return its ``CUDA_VISIBLE_DEVICES`` token."""
-        with self._cv:
-            if solo:
-                self._solo_waiting += 1
-                try:
-                    while True:
-                        if self._solo_running < self._solo_cap:  # under the concurrent-solo cap
-                            for d in self._free:
-                                if self._free[d] == self._cap:  # whole GPU free
-                                    self._free[d] = 0
-                                    self._solo_running += 1
-                                    return d
-                        self._cv.wait()
-                finally:
-                    self._solo_waiting -= 1
-            while True:
-                # Yield a fully-free GPU only to a solo unit that could actually start now;
-                # once the solo cap is saturated a queued solo can't run, so pack shared units.
-                solo_could_start = self._solo_waiting > 0 and self._solo_running < self._solo_cap
-                if not solo_could_start:
-                    for d in self._free:
-                        if self._free[d] >= 1:
-                            self._free[d] -= 1
-                            return d
-                self._cv.wait()
-
-    def release(self, dev, solo):
-        with self._cv:
-            self._free[dev] += self._cap if solo else 1
-            if solo:
-                self._solo_running -= 1
-            self._cv.notify_all()
-
-
 def run_grid_parallel(
     cell_specs,
     *,
     devices,
-    workers_per_device,
-    solo_workers,
     gpu_worker_cpus,
     cpu_workers,
     cpu_worker_cpus,
     prediction_args=(),
     finalize_cells=True,
 ):
-    """Stream the grid through three concurrent pools so GPUs and CPUs saturate at once, then
-    finalize each cell's metrics the instant its last unit lands.
-
-    GPU units flow through a weighted :class:`_GpuAllocator`: ``solo``-tagged (memory-heavy)
-    models take a whole GPU (at most ``solo_workers`` concurrently), while the remaining light
-    GPU models pack ``workers_per_device`` per device — so foundation models never share VRAM
-    (no OOM/silent-context-degradation) yet the cheap GPU models still parallelize. Lowering
-    ``solo_workers`` runs the heavy models fewer-at-a-time. CPU-tagged models flow through a separate pool
-    of ``cpu_workers`` GPU-free workers, so they never hold a GPU hostage. Each
-    ``(cell, seed, tier)`` unit writes its own disjoint split-cache and predictions, so the
-    pools never collide and a failed unit just leaves a gap a rerun resumes. A cell's metrics
-    (CPU-only) run once its ``n_splits`` units in every non-empty pool finish."""
-    from concurrent.futures import ThreadPoolExecutor
-
-    alloc = _GpuAllocator(devices, workers_per_device, solo_workers)
+    """Run one worker per GPU alongside CPU workers, then finalise each cell's metrics."""
+    assert len(devices) == len(set(devices)), "GPU device tokens must be unique"
+    available_gpus = Queue()
+    for device in devices:
+        available_gpus.put(device)
     gpu_enabled = bool(devices)
 
     # A cell needs every split of every non-empty pool done before its metrics run.
     remaining = {
         s["full_cfg"]: s["n_splits"]
-        * (
-            (gpu_enabled and bool(s["gpu_solo_cfg"]))
-            + (gpu_enabled and bool(s["gpu_shared_cfg"]))
-            + bool(s["cpu_cfg"])
-        )
+        * ((len(s["gpu_cfgs"]) if gpu_enabled else 0) + bool(s["cpu_cfg"]))
         for s in cell_specs
     }
     lock = threading.Lock()
@@ -561,11 +418,10 @@ def run_grid_parallel(
             log(f"  metrics {tag} (all pools/seeds done)")
             _cell_metrics(full_cfg, tag)
 
-    def run_gpu(spec, seed_index, cfg_key, solo):
-        dev = alloc.acquire(solo)  # blocks until a GPU (whole device if solo) frees
-        kind = "GPU-solo" if solo else "GPU"
+    def run_gpu(spec, seed_index, cfg_path):
+        dev = available_gpus.get()
         try:
-            log(f"  start {kind} {spec['tag']} seed{seed_index} -> GPU {dev}")
+            log(f"  start GPU {spec['tag']} seed{seed_index} -> GPU {dev}")
             t0 = time.monotonic()
             env = {
                 **os.environ,
@@ -574,7 +430,7 @@ def run_grid_parallel(
             }
             subprocess.run(
                 _cli(
-                    spec[cfg_key],
+                    cfg_path,
                     "--step",
                     "predictions",
                     "--seed-index",
@@ -585,11 +441,11 @@ def run_grid_parallel(
                 check=True,
             )
             log(
-                f"  done  {kind} {spec['tag']} seed{seed_index} -> GPU {dev}: "
+                f"  done  GPU {spec['tag']} seed{seed_index} -> GPU {dev}: "
                 f"ok in {_fmt_dur(time.monotonic() - t0)}"
             )
         finally:
-            alloc.release(dev, solo)
+            available_gpus.put(dev)
         _finish(spec["full_cfg"], spec["tag"])
 
     def run_cpu(spec, seed_index):
@@ -612,22 +468,14 @@ def run_grid_parallel(
             env=env,
             check=True,
         )
-        log(
-            f"  done  CPU {spec['tag']} seed{seed_index}: "
-            f"ok in {_fmt_dur(time.monotonic() - t0)}"
-        )
+        log(f"  done  CPU {spec['tag']} seed{seed_index}: ok in {_fmt_dur(time.monotonic() - t0)}")
         _finish(spec["full_cfg"], spec["tag"])
 
-    solo_units = [
-        (s, i, "gpu_solo_cfg", True)
+    gpu_units = [
+        (s, i, cfg_path)
         for s in cell_specs
-        if gpu_enabled and s["gpu_solo_cfg"]
-        for i in range(s["n_splits"])
-    ]
-    shared_units = [
-        (s, i, "gpu_shared_cfg", False)
-        for s in cell_specs
-        if gpu_enabled and s["gpu_shared_cfg"]
+        if gpu_enabled
+        for cfg_path in s["gpu_cfgs"]
         for i in range(s["n_splits"])
     ]
     cpu_units = [(s, i) for s in cell_specs if s["cpu_cfg"] for i in range(s["n_splits"])]
@@ -635,7 +483,7 @@ def run_grid_parallel(
     # CPU-only IBMI workers previously froze during ThreadPoolExecutor shutdown after every
     # seed subprocess had exited. Keep subprocess ownership in the main thread for this lane;
     # this also makes child completion and failure propagation deterministic.
-    if not solo_units and not shared_units:
+    if not gpu_units:
         _run_cpu_units(
             cpu_units,
             cpu_workers,
@@ -645,15 +493,11 @@ def run_grid_parallel(
         )
         return
 
-    # Both pools run at the same time: submit to each executor, then wait for all of it. Solo
-    # units are submitted first so they claim whole GPUs before shared units pack the rest.
-    # Keep extra threads for queued solo waiters so they cannot starve shared-tier dispatch.
-    gpu_max = max(1, len(devices) * workers_per_device + solo_workers)
     with (
-        ThreadPoolExecutor(max_workers=gpu_max) as gpu_ex,
+        ThreadPoolExecutor(max_workers=len(devices)) as gpu_ex,
         ThreadPoolExecutor(max_workers=cpu_workers) as cpu_ex,
     ):
-        futures = [gpu_ex.submit(run_gpu, *u) for u in solo_units + shared_units]
+        futures = [gpu_ex.submit(run_gpu, *u) for u in gpu_units]
         futures += [cpu_ex.submit(run_cpu, *u) for u in cpu_units]
         for fut in futures:
             fut.result()
@@ -838,9 +682,9 @@ def main():
         """CLI flag wins, else the grid-config key; set by neither is fatal — no code defaults."""
         if cli is not None:
             return cli
-        assert (
-            name in gc
-        ), f"'{name}' is unset: pass --{name.replace('_', '-')} or add it to --grid-config"
+        assert name in gc, (
+            f"'{name}' is unset: pass --{name.replace('_', '-')} or add it to --grid-config"
+        )
         return gc[name]
 
     caps = _norm_axis(pick("caps", args.caps))
@@ -856,16 +700,16 @@ def main():
     assert isinstance(model_cells, dict), "'model_cells' must map model keys to cell-name lists"
     roster_keys = {entry if isinstance(entry, str) else entry["key"] for entry in models}
     unknown_restricted_models = set(model_cells) - roster_keys
-    assert (
-        not unknown_restricted_models
-    ), f"'model_cells' names models outside the roster: {sorted(unknown_restricted_models)}"
+    assert not unknown_restricted_models, (
+        f"'model_cells' names models outside the roster: {sorted(unknown_restricted_models)}"
+    )
     for model, allowed_cells in model_cells.items():
-        assert (
-            isinstance(allowed_cells, list) and allowed_cells
-        ), f"'model_cells[{model}]' must be a non-empty list"
-        assert len(allowed_cells) == len(
-            set(allowed_cells)
-        ), f"'model_cells[{model}]' contains duplicate cells"
+        assert isinstance(allowed_cells, list) and allowed_cells, (
+            f"'model_cells[{model}]' must be a non-empty list"
+        )
+        assert len(allowed_cells) == len(set(allowed_cells)), (
+            f"'model_cells[{model}]' contains duplicate cells"
+        )
     # cv_folds set => stratified k-fold (k units/cell); null => legacy holdout with n_rep reps
     # (n_rep required only in that mode).
     cv_folds = pick("cv_folds", args.cv_folds)
@@ -896,11 +740,6 @@ def main():
     if not shard_cells:
         p.error("this shard has no grid cells; reduce --shard-count")
     devices = _gpu_devices()
-    workers_per_device = max(1, int(os.environ.get("GPU_WORKERS_PER_DEVICE", "1")))
-    # Cap concurrent solo (whole-GPU foundation-model) units across all devices; default one
-    # per GPU. Lower it to run MITRA/... fewer-at-a-time and ease host-RAM pressure.
-    solo_workers = max(1, int(os.environ.get("GPU_SOLO_WORKERS", str(len(devices)))))
-    gpu_slots = len(devices) * workers_per_device
     total_cpus = int(os.environ.get("SLURM_CPUS_PER_TASK") or os.cpu_count() or 1)
 
     # Two concurrent pools share the node's cores; CPU_POOL_WORKERS sets the CPU pool width
@@ -909,23 +748,21 @@ def main():
     pairs = [pair for pair in parse_models(models) if pair[1] in model_devices]
     if not pairs:
         p.error(f"no models belong to the selected device lane(s): {sorted(model_devices)}")
-    n_gpu_solo = sum(dev == "gpu" and solo for _, dev, solo in pairs)
-    n_gpu_shared = sum(dev == "gpu" and not solo for _, dev, solo in pairs)
-    n_cpu_models = sum(dev == "cpu" for _, dev, _ in pairs)
+    n_gpu_models = sum(dev == "gpu" for _, dev in pairs)
+    n_cpu_models = sum(dev == "cpu" for _, dev in pairs)
     cpu_workers = max(1, int(os.environ.get("CPU_POOL_WORKERS", str(max(1, total_cpus // 16)))))
     per_worker_cpus = _fit_cpu_budget(
         total_cpus,
-        gpu_slots if n_gpu_solo + n_gpu_shared else 0,
+        len(devices) if n_gpu_models else 0,
         cpu_workers if n_cpu_models else 0,
     )
     split_lbl = f"{cv_folds}-fold CV" if cv_folds is not None else f"{n_rep} holdout(s)"
     print(
         f"Grid: {len(caps)} cap(s) x {len(samples)} sample size(s) = {len(cells)} cells "
         f"over {len(datasets)}+{len(datasets_regression)} clf+reg dataset(s) x "
-        f"{len(models)} model(s) ({n_gpu_solo} GPU-solo + {n_gpu_shared} GPU-shared + "
+        f"{len(models)} model(s) ({n_gpu_models} GPU + "
         f"{n_cpu_models} CPU) x {split_lbl} ({n_splits} split(s)/cell) | "
-        f"GPU pool: {len(devices)} GPU(s), solo={solo_workers} concurrent (1/GPU), "
-        f"shared={workers_per_device}/GPU ({gpu_slots} shared slot(s)); "
+        f"GPU pool: {len(devices)} GPU(s), 1 worker per GPU; "
         f"CPU pool: {cpu_workers} worker(s); {per_worker_cpus} CPU(s) each.",
         flush=True,
     )
@@ -982,8 +819,6 @@ def main():
         run_grid_parallel(
             cell_specs,
             devices=devices,
-            workers_per_device=workers_per_device,
-            solo_workers=solo_workers,
             gpu_worker_cpus=per_worker_cpus,
             cpu_workers=cpu_workers,
             cpu_worker_cpus=per_worker_cpus,

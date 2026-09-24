@@ -7,6 +7,8 @@ import io
 import json
 import sqlite3
 import zlib
+from concurrent.futures import ProcessPoolExecutor
+from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
@@ -14,6 +16,130 @@ import pytest
 from sklearn.dummy import DummyClassifier
 
 from tabbench_bio import Leaderboard
+from tabbench_bio.leaderboard import _metrics_from_sqlite
+from tabbench_bio.metric_cache import MetricCache
+
+
+def test_metric_cache_persists_and_skips_blob_loading(tmp_path, monkeypatch):
+    database = tmp_path / "results.sqlite"
+    cache_path = tmp_path / "fold_metrics.sqlite"
+    _build_release_bundle(database)
+    checksum = hashlib.sha256(database.read_bytes()).hexdigest()
+    with sqlite3.connect(database) as connection:
+        with closing(MetricCache(cache_path)) as cache, ProcessPoolExecutor(max_workers=2) as pool:
+            cold = _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache, executor=pool)
+        monkeypatch.setattr(
+            "tabbench_bio.leaderboard._sqlite_frame",
+            lambda *a: pytest.fail("Cached predictions should not be loaded"),
+        )
+        with closing(MetricCache(cache_path)) as cache:
+            warm = _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
+        for expected, actual in zip(cold, warm, strict=True):
+            pd.testing.assert_frame_equal(expected, actual, check_exact=True)
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == checksum
+
+
+def test_metric_cache_keeps_completed_batches_after_interruption(tmp_path, monkeypatch):
+    database, cache_path = tmp_path / "results.sqlite", tmp_path / "cache.sqlite"
+    _build_release_bundle(database)
+    with sqlite3.connect(database) as connection:
+        for seed in range(1, 20):
+            connection.execute(
+                "INSERT INTO attempts SELECT attempt_id || ?, cell, ?, dataset, model, "
+                "status, reason, timestamp, record_json, prediction_sha256, probability_sha256, "
+                "ground_truth_sha256, log_sha256 FROM attempts WHERE seed = 0",
+                (f"-{seed}", seed),
+            )
+        connection.commit()
+        original_read = MetricCache.read
+        calls = 0
+
+        def interrupted_read(self, key):
+            nonlocal calls
+            calls += 1
+            if calls == 20:
+                raise KeyboardInterrupt
+            return original_read(self, key)
+
+        with monkeypatch.context() as patch:
+            patch.setattr(MetricCache, "read", interrupted_read)
+            with closing(MetricCache(cache_path)) as cache, pytest.raises(KeyboardInterrupt):
+                _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
+        monkeypatch.setattr(
+            "tabbench_bio.leaderboard._sqlite_frame",
+            lambda *a: pytest.fail("Completed batches must remain cached after interruption"),
+        )
+        with closing(MetricCache(cache_path)) as cache:
+            _, classification, _ = _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
+            assert len(classification) == 40
+
+
+@pytest.mark.parametrize("artifact", ["prediction", "probability", "ground_truth"])
+def test_metric_cache_recomputes_only_changed_artifacts(tmp_path, capsys, artifact):
+    database = tmp_path / "results.sqlite"
+    _build_release_bundle(database)
+    with (
+        sqlite3.connect(database) as connection,
+        closing(MetricCache(tmp_path / "cache.sqlite")) as cache,
+    ):
+        _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
+        changed = (
+            pd.DataFrame({0: [0.5] * 4, 1: [0.5] * 4}, index=[10, 11, 12, 13])
+            if artifact == "probability"
+            else pd.DataFrame({"target": [1, 1, 0, 0]}, index=[10, 11, 12, 13])
+        )
+        digest = _add_blob(connection, artifact, changed)
+        connection.execute(
+            f"UPDATE attempts SET {artifact}_sha256 = ? WHERE model = 'PERFECT'", (digest,)
+        )
+        connection.commit()
+        expected = _metrics_from_sqlite(connection, "cap_10000_n100")
+        actual = _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache, show_progress=True)
+        assert "reused 1/2; computed 1" in capsys.readouterr().out
+        for a, b in zip(expected, actual, strict=True):
+            pd.testing.assert_frame_equal(a, b, check_exact=True)
+
+
+def test_metric_cache_invalidates_implementation_and_checks_integrity(
+    tmp_path, monkeypatch, capsys
+):
+    database, cache_path = tmp_path / "results.sqlite", tmp_path / "cache.sqlite"
+    _build_release_bundle(database)
+    with sqlite3.connect(database) as connection:
+        with closing(MetricCache(cache_path)) as cache:
+            _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
+        monkeypatch.setattr(
+            "tabbench_bio.metric_cache.metric_algorithm_sha256", lambda: "new-version"
+        )
+        with closing(MetricCache(cache_path)) as cache:
+            _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache, show_progress=True)
+            assert "reused 0/2; computed 2" in capsys.readouterr().out
+            cache.connection.execute("UPDATE fold_metrics SET metrics_json = '{}' ")
+            cache.connection.commit()
+            with pytest.raises(AssertionError, match="Corrupt fold-metric cache"):
+                _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
+
+
+def test_parallel_metrics_match_serial_across_batches(tmp_path):
+    database = tmp_path / "results.sqlite"
+    _build_release_bundle(database)
+    with sqlite3.connect(database) as connection:
+        for seed in range(1, 40):
+            connection.execute(
+                "INSERT INTO attempts SELECT attempt_id || ?, cell, ?, dataset, model, "
+                "status, reason, timestamp, record_json, prediction_sha256, probability_sha256, "
+                "ground_truth_sha256, log_sha256 FROM attempts WHERE seed = 0",
+                (f"-{seed}", seed),
+            )
+        connection.commit()
+        serial = _metrics_from_sqlite(connection, "cap_10000_n100")
+        with ProcessPoolExecutor(max_workers=2) as pool:
+            parallel = _metrics_from_sqlite(
+                connection, "cap_10000_n100", executor=pool, max_pending=2
+            )
+    assert len(serial[1]) == 80
+    for expected, actual in zip(serial, parallel, strict=True):
+        pd.testing.assert_frame_equal(expected, actual, check_exact=True)
 
 
 def _frame_payload(frame: pd.DataFrame) -> tuple[str, bytes, int]:

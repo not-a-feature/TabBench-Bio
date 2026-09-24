@@ -36,6 +36,8 @@ import os
 import sqlite3
 import time
 import zlib
+from collections import deque
+from concurrent.futures import Executor
 from contextlib import closing
 from pathlib import Path
 from typing import Any
@@ -43,10 +45,12 @@ from typing import Any
 import numpy as np
 import pandas as pd
 from sklearn.base import clone, is_classifier, is_regressor
+from tqdm.auto import tqdm
 
 from tabbench_bio.coverage import complete_folds, impute_failures, load_status
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.elo import compute_elo, fold_scores
+from tabbench_bio.metric_cache import MetricCache
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC, compute_metrics
 from tabbench_bio.seeds import get_seeds
 
@@ -76,6 +80,7 @@ WITH ranked_attempts AS (
         prediction_sha256,
         probability_sha256,
         ground_truth_sha256,
+        record_json,
         ROW_NUMBER() OVER (
             PARTITION BY cell, seed, dataset, model
             ORDER BY
@@ -95,7 +100,8 @@ SELECT
     reason,
     prediction_sha256,
     probability_sha256,
-    ground_truth_sha256
+    ground_truth_sha256,
+    record_json
 FROM ranked_attempts
 WHERE current_rank = 1
 ORDER BY seed, dataset, model
@@ -146,16 +152,61 @@ def _sqlite_frame(
     return pd.read_csv(io.BytesIO(payload), index_col=0)
 
 
+def _compute_metric_batch(batch):
+    regression, classification = [], []
+    for identity, task_type, truth, prediction, probability in batch:
+        row = {**identity, **compute_metrics(truth, prediction, task_type, y_proba=probability)}
+        (classification if task_type == TaskType.Classification else regression).append(row)
+    return regression, classification
+
+
 def _metrics_from_sqlite(
     connection: sqlite3.Connection,
     cell: str,
+    *,
+    executor: Executor | None = None,
+    max_pending: int = 2,
+    show_progress: bool = False,
+    cache: MetricCache | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     regression_rows: list[dict[str, object]] = []
     classification_rows: list[dict[str, object]] = []
     status_rows: list[dict[str, object]] = []
     ground_truth_cache: dict[str, pd.DataFrame] = {}
+    assert max_pending > 0
+    attempts = list(connection.execute(_CURRENT_SQLITE_ATTEMPTS, (cell,)))
+    progress = tqdm(
+        total=sum(row[3] == "pass" for row in attempts),
+        desc=f"Metrics {cell}",
+        unit="fold",
+        mininterval=1,
+        disable=not show_progress,
+    )
+    batch, pending = [], deque()
+    cache_keys = {}
+    cache_hits = 0
 
-    for row in connection.execute(_CURRENT_SQLITE_ATTEMPTS, (cell,)):
+    def collect(result):
+        regression, classification = result
+        if cache is not None:
+            cache.write(
+                [
+                    (
+                        cache_keys.pop((row["seed"], row["key"], row["model"])),
+                        {
+                            key: value
+                            for key, value in row.items()
+                            if key not in ("seed", "key", "model")
+                        },
+                    )
+                    for row in [*regression, *classification]
+                ]
+            )
+        regression_rows.extend(regression)
+        classification_rows.extend(classification)
+        progress.update(len(regression) + len(classification))
+
+    for row in attempts:
         (
             seed,
             dataset,
@@ -165,9 +216,12 @@ def _metrics_from_sqlite(
             prediction_sha256,
             probability_sha256,
             ground_truth_sha256,
+            record_json,
         ) = row
         status_rows.append(
             {
+                **json.loads(record_json),
+                "ground_truth_sha256": ground_truth_sha256,
                 "seed": int(seed),
                 "key": str(dataset),
                 "model": str(model),
@@ -179,6 +233,26 @@ def _metrics_from_sqlite(
             continue
         assert prediction_sha256 is not None, (cell, seed, dataset, model)
         assert ground_truth_sha256 is not None, (cell, seed, dataset, model)
+        metric_row: dict[str, object] = {
+            "seed": int(seed),
+            "key": str(dataset),
+            "model": str(model),
+        }
+        task_type = (
+            TaskType.Classification if probability_sha256 is not None else TaskType.Regression
+        )
+        if cache is not None:
+            cache_key = cache.key(prediction_sha256, probability_sha256, ground_truth_sha256)
+            cached = cache.read(cache_key)
+            if cached is not None:
+                metric_row.update(cached)
+                (
+                    classification_rows if task_type == TaskType.Classification else regression_rows
+                ).append(metric_row)
+                cache_hits += 1
+                progress.update(1)
+                continue
+            cache_keys[(int(seed), str(dataset), str(model))] = cache_key
         ground_truth_digest = str(ground_truth_sha256)
         if ground_truth_digest not in ground_truth_cache:
             ground_truth_cache[ground_truth_digest] = _sqlite_frame(
@@ -188,29 +262,55 @@ def _metrics_from_sqlite(
         y_pred = _sqlite_frame(connection, str(prediction_sha256)).sort_index()
         assert np.array_equal(data_test.index, y_pred.index), (cell, seed, dataset, model)
 
-        task_type = (
-            TaskType.Classification if probability_sha256 is not None else TaskType.Regression
-        )
-        metric_row: dict[str, object] = {
-            "seed": int(seed),
-            "key": str(dataset),
-            "model": str(model),
-        }
-        metric_row.update(
-            compute_metrics(
-                data_test["target"],
-                y_pred["target"],
+        y_proba = None
+        if probability_sha256 is not None:
+            probability = _sqlite_frame(connection, str(probability_sha256)).sort_index()
+            assert np.array_equal(data_test.index, probability.index), (cell, seed, dataset, model)
+            probability.columns = probability.columns.astype(str)
+            wanted = [str(value) for value in np.unique(data_test["target"])]
+            y_proba = (
+                probability.reindex(columns=wanted).to_numpy()
+                if set(wanted).issubset(probability.columns)
+                else probability.to_numpy()
+            )
+        batch.append(
+            (
+                metric_row,
                 task_type,
+                data_test["target"].to_numpy(),
+                y_pred["target"].to_numpy(),
+                y_proba,
             )
         )
-        if task_type == TaskType.Classification:
-            classification_rows.append(metric_row)
+        if len(batch) == 16:
+            if executor is None:
+                collect(_compute_metric_batch(batch))
+            else:
+                pending.append(executor.submit(_compute_metric_batch, batch))
+                if len(pending) >= max_pending:
+                    collect(pending.popleft().result())
+            batch = []
+    if batch:
+        if executor is None:
+            collect(_compute_metric_batch(batch))
         else:
-            regression_rows.append(metric_row)
+            pending.append(executor.submit(_compute_metric_batch, batch))
+    for future in pending:
+        collect(future.result())
+    progress.close()
+    if cache is not None and show_progress:
+        total = len(regression_rows) + len(classification_rows)
+        print(
+            f"Fold-metric cache: reused {cache_hits}/{total}; computed {total - cache_hits}",
+            flush=True,
+        )
+    for rows in (regression_rows, classification_rows):
+        rows.sort(key=lambda row: (row["seed"], row["key"], row["model"]))
 
-    status_frame = pd.DataFrame(
-        status_rows,
-        columns=["seed", "key", "model", "status", "reason"],
+    status_frame = (
+        pd.DataFrame(status_rows)
+        if status_rows
+        else pd.DataFrame(columns=["seed", "key", "model", "status", "reason"])
     )
     return (
         pd.DataFrame(regression_rows),

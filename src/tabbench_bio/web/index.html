@@ -1,0 +1,327 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="TabBench-Bio is a living benchmark for tabular learning in high-dimensional biomedical regimes.">
+  <meta name="theme-color" content="#f4f5f1">
+  <link rel="canonical" href="https://tabbench-bio.eu/">
+  <link rel="alternate" type="application/vnd.sqlite3" href="https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/results.sqlite" title="TabBench-Bio v0.1.0 results">
+  <link rel="alternate" type="text/plain" href="https://tabbench-bio.eu/llms.txt" title="TabBench-Bio guide for AI agents">
+  <link rel="alternate" type="text/x-citation-cff" href="https://tabbench-bio.eu/CITATION.cff" title="TabBench-Bio citation metadata">
+  <meta property="og:type" content="website">
+  <meta property="og:url" content="https://tabbench-bio.eu/">
+  <meta property="og:title" content="TabBench-Bio">
+  <meta property="og:description" content="A living benchmark for tabular learning in biomedical HDLSS regimes.">
+  <meta property="og:image" content="https://tabbench-bio.eu/assets/og.png?v=20260923T072211.629261Z">
+  <meta property="og:image:width" content="1732">
+  <meta property="og:image:height" content="908">
+  <meta name="twitter:card" content="summary_large_image">
+  <meta name="twitter:title" content="TabBench-Bio">
+  <meta name="twitter:description" content="A living benchmark for tabular learning in biomedical HDLSS regimes.">
+  <meta name="twitter:image" content="https://tabbench-bio.eu/assets/og.png?v=20260923T072211.629261Z">
+  <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "Dataset",
+      "name": "TabBench-Bio",
+      "description": "A living benchmark for tabular learning in high-dimensional biomedical regimes.",
+      "url": "https://tabbench-bio.eu/",
+      "isAccessibleForFree": true,
+      "citation": "Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441",
+      "creator": [
+        {"@type": "Person", "name": "Jules Kreuer", "sameAs": "https://orcid.org/0000-0002-7305-833X"},
+        {"@type": "Person", "name": "Julia Hellmig"},
+        {"@type": "Person", "name": "Julius Braitinger"},
+        {"@type": "Person", "name": "Sofiane Ouaari", "sameAs": "https://orcid.org/0009-0000-0942-3796"},
+        {"@type": "Person", "name": "Nico Pfeifer", "sameAs": "https://orcid.org/0000-0002-4647-8566"}
+      ],
+      "distribution": [
+        {
+          "@type": "DataDownload",
+          "name": "Results SQLite v0.1.0",
+          "encodingFormat": "application/vnd.sqlite3",
+          "contentUrl": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/results.sqlite",
+          "sha256": "98878cbc989c45a563f8b56ec3d3708eadf134fa7952fccddd04ecf6523d5b27"
+        },
+        {
+          "@type": "DataDownload",
+          "name": "Dataset metadata",
+          "encodingFormat": "application/json",
+          "contentUrl": "https://tabbench-bio.eu/data/raw/dataset_metadata.json"
+        },
+        {
+          "@type": "DataDownload",
+          "name": "Reference Elo leaderboard",
+          "encodingFormat": "application/json",
+          "contentUrl": "https://tabbench-bio.eu/data/raw/reference_elo.json"
+        },
+        {
+          "@type": "DataDownload",
+          "name": "Citation metadata",
+          "encodingFormat": "text/x-citation-cff",
+          "contentUrl": "https://tabbench-bio.eu/CITATION.cff"
+        }
+      ]
+    }
+  </script>
+  <title>TabBench-Bio</title>
+  <link rel="icon" href="assets/favicon.svg?v=20260821-4" type="image/svg+xml">
+  <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
+  <link rel="stylesheet" href="style.min.css?v=20260922-original-width">
+  <script defer src="assets/plotly-cartesian.min.js"></script>
+  <script defer src="js/analytics.js?v=20260908-optout"></script>
+  <script defer src="js/app.js?v=20260923-v010-release"></script>
+</head>
+<body data-page="home">
+  <header class="site-header">
+    <a class="wordmark" href="index.html" aria-label="TabBench-Bio home">
+      <span class="wordmark-mark" aria-hidden="true"></span>
+      <span>TabBench-<strong>Bio</strong></span>
+    </a>
+    <nav aria-label="Primary navigation">
+      <a href="#explore">Explore</a>
+      <a href="datasets.html">Datasets</a><a href="models.html">Models</a>
+      <a href="artifacts.html">Artifacts</a>
+      <a href="changelog.html">Changelog</a>
+      <a id="nav-github" href="https://github.com/not-a-feature/TabBench-Bio">GitHub</a>
+    </nav>
+    <button id="theme-toggle" class="theme-button" type="button" aria-label="Switch to dark theme" aria-pressed="false" title="Switch to dark theme">
+      <span class="theme-icon theme-icon-sun" aria-hidden="true">☀</span>
+      <span class="theme-icon theme-icon-moon" aria-hidden="true"><svg viewBox="0 0 24 24" role="img"><path d="M20.7 15.1A8.5 8.5 0 0 1 8.9 3.3 8.5 8.5 0 1 0 20.7 15.1Z"></path></svg></span>
+    </button>
+  </header>
+
+  <main id="top">
+    <section class="hero shell">
+      <div class="hero-copy">
+        <p class="eyebrow">Tabular learning × biomedicine</p>
+        <h1>A benchmark for high-dimensional biomedical tables.</h1>
+        <p class="lede">
+          TabBench-Bio compares classical models, neural networks, and tabular foundation models across
+          transcriptomic, metagenomic, molecular, sequence-derived, and genomic-prediction datasets on a controlled feature-by-sample grid.
+        </p>
+        <div class="hero-actions">
+          <a id="paper-link" class="button button-primary" href="https://arxiv.org/abs/2609.07441">Read on arXiv <span aria-hidden="true">↗</span></a>
+          <a id="github-link" class="button" href="https://github.com/not-a-feature/TabBench-Bio">View on GitHub <span aria-hidden="true">↗</span></a>
+          <a id="request-link" class="button" href="https://github.com/not-a-feature/TabBench-Bio/issues/new?template=benchmark-request.yml">Request dataset / model <span aria-hidden="true">↗</span></a>
+        </div>
+      </div>
+      <aside class="leader-card" aria-labelledby="leader-title">
+        <div class="leader-heading">
+          <span id="leader-title">Reference leaders</span>
+        </div>
+        <ol id="podium-list" class="podium-list" aria-label="Top three models at the reference setting"></ol>
+        <p id="podium-note" class="podium-note"></p>
+      </aside>
+    </section>
+
+    <section class="metric-strip shell" aria-label="Benchmark summary">
+      <div><strong id="dataset-count">—</strong><span>biomedical datasets</span></div>
+      <div><strong id="model-count">—</strong><span>model configurations</span></div>
+      <div><strong id="evaluation-points-per-model">—</strong><span>evaluation points per model</span></div>
+      <div><strong>5×</strong><span>cross-validation</span></div>
+    </section>
+
+    <section id="explore" class="section shell">
+      <div class="section-heading">
+        <div>
+          <p class="eyebrow">Interactive results</p>
+          <h2>Model rankings depend on the operating point.</h2>
+        </div>
+      </div>
+      <div class="results-toolbar">
+        <div class="analysis-view-control">
+          <div class="analysis-view-options" role="group" aria-label="Analysis view">
+            <button id="view-strict" class="button button-primary" type="button" aria-pressed="true">Strict (primary)</button>
+            <button id="view-adaptive" class="button" type="button" aria-pressed="false">Adaptive (sensitivity)</button>
+            <button id="view-conditional" class="button" type="button" aria-pressed="false">Failures omitted (sensitivity)</button>
+          </div>
+          <p id="analysis-view-note" class="analysis-view-note" aria-live="polite"><span id="analysis-view-note-strict" class="is-active" aria-hidden="false">Primary analysis: each score comes from the requested feature- and sample-cap cell; no smaller cell is substituted. Failures are scored at chance.</span><span id="analysis-view-note-adaptive" aria-hidden="true">Sensitivity analysis: after a memory failure, a verified result from a smaller sample cap may be carried forward. It is not performance at the requested larger cell.</span><span id="analysis-view-note-conditional" aria-hidden="true">Sensitivity analysis: a failed run is omitted instead of scored at chance, which removes that model from the target. Models are then ranked on different target pools, so this view is an optimistic bound rather than a like-for-like comparison.</span></p>
+        </div>
+        <button id="download-all-figures" class="button figure-download-button" type="button" disabled>Download all figures <span aria-hidden="true">↓</span></button>
+      </div>
+      <article class="panel panel-main">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Leaderboard</p>
+            <h3>Bradley–Terry Elo</h3>
+          </div>
+          <div class="controls">
+            <label>Metric<select id="elo-metric" aria-label="Leaderboard metric"></select></label>
+            <label>Dataset modality<select id="elo-domain" aria-label="Elo dataset modality"></select></label>
+            <label>Feature cap<select id="elo-cap" aria-label="Feature cap"></select></label>
+            <label>Training samples<select id="elo-samples" aria-label="Training samples"></select></label>
+          </div>
+        </div>
+        <div id="elo-chart" class="plot" role="region" aria-label="Interactive Elo leaderboard"></div>
+        <p id="elo-metric-note" class="metric-note" hidden>Classification hyperparameter tuning was optimized for Macro-F1. Alternative metrics re-rank the same fitted models.</p>
+        <div class="chart-foot">
+          <div id="family-legend" class="legend"></div>
+          <p id="elo-note">Random Forest is anchored at 1,000. Error bars are target-bootstrap 95% intervals.</p>
+        <p id="elo-overlap-warning" class="model-card-limit-warning" hidden></p>
+        </div>
+      </article>
+
+      <article class="panel panel-main">
+        <div class="panel-head">
+          <div>
+            <p class="panel-kicker">Budget response</p>
+            <h3>Performance across sample budgets</h3>
+          </div>
+          <div class="controls controls-wide">
+            <label>Dataset modality<select id="perf-domain" aria-label="Performance dataset modality"></select></label>
+            <label>Feature cap<select id="perf-cap" aria-label="Performance feature cap"></select></label>
+            <label>Models<select id="perf-group" aria-label="Model group"></select></label>
+            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="perf-ci" type="checkbox">Show 95% CI</span></label>
+          </div>
+        </div>
+        <div id="performance-chart" class="plot" role="region" aria-label="Interactive model performance curves"></div>
+        <p id="performance-note" class="chart-note"></p>
+      </article>
+
+      <details class="panel panel-main panel-collapse" id="feature-budget-panel">
+        <summary class="panel-head">
+          <div>
+            <p class="panel-kicker">Budget response</p>
+            <h3>Performance across feature budgets</h3>
+          </div>
+          <span class="collapse-cue"><span class="collapse-show">Expand</span><span class="collapse-hide">Collapse</span></span>
+        </summary>
+        <div class="panel-head">
+          <div class="controls controls-wide">
+            <label>Dataset modality<select id="feat-domain" aria-label="Feature-budget dataset modality"></select></label>
+            <label>Training samples<select id="feat-samples" aria-label="Feature-budget training samples"></select></label>
+            <label>Models<select id="feat-group" aria-label="Feature-budget model group"></select></label>
+            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="feat-ci" type="checkbox">Show 95% CI</span></label>
+          </div>
+        </div>
+        <div id="feature-chart" class="plot" role="region" aria-label="Interactive model performance across feature budgets"></div>
+        <p id="feature-note" class="chart-note"></p>
+      </details>
+
+      <article class="panel panel-main">
+        <div class="panel-head compact">
+          <div><p class="panel-kicker">Efficiency</p><h3>Performance vs. prediction cost</h3></div>
+          <div class="controls">
+            <label>Metric<select id="prediction-cost-metric" aria-label="Prediction-cost Pareto metric"></select></label>
+            <label>Dataset modality<select id="prediction-cost-domain" aria-label="Prediction-cost dataset modality"></select></label>
+            <label>Feature cap<select id="prediction-cost-cap" aria-label="Prediction-cost feature cap"></select></label>
+            <label>Training samples<select id="prediction-cost-samples" aria-label="Prediction-cost training samples"></select></label>
+          </div>
+        </div>
+        <div id="prediction-cost-chart" class="plot" role="region" aria-label="Performance versus prediction cost"></div>
+      </article>
+
+      <details class="panel panel-main panel-collapse" id="fitting-cost-panel">
+        <summary class="panel-head">
+          <div><p class="panel-kicker">Efficiency</p><h3>Performance vs. fitting cost</h3></div>
+          <span class="collapse-cue"><span class="collapse-show">Expand</span><span class="collapse-hide">Collapse</span></span>
+        </summary>
+        <div class="panel-head">
+          <div class="controls">
+            <label>Metric<select id="cost-metric" aria-label="Pareto metric"></select></label>
+            <label>Dataset modality<select id="cost-domain" aria-label="Pareto dataset modality"></select></label>
+            <label>Feature cap<select id="cost-cap" aria-label="Pareto feature cap"></select></label>
+            <label>Training samples<select id="cost-samples" aria-label="Pareto training samples"></select></label>
+          </div>
+        </div>
+        <div id="cost-chart" class="plot" role="region" aria-label="Performance versus fitting cost"></div>
+      </details>
+
+      <div class="panel-grid">
+        <article class="panel">
+          <div class="panel-head compact">
+            <div><p class="panel-kicker">Stability</p><h3>Rank stability across operating points</h3></div>
+            <div class="controls">
+              <label>Reference cell<select id="rank-reference" aria-label="Rank stability reference cell"></select></label>
+            </div>
+          </div>
+          <div id="rank-chart" class="plot plot-small" role="region" aria-label="Rank stability relative to the selected cell"></div>
+          <p id="rank-note" class="chart-note"></p>
+        </article>
+        <article class="panel">
+          <div class="panel-head compact">
+            <div><p class="panel-kicker">Coverage</p><h3>Datasets by modality</h3></div>
+          </div>
+          <div id="composition-chart" class="plot plot-small" role="region" aria-label="Dataset composition by modality and task"></div>
+        </article>
+      </div>
+
+
+
+      <aside class="run-strip" aria-labelledby="run-title">
+        <div class="run-strip-heading">
+          <span id="run-title">Living run</span>
+          <span class="status-dot"><i aria-hidden="true"></i> <span id="snapshot-date">v0.1.0</span></span>
+        </div>
+        <div class="run-strip-progress">
+          <div class="run-percent"><strong id="progress-percent">—</strong><span>recorded units</span></div>
+          <div class="run-bar">
+            <div id="progress-track" class="progress-track" role="progressbar" aria-label="Benchmark completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
+              <span id="progress-pass" class="progress-pass"></span>
+              <span id="progress-skip" class="progress-skip"></span>
+              <span id="progress-fail" class="progress-fail"></span>
+            </div>
+            <div class="progress-labels">
+              <span><i class="key pass"></i><b id="pass-count">—</b> pass</span>
+              <span><i class="key skip"></i><b id="skip-count">—</b> design skip</span>
+              <span><i class="key fail"></i><b id="fail-count">—</b> fail</span>
+            </div>
+          </div>
+        </div>
+        <p id="cell-count">Loading completed cells…</p>
+      </aside>
+
+      <aside class="metric-note method-note" aria-label="Failure and sensitivity policy">
+        <p><strong>Snapshot scope.</strong> The live counter covers the configured benchmark run; performance
+        charts remain pinned to the last status-complete aggregation until the cells finish.</p>
+        <p><strong>Strict website default.</strong> Performance charts and rankings open in Strict
+        (primary) mode, using results at the requested feature and sample budgets. Failures are scored
+        with the constant predictor. Adaptive remains available as a sensitivity view and may reuse a
+        verified smaller sample budget after a memory failure. Dataset-specific exports and the downloadable
+        LaTeX leaderboard also use Strict results.</p>
+      </aside>
+    </section>
+
+    <section class="section section-muted" aria-labelledby="more-title">
+      <div class="shell">
+        <div class="section-heading page-links-heading">
+          <div><p class="eyebrow">More from TabBench-Bio</p><h2 id="more-title">Explore the benchmark in detail.</h2></div>
+        </div>
+        <nav class="page-links" aria-label="Benchmark resources">
+          <a class="page-link" href="models.html"><span>Models</span><b aria-hidden="true">→</b></a>
+          <a class="page-link" href="datasets.html"><span>Datasets</span><b aria-hidden="true">→</b></a>
+          <a class="page-link" href="artifacts.html"><span>Artifacts</span><b aria-hidden="true">→</b></a>
+          <a class="page-link" href="changelog.html"><span>Changelog</span><b aria-hidden="true">→</b></a>
+          <a class="page-link" href="citation.html"><span>Citation</span><b aria-hidden="true">→</b></a>
+        </nav>
+        <aside class="agent-access" aria-labelledby="agent-access-title">
+          <span class="agent-access-mark" aria-hidden="true">AI</span>
+          <div class="agent-access-copy">
+            <p class="eyebrow">Machine-readable benchmark</p>
+            <h3 id="agent-access-title">Give your AI agent the benchmark map.</h3>
+            <p>Use the <a href="skill.md">model-selection agent skill</a> to match methods to your dataset and compute budget. The benchmark guide links the current results and canonical artifacts. Cite Kreuer, Ouaari, Hellmig, Braitinger, and Pfeifer (2026), <em>TabBench-Bio</em>. <a href="https://arxiv.org/abs/2609.07441">arXiv:2609.07441</a> · <a href="https://doi.org/10.48550/arXiv.2609.07441">DOI: 10.48550/arXiv.2609.07441</a>.</p>
+          </div>
+          <a class="agent-access-link" href="llms.txt"><span>Open llms.txt</span><b aria-hidden="true">→</b></a>
+        </aside>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <div class="shell footer-inner">
+      <div class="footer-identity">
+        <a class="university-logo" href="https://uni-tuebingen.de/" target="_blank" rel="noreferrer" aria-label="University of Tübingen">
+          <img src="assets/university-of-tuebingen.svg" alt="University of Tübingen" loading="lazy" decoding="async">
+        </a>
+        <div class="footer-copy"><strong>TabBench-Bio</strong><a id="footer-affiliation" href="https://uni-tuebingen.de/fakultaeten/mathematisch-naturwissenschaftliche-fakultaet/fachbereiche/informatik/lehrstuehle/methods-in-medical-informatics/" target="_blank" rel="noreferrer">Methods in Medical Informatics, University of Tübingen <span aria-hidden="true">↗</span></a><span>Maintained by <a href="https://juleskreuer.eu/" target="_blank" rel="noreferrer">Jules Kreuer <span aria-hidden="true">↗</span></a></span></div>
+      </div>
+      <div class="footer-links"><a href="citation.html">Citation</a><a href="imprint.html">Imprint &amp; Privacy</a></div>
+    </div>
+  </footer>
+
+  <div id="load-error" class="load-error" hidden></div>
+</body>
+</html>

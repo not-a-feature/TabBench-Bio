@@ -1,10 +1,13 @@
 # Benchmark my model
 
-Edit `my_model.py`, then run one command to fit your model and produce an Elo
-leaderboard, a PNG/SVG figure, a CSV of fold results, and an HTML report.
-This uses scikit-learn directly; AutoGluon, CUDA, and the AutoGluon fork are not required.
+Edit `my_model.py`, then run the helper to fit your model and get an Elo leaderboard,
+figures, fold metrics and an HTML report. It uses scikit-learn directly.
+AutoGluon, its fork and CUDA are optional.
 
-## Install
+For resumable cluster jobs, per-model environment profiles and SQLite results you
+can merge with the benchmark, use the [model integration guide](INTEGRATION.md).
+
+## Install and try it
 
 Use Python 3.11 or 3.12 and [uv](https://docs.astral.sh/uv/):
 
@@ -13,61 +16,57 @@ git clone https://github.com/not-a-feature/TabBench-Bio.git
 cd TabBench-Bio
 uv venv --python 3.12
 uv pip install -e ".[bio]"
-```
-
-The package is installed from this repository, not PyPI. The first dataset download
-requires internet access. Benchmark caches are written beneath the output directory; OpenML also uses its user cache.
-
-## Try the complete workflow
-
-```sh
 uv run --no-sync python benchmark_my_model/run.py --output my_model_results
 ```
 
-Open `my_model_results/report.html` in your browser. No web server is necessary.
-The default run uses two public gene-expression datasets (OpenML-1083 and
-OpenML-1088), five outer folds, at most 10,000 retained features, and 100 training
-samples per fold. It fits your model, a local Random Forest anchor, and a constant
-baseline on the same splits. This is a small working example, **not a reproduction
-of the published benchmark's AutoGluon Random Forest or its full target pool**.
+This installs the package from the clone. The first dataset download needs internet
+access. Dataset caches go beneath the output directory, and OpenML also uses its user cache.
 
-Choose a fresh `--output` directory for every run. Existing output is never overwritten.
-Model errors stop the run; the helper does not silently drop failed fits or publish
-a partial leaderboard. It does not enforce a fit timeout or resume interrupted fits.
+Open `my_model_results/report.html` directly in your browser.
+The default example uses two public gene-expression datasets, OpenML-1083 and
+OpenML-1088, with five outer folds, at most 10,000 retained features and 100 training
+samples per fold. Your model, Random Forest and a constant baseline use the same splits.
+
+This Random Forest is fitted locally with scikit-learn. Published benchmark results
+use the AutoGluon adapter and a larger target pool, so the two comparisons differ.
+
+Choose a fresh output directory each time. Existing output is protected.
+A model error stops the run without producing a partial ranking.
+The helper has no fit timeout or support for resuming interrupted fits.
 
 ## Add your model
 
-Replace `create_model(task)` in `my_model.py`. Return a fresh, cloneable
-scikit-learn estimator with `fit(X, y)` and `predict(X)`. Custom classes should
-inherit `ClassifierMixin, BaseEstimator` or `RegressorMixin, BaseEstimator`,
-with the mixin first. All constructor parameters must be exposed for cloning.
-Training and test features are NumPy arrays. Handle missing values in a pipeline,
-fit all preprocessing only on training data, and set random seeds explicitly.
+Replace `create_model(task)` in `my_model.py`. Return a fresh, cloneable estimator
+with `fit(X, y)` and `predict(X)`. For custom classes, inherit
+`ClassifierMixin, BaseEstimator` or `RegressorMixin, BaseEstimator`, with the mixin
+first, and expose all constructor parameters for cloning.
+
+Features arrive as NumPy arrays. Handle missing values in a pipeline, fit preprocessing
+on training data only and set random seeds explicitly. Each fold gets a fresh clone.
 
 ```sh
 uv run --no-sync python benchmark_my_model/run.py \
   --name "My classifier" --dataset OpenML-1083 --output my_classifier_results
 ```
 
-A fresh clone of the estimator is used for every fold. The default template returns
-a classifier or regressor according to `task`. For a regression example:
+The template selects a classifier or regressor from `task`. To try regression:
 
 ```sh
 uv run --no-sync python benchmark_my_model/run.py \
   --task regression --dataset OpenML-46983 --output my_regressor_results
 ```
 
-Only the estimator's `predict` output is evaluated here (macro-F1 or RMSE); this
-example does not collect probability-based AUROC. Add dependencies needed by your
-estimator with `uv pip install ...`. Set its own thread/GPU parameters explicitly;
-`--threads 2` controls the example's local RF baseline.
+The helper scores `predict` output with macro-F1 or RMSE. It does not collect
+probability-based AUROC. This standalone helper uses the active environment and
+does not select registry profiles. Install your model's dependencies there with
+`uv pip install`, and set its thread and GPU parameters yourself. `--threads 2`
+controls only the local RF baseline.
 
-## Compare with the published models
+## Compare with published models
 
-This mode requires the canonical SQLite bundle. Its public download is currently
-pending; the [artifact browser](https://tabbench-bio.eu/artifacts.html) shows its
-availability and checksum. The local comparison above works without it.
-Once you have the bundle, run:
+Download the [v0.1.0 SQLite bundle](https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/results.sqlite)
+and verify its SHA-256:
+`98878cbc989c45a563f8b56ec3d3708eadf134fa7952fccddd04ecf6523d5b27`.
 
 ```sh
 uv run --no-sync python benchmark_my_model/run.py \
@@ -76,30 +75,35 @@ uv run --no-sync python benchmark_my_model/run.py \
   --name "My classifier" --output published_comparison
 ```
 
-The database is opened read-only. The helper extracts the cell's configuration and
-reconstructs its frozen CV row identities from the recorded held-out targets. It
-checks the held-out row IDs and labels before each fit. It then evaluates only your
-model; published baselines are not retrained. It uses every configured fold, rather
-than assuming three seeds. Changing the feature/sample budget requires selecting
-the corresponding published cell.
+The helper opens the database read-only, extracts the cell configuration and
+reconstructs its frozen cross-validation splits from recorded held-out targets.
+Before each fit it checks the held-out row IDs and labels. Only your model is fitted.
+Published baseline predictions are reused across every configured fold.
 
-Omit `--dataset` to select the cell's classification datasets (or use
-`--task regression` for regression). Some datasets need external local embedding
-files or source credentials; those are not bundled in the package. Start with the
-two public datasets above. In a subset run your model has lower target coverage
-than the published baselines; the report shows coverage, and its ranking must not
-be presented as a full benchmark result. No results are uploaded automatically.
+Select a different published cell to change the feature or sample budget.
+Omit `--dataset` to use all classification datasets in that cell, or add
+`--task regression` for regression. Some tasks need local embedding files or
+source credentials that the package does not include.
 
-## Outputs and command-line ranking
+Start with the two public datasets above. A subset run covers fewer targets than
+the full benchmark, and the report shows that coverage. Describe it as a subset
+comparison when reporting the ranking. Nothing is uploaded.
 
-- `report.html`: local report linking the figure, table, and result files.
-- `leaderboard.png` / `leaderboard.svg`: Elo and 95% target-bootstrap intervals.
-- `leaderboard.csv`: Elo, intervals, ranks, and target counts. Score is descriptive.
-- `fold_metrics.csv`: newly evaluated model/dataset/fold metrics and timings.
-- `metrics/`: full comparison metrics, including imported baselines when selected.
-- `config.json`: resolved configuration; published comparisons also save frozen splits.
+## Read the outputs
 
-To rank an existing published database without training anything:
+| File | Contents |
+|---|---|
+| `report.html` | Report linking the figure, table and results |
+| `leaderboard.png`, `leaderboard.svg` | Elo with 95% target-bootstrap intervals |
+| `leaderboard.csv` | Elo, intervals, ranks, target counts and descriptive Score |
+| `fold_metrics.csv` | New model/dataset/fold metrics and timings |
+| `metrics/` | Full comparison metrics, including any imported baselines |
+| `config.json` | Resolved configuration. Published comparisons also save frozen splits |
+
+The helper writes CSV metrics rather than SQLite attempt bundles.
+Use the [registry pipeline](INTEGRATION.md) if you need results for `tabbench-bio merge`.
+
+To rank a published database without training:
 
 ```sh
 uv run --no-sync tabbench-bio leaderboard \
@@ -107,9 +111,7 @@ uv run --no-sync tabbench-bio leaderboard \
   --task classification --plot --plot-path elo.png --csv leaderboard.csv
 ```
 
-Both the API and CLI rank **fold-level Bradley–Terry Elo**, anchored at RF = 1000.
-They retain normalized Score as an additional descriptive statistic. Without RF
-and at least one comparable model, Elo is unavailable; the command never silently
-substitutes a normalized-score ranking. The API uses 100 target-bootstrap rounds; the published website uses 2,000, so
-bootstrap summaries can differ slightly. Very small target pools give limited
-uncertainty information even when all folds finish.
+The API and CLI use fold-level Bradley-Terry Elo with RF fixed at 1000.
+Normalised Score is a separate descriptive statistic. Elo requires RF and at least
+one comparable model. The default is 2,000 target-bootstrap rounds, matching the
+website and paper. Small target pools still provide limited uncertainty information.

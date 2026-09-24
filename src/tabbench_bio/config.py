@@ -62,23 +62,15 @@ def resolve_list(value, base_dir):
 
 
 def parse_models(models):
-    """Normalise the object-form models list into ``(key, device, solo)`` triples.
-
-    Every entry is a ``{"key": ..., "device": "gpu"|"cpu", "solo": bool}`` object (the schema
-    of ``configs/models/*.json``). ``solo`` (GPU only) pins a memory-heavy model one-per-GPU so
-    it never shares VRAM with a co-tenant fit; other GPU models still pack
-    ``GPU_WORKERS_PER_DEVICE`` per device. Drives the grid's GPU-solo/GPU-shared/CPU pools.
-    """
-    triples = []
+    """Return ``(key, device)`` pairs; each GPU worker has exclusive use of its device."""
+    pairs = []
     for m in models:
-        key, device, solo = m["key"], m["device"], m["solo"]
+        key, device = m["key"], m["device"]
         assert device in ("gpu", "cpu"), (
             f"model {key!r}: device must be 'gpu'/'cpu', got {device!r}"
         )
-        assert isinstance(solo, bool), f"model {key!r}: solo must be a bool, got {solo!r}"
-        assert not (solo and device == "cpu"), f"model {key!r}: solo is GPU-only (device is 'cpu')"
-        triples.append((key, device, solo))
-    return triples
+        pairs.append((key, device))
+    return pairs
 
 
 def model_keys(models):
@@ -172,3 +164,66 @@ def load_config(config_path):
     config["models"] = model_keys(resolve_list(config["models"], base_dir))
 
     return config
+
+
+def cell_name(cap: int | None, n_train: int | None) -> str:
+    """Name a feature/sample cell; full-sample cells omit the sample suffix."""
+    name = f"cap_{'full' if cap is None else cap}"
+    return name if n_train is None else f"{name}_n{n_train}"
+
+
+def config_for_cell(
+    cap,
+    n_train,
+    *,
+    datasets,
+    datasets_regression,
+    models,
+    limits,
+    overrides,
+    n_rep,
+    cv_folds,
+    time_limit,
+    out_dir,
+    cache_dir,
+    test_size,
+    random_state,
+    min_samples_per_class,
+):
+    # cv_folds set => stratified k-fold per cell x dataset (n_repetitions pinned to 1);
+    # None => legacy holdout with n_rep repetitions.
+    return {
+        "datasets_classification": datasets,
+        "datasets_regression": datasets_regression,
+        "test_size": test_size,
+        "n_repetitions": 1 if cv_folds is not None else n_rep,
+        "cv_folds": cv_folds,
+        "random_state": random_state,
+        "cache_dir": cache_dir,
+        "output_dir": out_dir,
+        "models": models,
+        "model_limits": limits,
+        "model_overrides": overrides,
+        "autogluon_time_limit": time_limit,
+        # Run-wide fitting regime: one library-default configuration per model, no HPO, no
+        # bagging. Roster entries may override it (see config.model_overrides); AUTOGLUON does,
+        # which is why it is reported as a best-case AutoML reference and not a ranked peer.
+        "autogluon_presets": "medium_quality",
+        "optimize": False,
+        "ensemble": False,
+        "num_hpo_trials": 0,
+        "min_samples_per_class": min_samples_per_class,
+        "group_regression_splits": False,
+        "bio_max_features": cap,
+        "max_classes": None,
+        # Sample axis: cap TRAINING rows (stratified, train-only). null = all rows.
+        "train_subsample": n_train,
+        "subsample": None,
+        # KNN's AutoGluon preprocessor drops every column carrying a NaN, which on the sparse
+        # metagenomic abundance matrices leaves it nothing to fit ("No valid features to train
+        # KNeighbors"); an explicit train-fitted median makes the unit measure the model.
+        "nan_policy": {"default": "native", "KNN": "median"},
+        "exclude_keys": [],
+        "exclude_datasets": [],
+        "exclude_targets": [],
+    }

@@ -127,16 +127,12 @@ def _model_relevant_config(config: dict, model: str) -> dict:
     return shared
 
 
-def _assert_compatible_cells(target_dir: Path, source_dir: Path, model: str) -> None:
-    target = _load_config(target_dir)
-    source = _load_config(source_dir)
+def _assert_compatible_configs(target: dict, source: dict, model: str) -> None:
     target_shared = _model_relevant_config(target, model)
     source_shared = _model_relevant_config(source, model)
-    assert target_shared == source_shared, (
-        f"Cannot reuse {source_dir.name} for {target_dir.name}: non-sample config differs."
-    )
-    assert model in target["models"], f"{model} is absent from {target_dir.name}/config.json"
-    assert model in source["models"], f"{model} is absent from {source_dir.name}/config.json"
+    assert target_shared == source_shared, "Cannot reuse sample cells: non-sample config differs."
+    assert model in target["models"], f"{model} is absent from the target cell"
+    assert model in source["models"], f"{model} is absent from the source cell"
 
 
 def _assert_identical_test_target(
@@ -236,11 +232,9 @@ def resolve_sample_fallbacks(
                 f"Conflicting held-out-target hashes for {unit}"
             )
         ground_truth_hashes[unit] = attempt.ground_truth_sha256
-    truth_cells = set(ground_truth_hashes)
     assert cell_names, "No grid cells supplied for sample-fallback resolution."
     assert len(cell_names) == len(set(cell_names)), "Duplicate grid cells supplied."
     cells = {name: root / name for name in cell_names}
-    parsed = {name: parse_grid_cell(name) for name in cell_names}
 
     status = _load_status_records(repository, cell_names)
     strict_frames = {task: [] for task in _METRIC_FILES}
@@ -251,7 +245,18 @@ def resolve_sample_fallbacks(
             if not frame.empty:
                 strict_frames[task].append(frame)
 
-    assert not status.empty, f"No unit status records found under {root}"
+    configs = {name: _load_config(directory) for name, directory in cells.items()}
+    metrics = {
+        task: pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+        for task, frames in strict_frames.items()
+    }
+    return resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes)
+
+
+def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
+    """Resolve the same sample fallbacks from database metrics without creating files."""
+    parsed = {name: parse_grid_cell(name) for name in configs}
+    truth_cells = set(ground_truth_hashes)
     assert not status.duplicated(["cell", "seed", "key", "model"]).any(), (
         "Duplicate unit status records found."
     )
@@ -261,8 +266,8 @@ def resolve_sample_fallbacks(
 
     strict = {}
     metric_lookup = {}
-    for task, frames in strict_frames.items():
-        frame = pd.concat(frames, ignore_index=True) if frames else pd.DataFrame()
+    for task, frame in metrics.items():
+        frame = frame.copy()
         if not frame.empty:
             assert not frame.duplicated(["cell", "seed", "key", "model"]).any(), (
                 f"Duplicate {task} metric rows found."
@@ -273,7 +278,9 @@ def resolve_sample_fallbacks(
                 assert unit in status_lookup, f"Metric row has no status record: {unit}"
                 record = status_lookup[unit]
                 assert record.status == "pass", f"Metric row is not a passing unit: {unit}"
-                nominal.append(int(record.n_train_samples))
+                nominal.append(
+                    int(record.n_train_samples) if pd.notna(record.n_train_samples) else pd.NA
+                )
                 assert unit not in metric_lookup, f"Unit appears in both task metric files: {unit}"
                 metric_lookup[unit] = (task, row)
             frame["fallback"] = False
@@ -310,6 +317,8 @@ def resolve_sample_fallbacks(
     ):
         target_cap, target_sample = parsed[target.cell]
         assert target_sample is not None, target.cell
+        if (target_cap, None) not in cell_by_coordinate:
+            continue
         source_cell = cell_by_coordinate[(target_cap, None)]
         source_unit = (source_cell, int(target.seed), target.key, target.model)
         manifest_row = {
@@ -338,9 +347,7 @@ def resolve_sample_fallbacks(
             f"Passing duplicate-cell source has no metric row: {source_unit}"
         )
         task, source_row = metric_lookup[source_unit]
-        target_dir = cells[target.cell]
-        source_dir = cells[source_cell]
-        _assert_compatible_cells(target_dir, source_dir, target.model)
+        _assert_compatible_configs(configs[target.cell], configs[source_cell], target.model)
         validation_cells = [
             name
             for name, (cap, sample) in sorted(
@@ -388,7 +395,7 @@ def resolve_sample_fallbacks(
     eligible = status[(status["memory_failure"]) & (status["status"].isin(["fail", "skip"]))]
     for target in eligible.sort_values(["cell", "seed", "key", "model"]).itertuples(index=False):
         target_cap, _ = parsed[target.cell]
-        budgets = sample_budgets_by_cap[target_cap]
+        budgets = sample_budgets_by_cap[target_cap] if target_cap in sample_budgets_by_cap else []
         max_start_n = (
             int(target.recommended_max_n_train)
             if pd.notna(target.recommended_max_n_train)
@@ -438,9 +445,7 @@ def resolve_sample_fallbacks(
             continue
 
         source_cell, source_status, (task, source_row) = resolved
-        target_dir = cells[target.cell]
-        source_dir = cells[source_cell]
-        _assert_compatible_cells(target_dir, source_dir, target.model)
+        _assert_compatible_configs(configs[target.cell], configs[source_cell], target.model)
         _assert_identical_test_target(
             ground_truth_hashes,
             target.cell,

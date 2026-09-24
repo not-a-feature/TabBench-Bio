@@ -1,0 +1,75 @@
+# TabBench-Bio
+
+> TabBench-Bio is a living benchmark for tabular learning in high-dimensional biomedical regimes. It compares classical models, neural networks, AutoML, and tabular foundation models across controlled feature and sample budgets.
+
+Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard and leaderboard top-level rankings follow this Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. The Failures-omitted view drops failed runs instead of scoring them at chance, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports and the downloadable LaTeX leaderboard use Strict results.
+
+## v0.1.0
+
+- Generated from the published result bundle at 2026-09-23T07:22:11.629261Z.
+- 43 registered datasets: 30 classification, 13 regression.
+- Dataset modalities: DNA methylation: 4, GLM/PLM Embeddings: 4, Gene expression: 11, Genomic prediction: 4, Metagenomics: 10, Molecular properties: 8, Other: 2.
+- 19 configured model configurations; 21 currently represented in aggregate results.
+- 28 feature-by-sample operating points currently have aggregate metrics.
+- 6,020 configured dataset-cell-fold evaluation points per model.
+- Run monitoring has recorded 120,830 of 120,830 planned units (100.0%): 84,717 pass, 28,173 design skip, and 7,940 fail.
+
+## Current reference results
+
+The predeclared reference operating point is p=10,000, n=100. Bradley–Terry Elo combines the classification and regression target comparisons at this cell and anchors Random Forest at 1,000. Target-bootstrap intervals quantify ranking uncertainty.
+
+1. RealTabPFN v2.5: Elo 1,156 (95% CI 1,098–1,212; 42 targets)
+2. TabPFN v3: Elo 1,070 (95% CI 1,016–1,123; 42 targets)
+3. Logistic Regression: Elo 1,063 (95% CI 994–1,127; 42 targets)
+4. MLP: Elo 1,044 (95% CI 987–1,098; 42 targets)
+5. TabPFN Wide 5k (ne3): Elo 1,038 (95% CI 952–1,114; 30 targets)
+
+The leading intervals overlap, so the displayed order should not be interpreted as a statistically resolved universal ranking. Use the interactive controls or canonical database for other operating points.
+
+## Evaluated models
+
+AutoGluon, CatBoost, Constant, Extra Trees, KNN, LightGBM, Logistic Regression, MITRA, MLP, Random Forest, RealMLP, RealTabPFN v2, RealTabPFN v2.5, TabDPT, TabFM, TabICLv2, TabM, TabPFN Wide (8k), TabPFN Wide 5k (ne3), TabPFN v3, XGBoost.
+
+## Training-data overlap
+
+- † TabDPT: Part of the benchmark training data was used in the training process of this model.
+
+These models remain in the benchmark results but are excluded from the Reference leaders podium and social card.
+
+## Agent skill
+
+Here is a skill for your agent: [TabBench-Bio model selection](https://tabbench-bio.eu/skill.md).
+Use it to match task, modality, budgets and compute constraints, and interpret uncertainty and training-data overlap.
+Download the Markdown file directly; no repository clone is needed.
+
+## Primary pages
+
+- [Benchmark and interactive results](https://tabbench-bio.eu/)
+- [Dataset registry](https://tabbench-bio.eu/datasets.html)
+- [Artifact browser](https://tabbench-bio.eu/artifacts.html)
+- [Manuscript](https://arxiv.org/abs/2609.07441)
+
+## Machine-readable data
+
+- [Dashboard JSON](https://tabbench-bio.eu/data/dashboard.json): modality-specific rankings, costs, coverage, analysis views and model flags.
+- [Leaderboard JSON](https://tabbench-bio.eu/data/leaderboard.json): aggregate rankings.
+- [Dataset index JSON](https://tabbench-bio.eu/data/datasets/index.json): task-specific metrics and links to per-dataset scores.
+
+- [Results SQLite · v0.1.0](https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/results.sqlite): 120,886 attempts, SHA-256 `98878cbc989c45a563f8b56ec3d3708eadf134fa7952fccddd04ecf6523d5b27`
+
+## Citation
+
+If you read or use the benchmark, website, or published result artifacts, cite:
+
+Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441
+
+- [Citation File Format metadata](https://tabbench-bio.eu/CITATION.cff)
+- Citation target: [TabBench-Bio paper](https://doi.org/10.48550/arXiv.2609.07441)
+- Authors: Jules Kreuer, Sofiane Ouaari, Julia Hellmig, Julius Braitinger, and Nico Pfeifer
+- DOI: [10.48550/arXiv.2609.07441](https://doi.org/10.48550/arXiv.2609.07441)
+- arXiv: [2609.07441](https://arxiv.org/abs/2609.07441)
+
+## Optional
+
+- [Changelog](https://tabbench-bio.eu/changelog.html): notable benchmark and website updates
+- [GitHub repository](https://github.com/not-a-feature/TabBench-Bio): canonical source code and issue tracker

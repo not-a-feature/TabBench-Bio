@@ -13,7 +13,7 @@
 #
 # Fork: https://github.com/mario-koddenbrock/autogluon
 
-autogluon.common @ git+https://github.com/mario-koddenbrock/autogluon.git#subdirectory=common
-autogluon.core @ git+https://github.com/mario-koddenbrock/autogluon.git#subdirectory=core
-autogluon.features @ git+https://github.com/mario-koddenbrock/autogluon.git#subdirectory=features
-autogluon.tabular @ git+https://github.com/mario-koddenbrock/autogluon.git#subdirectory=tabular
+autogluon.common @ git+https://github.com/mario-koddenbrock/autogluon.git@07786b4b7bf4349fb0d5c06701c00fb4ce09dab0#subdirectory=common
+autogluon.core @ git+https://github.com/mario-koddenbrock/autogluon.git@07786b4b7bf4349fb0d5c06701c00fb4ce09dab0#subdirectory=core
+autogluon.features @ git+https://github.com/mario-koddenbrock/autogluon.git@07786b4b7bf4349fb0d5c06701c00fb4ce09dab0#subdirectory=features
+autogluon.tabular @ git+https://github.com/mario-koddenbrock/autogluon.git@07786b4b7bf4349fb0d5c06701c00fb4ce09dab0#subdirectory=tabular
