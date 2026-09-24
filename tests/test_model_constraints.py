@@ -10,4 +10,5 @@ def test_regular_feature_limits_match_the_benchmarked_adapters():
         "TABFM": 2_000,
         "TABICL": 2_000,
         "TABPFN-V3": 10_000,
+        "TABPFN-V3.5": 20_000,
     }

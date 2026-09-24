@@ -79,6 +79,11 @@
     "environment": "standard"
   },
   {
+    "key": "TABPFN-V3.5",
+    "device": "gpu",
+    "environment": "tabpfn35"
+  },
+  {
     "key": "TABPFN-WIDE",
     "device": "gpu",
     "max_cells": 54000000,

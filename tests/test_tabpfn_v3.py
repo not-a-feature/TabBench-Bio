@@ -1,4 +1,5 @@
 import sys
+from pathlib import Path
 from types import ModuleType
 
 import pytest
@@ -16,13 +17,14 @@ from tabbench_bio.models.tabpfn_v3 import (
 
 class _ModelVersion:
     V3 = "v3"
+    V3_5 = "v3.5"
 
 
 class _FakeEstimator:
     calls = []
 
     @classmethod
-    def create_default_for_version(cls, version, **kwargs):
+    def create_default_for_version(cls, version="v3.5", **kwargs):
         cls.calls.append((version, kwargs))
         return cls()
 
@@ -52,6 +54,29 @@ def test_factories_pin_tabpfn_v3_defaults(monkeypatch):
     }
     assert regressor_kwargs["device"] == "cpu"
     assert regressor_kwargs["categorical_features_indices"] is None
+    assert regressor_kwargs["n_estimators"] == 8
+    assert regressor_kwargs["random_state"] == 0
+    assert regressor_kwargs["ignore_pretraining_limits"] is True
+
+
+@pytest.mark.parametrize(
+    ("factory", "model_source"),
+    [(_classifier, "get_classifier_v3"), (_regressor, "get_regressor_v3")],
+)
+def test_installed_tabpfn_resolves_v3_checkpoints(factory, model_source):
+    pytest.importorskip("tabpfn")
+    from tabpfn.model_loading import ModelSource
+
+    sources = {
+        "get_classifier_v3": ModelSource.get_classifier_v3,
+        "get_regressor_v3": ModelSource.get_regressor_v3,
+    }
+    model = factory("cpu", None)
+
+    assert Path(model.model_path).name == sources[model_source]().default_filename
+    assert model.n_estimators == 8
+    assert model.random_state == 0
+    assert model.ignore_pretraining_limits is True
 
 
 def test_cloneable_wrapper_delegates_autogluon_device_hooks():

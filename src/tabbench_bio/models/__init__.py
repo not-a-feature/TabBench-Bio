@@ -16,6 +16,8 @@ Currently:
   ``"TABFM"``. Supports both classification and regression.
 - :class:`~tabbench_bio.models.tabpfn_v3.TabPFNV3Model` — explicit TabPFN-3 defaults,
   selectable via ``"TABPFN-V3"``. Supports both classification and regression.
+- :class:`~tabbench_bio.models.tabpfn_v3_5.TabPFNV35Model` — explicit TabPFN-3.5,
+  selectable via ``"TABPFN-V3.5"``. Supports both classification and regression.
 
 Import the wrapper from its submodule (``from tabbench_bio.models.tabpfn_wide import
 TabPFNWideModel``) so AutoGluon is only imported when the model is actually used.
