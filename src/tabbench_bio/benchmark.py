@@ -52,7 +52,6 @@ from tqdm import tqdm
 
 from tabbench_bio.bio import (
     DEFAULT_MAX_FEATURES,
-    bio_dataset_names,
     get_spec,
     is_bio_dataset,
     load_bio_as_dataset,
@@ -60,6 +59,7 @@ from tabbench_bio.bio import (
 from tabbench_bio.bio import (
     reload as reload_bio_registry,
 )
+from tabbench_bio.bio.datasets import resolve_dataset_names
 from tabbench_bio.bio.loaders.metagenomics import MIN_PREVALENCE
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.io_utils import atomic_to_pickle, atomic_write_json
@@ -244,17 +244,12 @@ class TabBenchBio:
         )
         os.makedirs(self.cache_dir_processed, exist_ok=True)
 
-        if dataset_names_classification is None:
-            self.dataset_names_classification = bio_dataset_names("binary") + bio_dataset_names(
-                "multiclass"
-            )
-        else:
-            self.dataset_names_classification = list(dataset_names_classification)
-
-        if dataset_names_regression is None:
-            self.dataset_names_regression = bio_dataset_names("regression")
-        else:
-            self.dataset_names_regression = list(dataset_names_regression)
+        self.dataset_names_classification = resolve_dataset_names(
+            dataset_names_classification, "classification"
+        )
+        self.dataset_names_regression = resolve_dataset_names(
+            dataset_names_regression, "regression"
+        )
 
         # Explicit grid lists and prepared caches must respect the current registry too.
         for names in (self.dataset_names_classification, self.dataset_names_regression):
