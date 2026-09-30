@@ -207,3 +207,12 @@ stops loading. Review the registry change, then explicitly refresh that dataset 
 keys include the same fingerprints; their `split_params.json` records the inputs.
 Raw cache files are replaced atomically. Increment `LOADER_CACHE_VERSION` in
 `bio/fingerprint.py` when loader changes alter matrices, labels or biological groups.
+
+### Check a checkout
+
+Run `tabbench-bio doctor --cache-dir .cache` to check registered adapter files,
+environment profiles, model names/categories, skill licences/copies, and existing
+raw and processed dataset caches. Add `--site-dir website` to verify generated skill
+assets. Add `--model RF` (repeatable) to test adapter importability in that model's
+installed environment; without it, only adapter file presence is checked. The
+command does not download data, fit models, or repair caches. Failures exit nonzero.
