@@ -20,7 +20,7 @@ import pickle
 from pathlib import Path
 from typing import TYPE_CHECKING
 
-import pandas as pd
+from tabbench_bio.io_utils import atomic_to_pickle
 
 if TYPE_CHECKING:
     from tabbench_bio.bio.loaders.base import BioRawDataset
@@ -68,5 +68,5 @@ def save_cached_raw(root: str | Path, raw: BioRawDataset) -> Path:
     """Persist a :class:`BioRawDataset` to the unified cache and return its path."""
     path = dataset_cache_path(root, raw.bio_id)
     path.parent.mkdir(parents=True, exist_ok=True)
-    pd.to_pickle(raw, path)
+    atomic_to_pickle(raw, path)
     return path

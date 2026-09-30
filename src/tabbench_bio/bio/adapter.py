@@ -9,16 +9,20 @@ further changes downstream.
 from __future__ import annotations
 
 import logging
+from dataclasses import replace
 from typing import TYPE_CHECKING
 
 import numpy as np
 import pandas as pd
 
-from tabbench_bio.bio.cache import default_bio_cache_dir, load_cached_raw, save_cached_raw
+from tabbench_bio.bio.cache import (
+    default_bio_cache_dir,
+    load_cached_raw,
+    save_cached_raw,
+)
 from tabbench_bio.bio.datasets import get_spec
+from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
 from tabbench_bio.bio.loaders import get_loader
-from tabbench_bio.bio.loaders.metagenomics import COHORT_VERSION
-from tabbench_bio.bio.loaders.mgnify import GROUPING_VERSION, grouping_digest
 from tabbench_bio.dataset import Dataset, DatasetInfo, TaskType
 
 if TYPE_CHECKING:
@@ -168,28 +172,12 @@ def load_bio_dataset(
 
     if not force_refetch:
         cached = load_cached_raw(root, bio_id)
-        # Old caches predate biological group metadata. Do not silently reuse them for
-        # sources whose rows can contain repeated measurements of one independence unit.
-        needs_groups = (
-            spec.source
-            in {"tcga", "tdc", "chembl", "geo_matrix", "fusionai", "mgnify", "metagenomics"}
-            or spec.group_column is not None
-        )
-        if cached is not None and (not needs_groups or getattr(cached, "groups", None) is not None):
-            if spec.source == "metagenomics" and (
-                "cohort_version" not in cached.metadata
-                or cached.metadata["cohort_version"] != COHORT_VERSION
-            ):
-                cached = None
-            elif spec.source != "mgnify" or (
-                "grouping_version" in cached.metadata
-                and cached.metadata["grouping_version"] == GROUPING_VERSION
-                and "grouping_sha256" in cached.metadata
-                and cached.metadata["grouping_sha256"] == grouping_digest()
-            ):
-                return cached
+        if cached is not None:
+            validate_cached_spec(cached, spec)
+            return cached
 
     raw = get_loader(spec, cache_dir=root).fetch(spec)
+    raw = replace(raw, metadata={**raw.metadata, "spec_sha256": spec_fingerprint(spec)})
     save_cached_raw(root, raw)
     return raw
 

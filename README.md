@@ -197,3 +197,27 @@ npx skills add https://tabbench-bio.eu/skill.md
 
 This downloads the Markdown skill. A browsing agent can also read the
 [hosted version](https://tabbench-bio.eu/skill.md) directly.
+
+### Dataset cache consistency
+
+Raw dataset caches record a SHA-256 fingerprint of data-affecting registry fields
+and the loader version. A mismatch, including an older cache without a fingerprint,
+stops loading. Review the registry change, then explicitly refresh that dataset with
+`load_bio_dataset(bio_id, cache_dir=..., force_refetch=True)`. Processed split cache
+paths include the same fingerprints in per-dataset directories. `split_params.json`
+records shared split settings; each directory has its own `dataset_spec.json`.
+Raw cache files are replaced atomically. Increment `LOADER_CACHE_VERSION` in
+`bio/fingerprint.py` when loader changes alter matrices, labels or biological groups.
+
+Legacy caches can be adopted explicitly after verifying that their source and task match the
+current registry, without downloading live sources again:
+
+```bash
+tabbench-bio cache-adopt --cache-dir .cache --dataset OpenML-1138 --reason "Verified against the original registry" --manifest results/run/split_manifest.json
+```
+
+The optional manifest verifies frozen target fingerprints before any cache is changed.
+Adoption records the reason and timestamp in cache metadata and refuses already-versioned
+or obsolete grouped caches. It cannot establish feature provenance; verify that separately.
+Raw fingerprints cover data-affecting fields, not descriptions or licences. Processed split
+paths include the individual dataset fingerprint, so filtered runs reuse full-run splits.

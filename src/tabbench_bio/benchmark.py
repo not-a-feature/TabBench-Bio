@@ -52,6 +52,7 @@ from tqdm import tqdm
 
 from tabbench_bio.bio import (
     DEFAULT_MAX_FEATURES,
+    fingerprint,
     get_spec,
     is_bio_dataset,
     load_bio_as_dataset,
@@ -237,11 +238,20 @@ class TabBenchBio:
             "train_subsample": train_subsample,
             "cv_folds": cv_folds,
         }
-        param_hash = hashlib.md5(json.dumps(split_params, sort_keys=True).encode()).hexdigest()[:8]
+        param_hash = hashlib.sha256(json.dumps(split_params, sort_keys=True).encode()).hexdigest()[
+            :16
+        ]
         self.cache_dir_processed = os.path.join(
             cache_dir, "datasets_processed", f"seed_{random_state}_{param_hash}"
         )
         os.makedirs(self.cache_dir_processed, exist_ok=True)
+        split_params_path = Path(self.cache_dir_processed) / "split_params.json"
+        if split_params_path.exists():
+            assert json.loads(split_params_path.read_text(encoding="utf-8")) == split_params, (
+                f"Split cache metadata mismatch: {split_params_path}"
+            )
+        else:
+            atomic_write_json(split_params_path, split_params)
 
         self.dataset_names_classification = resolve_dataset_names(
             dataset_names_classification, "classification"
@@ -365,8 +375,12 @@ class TabBenchBio:
     # ------------------------------------------------------------------
 
     def _get_cache_paths(self, key: str) -> tuple[str, str]:
-        train = f"{self.cache_dir_processed}/{key}_train.pkl"
-        test = f"{self.cache_dir_processed}/{key}_test.pkl"
+        name, _ = self.split_key(key)
+        directory = Path(self.cache_dir_processed)
+        if is_bio_dataset(name):
+            directory /= f"{name}_{fingerprint.spec_fingerprint(get_spec(name))}"
+        train = str(directory / f"{key}_train.pkl")
+        test = str(directory / f"{key}_test.pkl")
         return train, test
 
     def _has_dataset_in_cache(self, key: str) -> bool:
@@ -375,6 +389,14 @@ class TabBenchBio:
 
     def _save_dataset(self, key: str, train: DataFrame, test: DataFrame):
         train_path, test_path = self._get_cache_paths(key)
+        name, _ = self.split_key(key)
+        if is_bio_dataset(name):
+            spec_path = Path(train_path).parent / "dataset_spec.json"
+            payload = {"bio_id": name, "spec_sha256": fingerprint.spec_fingerprint(get_spec(name))}
+            if spec_path.exists():
+                assert json.loads(spec_path.read_text(encoding="utf-8")) == payload, spec_path
+            else:
+                atomic_write_json(spec_path, payload)
         atomic_to_pickle(train, train_path)
         atomic_to_pickle(test, test_path)
 
