@@ -47,8 +47,11 @@ from tabbench_bio.gpu_exclusivity import (
     assert_exclusive_from_environment,
 )
 from tabbench_bio.logging_utils import LOG_FORMAT, run_file_logger
-from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
-from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
+from tabbench_bio.model_registry import (
+    MODEL_REGISTRY,
+    REGULAR_MAX_FEATURES,
+    canonical_model_key,
+)
 from tabbench_bio.result_store import ResultRepository, StoredAttempt
 from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
@@ -989,7 +992,11 @@ def compute_predictions(
                         "n_train_samples": len(data_train),
                         "n_test_samples": len(data_test),
                         "n_features": n_features,
-                        "regular_max_features": REGULAR_MAX_FEATURES.get(model_name),
+                        "regular_max_features": (
+                            REGULAR_MAX_FEATURES[model_name]
+                            if model_name in REGULAR_MAX_FEATURES
+                            else None
+                        ),
                         "above_regular_feature_limit": (
                             model_name in REGULAR_MAX_FEATURES
                             and n_features > REGULAR_MAX_FEATURES[model_name]

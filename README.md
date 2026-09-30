@@ -76,8 +76,8 @@ The [contributor guide](CONTRIBUTING.md#adding-a-dataset) explains how to add an
 
 The [model roster](configs/models/all.json) includes linear models, trees, neural
 networks and tabular foundation models. `DUMMY` provides a constant baseline, and
-Random Forest anchors Elo at 1000. New adapters need an entry in
-`src/tabbench_bio/models/custom.py`, including their environment profile.
+Random Forest anchors Elo at 1000. New adapters need a `ModelSpec` in
+`src/tabbench_bio/model_registry.py`, including their environment profile.
 
 ## Merge results and build the website
 
