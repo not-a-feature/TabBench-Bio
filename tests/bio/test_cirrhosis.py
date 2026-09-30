@@ -83,18 +83,6 @@ def test_prevalence_uses_training_only_and_precedes_feature_cap(tmp_path):
     assert actual_test.columns.tolist() == actual_train.columns.tolist()
 
 
-def test_obsolete_cohort_cache_is_not_reused(tmp_path):
-    fresh = source(tmp_path).fetch(get_spec("gut-cirrhosis"))
-    stale = replace(fresh, metadata={"disease": "cirrhosis"})
-    with (
-        patch("tabbench_bio.bio.adapter.load_cached_raw", return_value=stale),
-        patch("tabbench_bio.bio.adapter.get_loader") as loader,
-        patch("tabbench_bio.bio.adapter.save_cached_raw"),
-    ):
-        loader.return_value.fetch.return_value = fresh
-        assert load_bio_dataset("gut-cirrhosis") is fresh
-
-
 def test_prevalence_is_registry_driven(tmp_path, monkeypatch):
     bench = TabBenchBio([], [], cache_dir=str(tmp_path), bio_max_features=None)
     spec = replace(get_spec("gut-cirrhosis"), bio_id="another-cohort", train_prevalence_filter=0.5)
@@ -114,3 +102,15 @@ def test_prevalence_is_registry_driven(tmp_path, monkeypatch):
 def test_invalid_prevalence_threshold_is_rejected(value):
     with pytest.raises(AssertionError, match="train_prevalence_filter"):
         replace(get_spec("gut-cirrhosis"), train_prevalence_filter=value)
+
+
+def test_obsolete_cohort_cache_is_not_reused(tmp_path):
+    fresh = source(tmp_path).fetch(get_spec("gut-cirrhosis"))
+    stale = replace(fresh, metadata={"disease": "cirrhosis"})
+    with (
+        patch("tabbench_bio.bio.adapter.load_cached_raw", return_value=stale),
+        patch("tabbench_bio.bio.adapter.get_loader") as loader,
+        patch("tabbench_bio.bio.adapter.save_cached_raw"),
+    ):
+        loader.return_value.fetch.return_value = fresh
+        assert load_bio_dataset("gut-cirrhosis") is fresh
