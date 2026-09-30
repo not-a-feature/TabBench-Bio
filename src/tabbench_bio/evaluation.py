@@ -119,22 +119,29 @@ def _build_excluded_keys(config) -> set[str]:
     exclude_datasets = set(config["exclude_datasets"])
     exclude_names = set(config["exclude_targets"])
 
-    if exclude_datasets or exclude_names:
-        stats_path = os.path.join(config["output_dir"], "dataset_stats.json")
-        assert os.path.isfile(stats_path), (
-            f"Configured dataset/target exclusions require {stats_path}; prepare datasets first."
+    if not (exclude_datasets or exclude_names):
+        return excluded
+    targets = {key: [spec.target] for key, spec in BIO_DATASETS.items() if spec.is_curated}
+    stats_path = os.path.join(config["output_dir"], "dataset_stats.json")
+    if os.path.isfile(stats_path):
+        with open(stats_path) as handle:
+            for key, stats in json.load(handle).items():
+                if key not in targets:
+                    targets[key] = (
+                        stats["target_names"] if stats and stats["target_names"] else [None]
+                    )
+    missing_datasets = exclude_datasets - targets.keys()
+    missing_targets = exclude_names - {name for names in targets.values() for name in names}
+    assert not (missing_datasets or missing_targets), (
+        f"Unknown exclusions: datasets={sorted(missing_datasets)}, targets={sorted(missing_targets)}. "
+        "Use registered datasets/targets or explicit exclude_keys; legacy tasks need dataset_stats.json."
+    )
+    for dataset, names in targets.items():
+        excluded.update(
+            f"{dataset}_{idx}"
+            for idx, name in enumerate(names)
+            if dataset in exclude_datasets or name in exclude_names
         )
-        with open(stats_path) as f:
-            stats = json.load(f)
-        for ds_id, s in stats.items():
-            if ds_id in exclude_datasets:
-                n_targets = len((s or {}).get("target_names") or []) or 1
-                for idx in range(n_targets):
-                    excluded.add(f"{ds_id}_{idx}")
-            if exclude_names and s and s.get("target_names"):
-                for idx, name in enumerate(s["target_names"]):
-                    if name in exclude_names:
-                        excluded.add(f"{ds_id}_{idx}")
 
     return excluded
 
