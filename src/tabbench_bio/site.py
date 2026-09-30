@@ -1174,13 +1174,10 @@ def build_site(
     if not reg.empty and not reg_means.empty:
         reg = reg.merge(reg_means, on="model_id", how="left")
 
-    # Pairwise Elo (RF = 1000): overall pool + per-task pools, merged into each tab.
+    # Pairwise Elo (RF = 1000) for the overall pool.
     score_all = score_table(clf_df, reg_df)
     elo_columns = ["model_id", "Elo", "Elo_lo", "Elo_hi", "# Targets"]
-    elo_all, elo_clf, elo_reg = [
-        table[elo_columns].dropna(subset=["Elo"]).rename(columns={"# Targets": "n_targets"})
-        for table in (overall, clf, reg)
-    ]
+    elo_all = overall[elo_columns].dropna(subset=["Elo"]).rename(columns={"# Targets": "n_targets"})
 
     # Mark models evaluated on classification targets only (no regression) with " *",
     # mirroring RamanBench. Only meaningful when the run actually has regression results.

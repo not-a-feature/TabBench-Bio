@@ -30,11 +30,6 @@ class TaskType(IntEnum):
     Classification = 0
     Regression = 1
 
-    @classmethod
-    def from_problem_type(cls, problem_type: str) -> TaskType:
-        """Map an AutoGluon-style ``problem_type`` to a :class:`TaskType`."""
-        return cls.Classification if problem_type in ("binary", "multiclass") else cls.Regression
-
 
 @dataclass
 class DatasetInfo:
