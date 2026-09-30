@@ -1,127 +1,83 @@
 [
   {
-    "key": "DUMMY",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "DUMMY"
   },
   {
-    "key": "CAT",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "CAT"
   },
   {
-    "key": "GBM",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "GBM"
   },
   {
-    "key": "KNN",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "KNN"
   },
   {
-    "key": "LR",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "LR"
   },
   {
-    "key": "RF",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "RF"
   },
   {
-    "key": "XGB",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "XGB"
   },
   {
-    "key": "XT",
-    "device": "cpu",
-    "environment": "standard"
+    "key": "XT"
   },
   {
-    "key": "NN_TORCH",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "NN_TORCH"
   },
   {
-    "key": "REALMLP",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "REALMLP"
   },
   {
-    "key": "TABM",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "TABM"
   },
   {
     "_doc": "Advisory post-cap features x train-row observations from the 2026-08 full-grid run. None are enforced: every legacy OOM/model-limit cell is retried under the new memory handling, and only a newly observed OOM triggers sample fallback. MITRA's fixed 8k allocation and TabPFN-Wide's inference batching have changed; TabFM's observed fit boundary is not treated as certain either.",
     "key": "MITRA",
-    "device": "gpu",
     "max_cells": 32000000,
     "memory_prior_version": 1,
-    "enforce_memory_prior": false,
-    "environment": "standard"
+    "enforce_memory_prior": false
   },
   {
-    "key": "REALTABPFN-V2",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "REALTABPFN-V2"
   },
   {
-    "key": "REALTABPFN-V2.5",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "REALTABPFN-V2.5"
   },
   {
-    "key": "TABPFN-V3",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "TABPFN-V3"
   },
   {
-    "key": "TABPFN-V3.5",
-    "device": "gpu",
-    "environment": "tabpfn35"
+    "key": "TABPFN-V3.5"
   },
   {
     "key": "TABPFN-WIDE",
-    "device": "gpu",
     "max_cells": 54000000,
     "memory_prior_version": 1,
-    "enforce_memory_prior": false,
-    "environment": "standard"
+    "enforce_memory_prior": false
   },
   {
     "_doc": "Regular wide-v2-5k checkpoint with a three-member inference ensemble and the checkpoint-native one-feature grouping.",
-    "key": "TABPFN-WIDE-5K-NE3",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "TABPFN-WIDE-5K-NE3"
   },
   {
     "key": "TABFM",
-    "device": "gpu",
     "max_cells": 8500000,
     "memory_prior_version": 1,
-    "enforce_memory_prior": false,
-    "environment": "standard"
+    "enforce_memory_prior": false
   },
   {
     "key": "TABDPT",
-    "device": "gpu",
-    "training_data_overlap": true,
-    "environment": "standard"
+    "training_data_overlap": true
   },
   {
-    "key": "TABICL",
-    "device": "gpu",
-    "environment": "standard"
+    "key": "TABICL"
   },
   {
     "_doc": "AutoML reference, not a ranked peer: runs AutoGluon's native extreme preset without overriding its portfolio, under the benchmark's one-hour per-unit time limit.",
     "key": "AUTOGLUON",
-    "device": "gpu",
     "presets": "extreme",
-    "ensemble": true,
-    "environment": "standard"
+    "ensemble": true
   }
 ]

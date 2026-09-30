@@ -28,7 +28,7 @@ from pandas import DataFrame, Series
 
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
-from tabbench_bio.models.custom import CUSTOM_MODELS
+from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 
 try:
     from autogluon.common import TabularDataset
@@ -56,43 +56,12 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
     gpu_arg = {"ag.num_gpus": 1} if num_gpus > 0 else {}
     hp: dict = {}
     for name in models:
-        key = name.upper()
-        if key == "TABPFNV35":
-            key = "TABPFN-V3.5"
-        if key in CUSTOM_MODELS:
-            module, class_name = CUSTOM_MODELS[key]["adapter"].split(":")
+        key = canonical_model_key(name)
+        if key in MODEL_REGISTRY and MODEL_REGISTRY[key].adapter is not None:
+            spec = MODEL_REGISTRY[key]
+            module, class_name = spec.adapter.split(":")
             cls = vars(import_module(module))[class_name]
-            hp[cls] = [{**gpu_arg}]
-            continue
-        # TabPFN-Wide is a separate package, not in AutoGluon's registry; map it to
-        # our AutoGluon wrapper (see tabbench_bio.models.tabpfn_wide).
-        if key in ("TABPFN-WIDE", "TABPFNWIDE"):
-            from tabbench_bio.models.tabpfn_wide import TabPFNWideModel
-
-            hp[TabPFNWideModel] = [{**gpu_arg}]
-            continue
-        if key == "TABPFN-WIDE-5K-NE3":
-            from tabbench_bio.models.tabpfn_wide import TabPFNWideModel
-
-            hp[TabPFNWideModel] = [
-                {
-                    **gpu_arg,
-                    "model_name": "wide-v2-5k",
-                    "n_estimators": 3,
-                }
-            ]
-            continue
-        # TabFM (Google Research) is likewise a separate package mapped to our wrapper
-        # (see tabbench_bio.models.tabfm).
-        if key == "TABFM":
-            from tabbench_bio.models.tabfm import TabFMModel
-
-            hp[TabFMModel] = [{**gpu_arg}]
-            continue
-        if key in ("TABPFN-V3", "TABPFNV3"):
-            from tabbench_bio.models.tabpfn_v3 import TabPFNV3Model
-
-            hp[TabPFNV3Model] = [{**gpu_arg}]
+            hp[cls] = [{**gpu_arg, **dict(spec.hyperparameters)}]
             continue
         cls = ag_model_registry.key_to_cls(key)
         assert isinstance(cls, type), f"Unknown AutoGluon model key: {key}"
