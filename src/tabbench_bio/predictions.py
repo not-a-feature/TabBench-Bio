@@ -34,7 +34,6 @@ from functools import cache
 
 import numpy as np
 import pandas as pd
-from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from tabbench_bio.benchmark import configure_benchmark
@@ -380,54 +379,6 @@ class _PowerTracker:
 
 
 # ---------------------------------------------------------------------------
-# Subsampling (OOM guard for specific model/dataset combinations)
-# ---------------------------------------------------------------------------
-
-
-def _maybe_subsample(
-    data_train: pd.DataFrame,
-    model_name: str,
-    key: str,
-    task_type,
-    subsample_config: dict | None,
-    seed: int,
-) -> pd.DataFrame:
-    """Subsample *data_train* for listed (model, dataset) pairs.
-
-    Applies uniform spectral downsampling (``max_features``) and/or stratified
-    sample subsampling (``max_samples``) as an OOM guard for large datasets.
-    Returns *data_train* unchanged if the pair is not listed.
-    """
-    if subsample_config is None:
-        return data_train
-
-    combos = subsample_config.get("combinations", {})
-    if key not in combos.get(model_name, []):
-        return data_train
-
-    label_col = data_train.columns[-1]
-    feature_cols = [c for c in data_train.columns if c != label_col]
-    result = data_train
-
-    max_f = subsample_config.get("max_features")
-    if max_f and len(feature_cols) > max_f:
-        step = len(feature_cols) / max_f
-        selected = [feature_cols[round(i * step)] for i in range(max_f)]
-        result = result[selected + [label_col]]
-
-    max_n = subsample_config.get("max_samples", 10_000)
-    if len(result) > max_n:
-        if task_type == TaskType.Classification:
-            _, result = train_test_split(
-                result, test_size=max_n, random_state=seed, stratify=result[label_col]
-            )
-        else:
-            result = result.sample(n=max_n, random_state=seed)
-
-    return result
-
-
-# ---------------------------------------------------------------------------
 # Per-model NaN handling
 # ---------------------------------------------------------------------------
 
@@ -670,6 +621,8 @@ def compute_predictions(
             "Install the profile in environments/ before running predictions."
         ) from _MODEL_IMPORT_ERROR
     config = copy.deepcopy(config)
+    # Kept in frozen configs; per-model training subsampling was removed.
+    assert config["subsample"] is None, "Per-model subsampling is no longer supported"
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
@@ -721,7 +674,6 @@ def compute_predictions(
     optimize = config["optimize"]
     ensemble = config["ensemble"]
     num_hpo_trials = config["num_hpo_trials"]
-    subsample_config = config["subsample"]
     model_size_limits = config["model_limits"]
     model_overrides = config["model_overrides"]
     model_tuning = config["model_tuning"] if "model_tuning" in config else {}
@@ -1058,11 +1010,8 @@ def compute_predictions(
                     try:
                         if guarded_gpu:
                             assert_exclusive_from_environment()
-                        data_train_fit = _maybe_subsample(
-                            data_train, model_name, key, task_type, subsample_config, seed
-                        )
                         # Per-model NaN policy: fit fill on this model's train, apply to test.
-                        data_test_fit = data_test
+                        data_train_fit, data_test_fit = data_train, data_test
                         if model_name not in model_tuning:
                             data_train_fit, data_test_fit = _apply_nan_policy(
                                 data_train_fit, data_test, nan_pol
