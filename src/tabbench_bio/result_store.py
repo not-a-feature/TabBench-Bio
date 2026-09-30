@@ -639,7 +639,9 @@ class ResultRepository:
                 )
                 assert all(
                     attempt.artifact_hashes == artifact_hashes for attempt in existing_passes
-                ), f"Divergent passing results for {(self.cell, seed, payload['dataset'], payload['model'])}"
+                ), (
+                    f"Divergent passing results for {(self.cell, seed, payload['dataset'], payload['model'])}"
+                )
             connection.execute(
                 "INSERT INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
@@ -817,23 +819,23 @@ def _merge_cell_config(existing: dict, incoming: dict, cell: str) -> dict:
     for key in dataset_keys & (left.keys() | right.keys()):
         assert key in left and key in right, f"Missing {key} for {cell}"
         if left[key] != right[key]:
-            assert isinstance(left[key], list) and isinstance(
-                right[key], list
-            ), f"Resolve {key} to explicit dataset lists before merging {cell}"
+            assert isinstance(left[key], list) and isinstance(right[key], list), (
+                f"Resolve {key} to explicit dataset lists before merging {cell}"
+            )
             merged[key] = list(dict.fromkeys([*left[key], *right[key]]))
     if dataset_keys <= merged.keys() and all(isinstance(merged[k], list) for k in dataset_keys):
-        assert not set(merged["datasets_classification"]) & set(
-            merged["datasets_regression"]
-        ), f"Dataset task types conflict for {cell}"
+        assert not set(merged["datasets_classification"]) & set(merged["datasets_regression"]), (
+            f"Dataset task types conflict for {cell}"
+        )
     for key in ("model_limits", "model_overrides", "model_tuning"):
         for model in shared_models | (left[key].keys() & right[key].keys()):
-            assert (model in left[key]) == (
-                model in right[key]
-            ), f"Incompatible {key} for {cell}/{model}"
+            assert (model in left[key]) == (model in right[key]), (
+                f"Incompatible {key} for {cell}/{model}"
+            )
             if model in left[key]:
-                assert (
-                    left[key][model] == right[key][model]
-                ), f"Incompatible {key} for {cell}/{model}"
+                assert left[key][model] == right[key][model], (
+                    f"Incompatible {key} for {cell}/{model}"
+                )
         merged[key] = {**left[key], **right[key]}
     if not tuning_present:
         del merged["model_tuning"]
@@ -913,9 +915,9 @@ def _assert_consistent_passes(connection: sqlite3.Connection) -> None:
     for row in connection.execute(_ATTEMPT_SELECT + " WHERE status = 'pass'"):
         attempt = _attempt_from_row(row)
         previous = passing_artifacts.setdefault(attempt.key, attempt.artifact_hashes)
-        assert (
-            previous == attempt.artifact_hashes
-        ), f"Divergent passing results for {attempt.key}: {previous} != {attempt.artifact_hashes}"
+        assert previous == attempt.artifact_hashes, (
+            f"Divergent passing results for {attempt.key}: {previous} != {attempt.artifact_hashes}"
+        )
 
 
 def consolidate_results(results_root: str | os.PathLike[str]) -> Path:

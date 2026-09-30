@@ -44,6 +44,9 @@ MODEL_CATEGORY = {
     "REALMLP": "Deep Learning",
     "TABM": "Deep Learning",
     "MITRA": "Tabular Foundation",
+    "CAUSILO": "Tabular Foundation",
+    "KUMO-TABULAR-MEDIUM": "Tabular Foundation",
+    "LIMIX-2": "Tabular Foundation",
     "REALTABPFN-V2": "Tabular Foundation",
     "REALTABPFN-V2.5": "Tabular Foundation",
     "TABPFN-V3": "Tabular Foundation",
@@ -70,6 +73,9 @@ MODEL_DISPLAY = {
     "REALMLP": "RealMLP",
     "TABM": "TabM",
     "MITRA": "MITRA",
+    "CAUSILO": "Causilo",
+    "KUMO-TABULAR-MEDIUM": "Kumo Tabular Medium",
+    "LIMIX-2": "LimiX2",
     "REALTABPFN-V2": "RealTabPFN v2",
     "REALTABPFN-V2.5": "RealTabPFN 2.5",
     "TABPFN-V3": "TabPFN 3",
@@ -155,18 +161,18 @@ def load_model_registry(configs=()) -> dict[str, dict]:
     for path in paths:
         for entry in json.loads(path.read_text(encoding="utf-8")):
             key = entry["key"]
-            assert (
-                key not in registry or registry[key] == entry
-            ), f"Conflicting registry model: {key}"
+            assert key not in registry or registry[key] == entry, (
+                f"Conflicting registry model: {key}"
+            )
             registry[key] = entry
     for config in configs:
         if "model_tuning" not in config:
             continue
         for key, spec in config["model_tuning"].items():
             if key in registry:
-                assert (
-                    registry[key]["base_model"] == spec["base_model"]
-                ), f"Conflicting tuning parent: {key}"
+                assert registry[key]["base_model"] == spec["base_model"], (
+                    f"Conflicting tuning parent: {key}"
+                )
             else:
                 registry[key] = {"key": key, "base_model": spec["base_model"]}
     return registry
@@ -699,9 +705,9 @@ def build_cost_grid(
     if adaptive:
         fallback = scores["fallback"].fillna(False).astype(bool)
         scores.loc[fallback, "timing_cell"] = scores.loc[fallback, "reused_from_cell"]
-        assert (
-            scores.loc[fallback, "timing_cell"].astype(bool).all()
-        ), "Adaptive fallback rows must identify their timing source cell"
+        assert scores.loc[fallback, "timing_cell"].astype(bool).all(), (
+            "Adaptive fallback rows must identify their timing source cell"
+        )
 
     run_stats = run_stats[run_stats["status"] == "pass"][
         ["cell", "seed", "key", "model", "train_time_s", "inference_time_s"]

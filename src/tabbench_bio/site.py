@@ -76,6 +76,9 @@ MODEL_CATEGORY: dict[str, str] = {
     "TABICL": "Tabular Foundation",
     "TABM": "Tabular Foundation",
     "MITRA": "Tabular Foundation",
+    "CAUSILO": "Tabular Foundation",
+    "KUMO-TABULAR-MEDIUM": "Tabular Foundation",
+    "LIMIX-2": "Tabular Foundation",
     "AUTOGLUON": "AutoML",
     "DUMMY": "Baseline",
 }
@@ -129,6 +132,9 @@ MODEL_DISPLAY: dict[str, str] = {
     "TABICL": "TabICL",
     "TABM": "TabM",
     "MITRA": "MITRA",
+    "CAUSILO": "Causilo",
+    "KUMO-TABULAR-MEDIUM": "Kumo Tabular Medium",
+    "LIMIX-2": "LimiX2",
     "AUTOGLUON": "AutoGluon",
     "DUMMY": "Random",
 }

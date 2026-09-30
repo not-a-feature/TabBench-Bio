@@ -26,9 +26,9 @@ class TunedModel(AutoGluonModel):
     def __init__(self, *, tuning, nan_policy, **kwargs):
         (key,) = kwargs["models"]
         validate_tuning(key, tuning)
-        assert (
-            not kwargs["ensemble"] and not kwargs["optimize"]
-        ), "Tuned variants require ensemble=false and optimize=false"
+        assert not kwargs["ensemble"] and not kwargs["optimize"], (
+            "Tuned variants require ensemble=false and optimize=false"
+        )
         assert kwargs["autogluon_presets"] == "medium_quality"
         kwargs["models"] = [tuning["base_model"]]
         super().__init__(**kwargs)

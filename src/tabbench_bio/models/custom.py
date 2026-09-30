@@ -1,6 +1,13 @@
 """Custom adapters available to the standard benchmark commands."""
 
 CUSTOM_MODELS = {
+    "KUMO-TABULAR-MEDIUM": {
+        "adapter": "tabbench_bio.models.kumo_tabular:KumoTabularMediumModel",
+        "environment": "kumo",
+        "device": "gpu",
+        "max_features": None,
+        "classification_only": False,
+    },
     "CAUSILO": {
         "adapter": "tabbench_bio.models.causilo:CausiloModel",
         "environment": "causilo",

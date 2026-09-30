@@ -25,9 +25,9 @@ CHECKOUT = Path(__file__).resolve().parents[2]
 
 def model_python(profile: str) -> str:
     """Find the installed interpreter for a model's environment profile."""
-    assert re.fullmatch(
-        r"[a-z0-9][a-z0-9_-]*", profile
-    ), f"Invalid environment profile: {profile!r}"
+    assert re.fullmatch(r"[a-z0-9][a-z0-9_-]*", profile), (
+        f"Invalid environment profile: {profile!r}"
+    )
     requirements = CHECKOUT / "environments" / f"{profile}.txt"
     assert requirements.is_file(), f"Missing environment profile: {requirements}"
     environment = CHECKOUT / ".venvs" / profile
@@ -101,9 +101,9 @@ def worker_environment(
             flush=True,
         )
     if device == "gpu":
-        assert (
-            hardware["gpu"] is not None
-        ), "This model requires a GPU. Allocate one, or pass --device cpu to try CPU execution."
+        assert hardware["gpu"] is not None, (
+            "This model requires a GPU. Allocate one, or pass --device cpu to try CPU execution."
+        )
     return env, hardware
 
 
@@ -119,9 +119,9 @@ def run_model(args) -> None:
         variants = json.loads(Path(args.model_config).read_text(encoding="utf-8"))
         tuning_specs(variants)
         entries.update({entry["key"]: entry for entry in variants})
-    assert (
-        key in entries or key in CUSTOM_MODELS
-    ), f"Unknown model {key}. Add its adapter to models/custom.py."
+    assert key in entries or key in CUSTOM_MODELS, (
+        f"Unknown model {key}. Add its adapter to models/custom.py."
+    )
     entry = dict(entries[key]) if key in entries else {"key": key}
     if key in CUSTOM_MODELS:
         entry.update(CUSTOM_MODELS[key])
