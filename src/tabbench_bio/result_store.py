@@ -28,6 +28,7 @@ from pathlib import Path
 import pandas as pd
 
 from tabbench_bio.config import load_config
+from tabbench_bio.io_utils import sha256_file
 from tabbench_bio.split_manifest import (
     consistent_truth_hashes,
     load_manifest,
@@ -77,14 +78,6 @@ def _utc_now() -> str:
 
 def _sha256(payload: bytes) -> str:
     return hashlib.sha256(payload).hexdigest()
-
-
-def _sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(8 * 1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
 
 
 def _canonical_json(payload: object) -> str:
@@ -732,7 +725,7 @@ def snapshot_writers(
             {
                 "file": destination.name,
                 "bytes": destination.stat().st_size,
-                "sha256": _sha256_file(destination),
+                "sha256": sha256_file(destination),
             }
         )
     included = {entry["file"] for entry in entries}
@@ -776,7 +769,7 @@ def install_snapshots(
         assert Path(entry["file"]).name == entry["file"], entry["file"]
         source = source_dir / entry["file"]
         assert source.stat().st_size == entry["bytes"], source
-        assert _sha256_file(source) == entry["sha256"], source
+        assert sha256_file(source) == entry["sha256"], source
         with closing(_connect(source, read_only=True)) as connection:
             assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             metadata = dict(connection.execute("SELECT key, value FROM metadata"))
@@ -990,7 +983,7 @@ def merge_results(sources: list[str | os.PathLike[str]], output: str | os.PathLi
                     provenance.append(
                         {
                             "filename": source.name,
-                            "snapshot_sha256": _sha256_file(snapshot),
+                            "snapshot_sha256": sha256_file(snapshot),
                             "metadata": dict(reader.execute("SELECT key, value FROM metadata")),
                             "cells": dict(reader.execute("SELECT cell, config_json FROM cells")),
                         }
