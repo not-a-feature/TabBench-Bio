@@ -843,7 +843,10 @@ def build_website(
     models = {key: model_meta(key, registry) for key in model_ids}
     datasets = dataset_metadata(configs)
     for dataset in datasets:
-        dataset["source_url"] = dataset_source_url(dataset["source"], dataset.pop("fetch_id"))
+        fetch_id = dataset.pop("fetch_id")
+        dataset["source_url"] = dataset["source_url"] or dataset_source_url(
+            dataset["source"], fetch_id
+        )
     progress = progress_summary(configs, status)
     dashboard_path = output / "data" / "dashboard.json"
     prior = ()
