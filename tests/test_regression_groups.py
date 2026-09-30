@@ -33,7 +33,7 @@ def test_equal_targets_do_not_define_groups(tmp_path, folds):
 def test_explicit_regression_groups_remain_disjoint(tmp_path, folds):
     frame = pd.DataFrame({"x": range(80), "target": [45] * 80})
     groups = np.repeat(range(20), 4)
-    bench = TabBenchBio([], ["toy"], cache_dir=str(tmp_path), cv_folds=folds)
+    bench = TabBenchBio([], ["toy"], cache_dir=str(tmp_path), cv_folds=folds, random_state=0)
     train, test = bench._split(frame, "toy", SimpleNamespace(groups=groups))
     assert set(groups[train.index]).isdisjoint(groups[test.index])
 
