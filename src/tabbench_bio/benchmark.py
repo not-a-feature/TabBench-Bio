@@ -136,7 +136,7 @@ class TabBenchBio:
         Classes with fewer samples than this are removed before splitting
         (classification only).  Default 9.
     group_regression_splits : bool
-        Deprecated compatibility option; ignored. Only explicit biological groups
+        Deprecated compatibility option; must be False. Only explicit biological groups
         supplied by the loader constrain regression splits.
     cv_folds : int | None
         If set to ``k``, evaluate with k-fold cross-validation instead of a random
@@ -195,6 +195,9 @@ class TabBenchBio:
         train_subsample: int | None = None,
         cv_folds: int | None = None,
     ):
+        assert group_regression_splits is False, (
+            "Use explicit loader groups; group_regression_splits must be False"
+        )
         reload_bio_registry()
         if not cache_dir:
             cache_dir = ".cache"
@@ -481,7 +484,7 @@ class TabBenchBio:
         # Split FIRST, then fit every data-dependent feature transform on train only and
         # apply it to test — no test-set leakage (docs/integrity_review.md Finding 1).
         if self.split_manifest is None:
-            train, test = self._split(data_df, dataset_name, dataset, num_targets)
+            train, test = self._split(data_df, dataset_name, dataset)
         else:
             train, test = apply_frozen_split(
                 self.split_manifest,
@@ -547,9 +550,7 @@ class TabBenchBio:
         # Shuffle so row order doesn't encode the per-class grouping.
         return pd.concat(frames).sample(frac=1, random_state=self.random_state)
 
-    def _split(
-        self, data_df: DataFrame, dataset_name: str, dataset, num_targets: int
-    ) -> tuple[DataFrame, DataFrame]:
+    def _split(self, data_df: DataFrame, dataset_name: str, dataset) -> tuple[DataFrame, DataFrame]:
         """Train/test split: k-fold when ``cv_folds`` is set, else holdout.
 
         Explicit biological groups stay together; ungrouped classification is stratified.
@@ -561,8 +562,6 @@ class TabBenchBio:
             return self._kfold_split(
                 data_df,
                 dataset_name,
-                dataset,
-                num_targets,
                 is_regression,
                 explicit_groups=explicit_groups,
             )
@@ -587,8 +586,6 @@ class TabBenchBio:
         self,
         data_df: DataFrame,
         dataset_name: str,
-        dataset,
-        num_targets: int,
         is_regression: bool,
         explicit_groups: np.ndarray | None = None,
     ) -> tuple[DataFrame, DataFrame]:

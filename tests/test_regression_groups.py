@@ -9,8 +9,7 @@ from tabbench_bio.benchmark import TabBenchBio
 
 
 @pytest.mark.parametrize("folds", [None, 4])
-@pytest.mark.parametrize("legacy_grouping", [False, True])
-def test_equal_targets_do_not_define_groups(tmp_path, folds, legacy_grouping):
+def test_equal_targets_do_not_define_groups(tmp_path, folds):
     frame = pd.DataFrame({"x": range(80), "target": np.tile([40, 45, 50, 55], 20)})
     bench = TabBenchBio(
         [],
@@ -18,9 +17,8 @@ def test_equal_targets_do_not_define_groups(tmp_path, folds, legacy_grouping):
         cache_dir=str(tmp_path),
         cv_folds=folds,
         random_state=0,
-        group_regression_splits=legacy_grouping,
     )
-    train, test = bench._split(frame, "toy", SimpleNamespace(groups=None), 1)
+    train, test = bench._split(frame, "toy", SimpleNamespace(groups=None))
     if folds is None:
         expected_train, expected_test = train_test_split(frame, test_size=0.2, random_state=0)
     else:
@@ -36,5 +34,10 @@ def test_explicit_regression_groups_remain_disjoint(tmp_path, folds):
     frame = pd.DataFrame({"x": range(80), "target": [45] * 80})
     groups = np.repeat(range(20), 4)
     bench = TabBenchBio([], ["toy"], cache_dir=str(tmp_path), cv_folds=folds)
-    train, test = bench._split(frame, "toy", SimpleNamespace(groups=groups), 1)
+    train, test = bench._split(frame, "toy", SimpleNamespace(groups=groups))
     assert set(groups[train.index]).isdisjoint(groups[test.index])
+
+
+def test_legacy_target_grouping_is_rejected(tmp_path):
+    with pytest.raises(AssertionError, match="group_regression_splits must be False"):
+        TabBenchBio([], [], cache_dir=str(tmp_path), group_regression_splits=True)
