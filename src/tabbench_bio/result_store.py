@@ -41,25 +41,6 @@ CANONICAL_FILENAME = "results.sqlite"
 WRITER_DIRECTORY = "writers"
 SNAPSHOT_DIRECTORY = "snapshots"
 TERMINAL_STATES = ("pass", "skip", "fail")
-STATUS_FIELDS = ("cell", "seed", "dataset", "model", "status", "reason")
-RUN_STATS_FIELDS = (
-    *STATUS_FIELDS,
-    "n_train_samples",
-    "n_test_samples",
-    "train_time_s",
-    "inference_time_s",
-    "inference_time_per_sample_ms",
-    "train_peak_memory_mb",
-    "inference_peak_memory_mb",
-    "n_models_trained",
-    "n_base_models",
-    "ag_total_fit_time_s",
-    "ag_time_per_model_s",
-    "train_gpu_energy_j",
-    "train_cpu_energy_j",
-    "inference_gpu_energy_j",
-    "inference_cpu_energy_j",
-)
 _UNIT_KEY = ("cell", "seed", "dataset", "model")
 _ARTIFACT_KINDS = ("prediction", "probability", "ground_truth", "log")
 _RUNTIME_CONFIG_KEYS = frozenset(

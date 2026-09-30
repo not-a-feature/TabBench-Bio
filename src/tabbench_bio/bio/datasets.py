@@ -19,7 +19,7 @@ from __future__ import annotations
 import json
 import os
 import re
-from dataclasses import dataclass, field, fields
+from dataclasses import dataclass, fields
 from pathlib import Path
 
 BioSource = (
@@ -215,13 +215,6 @@ def load_specs(path: str | Path | None = None) -> dict[str, BioDatasetSpec]:
             raise ValueError(f"{path}: duplicate bio_id {spec.bio_id!r}.")
         specs[spec.bio_id] = spec
     return specs
-
-
-@dataclass
-class _Registry:
-    """Lazily-loaded view over the active dataset registry."""
-
-    specs: dict[str, BioDatasetSpec] = field(default_factory=load_specs)
 
 
 #: Loaded once at import (cheap — just parses the JSON). Re-import or call
