@@ -8,6 +8,7 @@ import pandas as pd
 import pytest
 
 from tabbench_bio.benchmark import TabBenchBio
+from tabbench_bio.bio import datasets as registry
 from tabbench_bio.bio.adapter import load_bio_dataset
 from tabbench_bio.bio.datasets import get_spec
 from tabbench_bio.bio.loaders.metagenomics import (
@@ -45,6 +46,7 @@ def test_matched_cohort_retains_unfiltered_markers_and_subjects(tmp_path, monkey
     assert raw.y.value_counts().to_dict() == {"disease": 118, "healthy": 114}
     assert raw.groups.nunique() == 232
     assert raw.metadata["cohort_version"] == COHORT_VERSION
+    assert "min_prevalence" not in raw.metadata
     assert "gi|rare" in raw.X and raw.X["gi|test_only"].sum() == 0
 
 
@@ -80,6 +82,27 @@ def test_prevalence_uses_training_only_and_precedes_feature_cap(tmp_path):
     actual_train, actual_test = bench._fit_apply_features(train, test, "gut-cirrhosis_0")
     assert actual_train.columns.tolist() == ["train_marker", "target"]
     assert actual_test.columns.tolist() == actual_train.columns.tolist()
+
+
+def test_prevalence_is_registry_driven(tmp_path, monkeypatch):
+    bench = TabBenchBio([], [], cache_dir=str(tmp_path), bio_max_features=None)
+    spec = replace(get_spec("gut-cirrhosis"), bio_id="another-cohort", train_prevalence_filter=0.5)
+    monkeypatch.setitem(registry.BIO_DATASETS, spec.bio_id, spec)
+    train = pd.DataFrame({"common": [1, 1, 0, 0], "rare": [1, 0, 0, 0], "target": [0, 1, 0, 1]})
+    test = pd.DataFrame({"common": [0], "rare": [1], "target": [0]})
+    actual, held_out = bench._fit_apply_features(train, test, "another-cohort_0")
+    assert actual.columns.tolist() == held_out.columns.tolist() == ["common", "target"]
+    monkeypatch.setitem(
+        registry.BIO_DATASETS, spec.bio_id, replace(spec, train_prevalence_filter=None)
+    )
+    actual, _ = bench._fit_apply_features(train, test, "another-cohort_0")
+    assert "rare" in actual
+
+
+@pytest.mark.parametrize("value", [-0.1, 0, 1.1, float("nan")])
+def test_invalid_prevalence_threshold_is_rejected(value):
+    with pytest.raises(AssertionError, match="train_prevalence_filter"):
+        replace(get_spec("gut-cirrhosis"), train_prevalence_filter=value)
 
 
 def test_obsolete_cohort_cache_is_not_reused(tmp_path):

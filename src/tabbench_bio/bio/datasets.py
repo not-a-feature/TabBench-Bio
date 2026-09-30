@@ -135,11 +135,16 @@ class BioDatasetSpec:
     embedding_column: str | None = None
     group_column: str | None = None
     source_max_features: int | None = None
+    train_prevalence_filter: float | None = None
     download_url: str | None = None
     download_sha256: str | None = None
     notes: str = ""
 
     def __post_init__(self) -> None:
+        if self.train_prevalence_filter is not None:
+            assert 0 < self.train_prevalence_filter <= 1, (
+                f"{self.bio_id}: train_prevalence_filter must be in (0, 1]"
+            )
         assert (self.download_url is None) == (self.download_sha256 is None), (
             f"{self.bio_id}: download_url and download_sha256 must be supplied together"
         )
