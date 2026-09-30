@@ -46,6 +46,7 @@ def test_matched_cohort_retains_unfiltered_markers_and_subjects(tmp_path, monkey
     assert raw.y.value_counts().to_dict() == {"disease": 118, "healthy": 114}
     assert raw.groups.nunique() == 232
     assert raw.metadata["cohort_version"] == COHORT_VERSION
+    assert "min_prevalence" not in raw.metadata
     assert "gi|rare" in raw.X and raw.X["gi|test_only"].sum() == 0
 
 
