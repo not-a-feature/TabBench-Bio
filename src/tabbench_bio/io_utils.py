@@ -60,13 +60,13 @@ def atomic_write_json(path: str | os.PathLike[str], payload: object, *, indent: 
         temporary.unlink(missing_ok=True)
 
 
-def atomic_to_pickle(frame: pd.DataFrame, path: str | os.PathLike[str]) -> None:
-    """Publish a complete cache frame, including when workers prepare concurrently."""
+def atomic_to_pickle(frame: object, path: str | os.PathLike[str]) -> None:
+    """Publish a complete cache object, including when workers prepare concurrently."""
     destination = Path(path)
     descriptor, temporary = _temporary_sibling(destination)
     try:
         with os.fdopen(descriptor, "wb") as handle:
-            frame.to_pickle(handle)
+            pd.to_pickle(frame, handle)
             handle.flush()
             os.fsync(handle.fileno())
         _commit_temporary(destination, temporary)
