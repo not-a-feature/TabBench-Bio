@@ -43,16 +43,17 @@ warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
 
 def _apply_run_filters(config, args):
     """Apply scheduling-only filters without changing a frozen cell configuration."""
-    from tabbench_bio.bio.datasets import get_spec
+    from tabbench_bio.bio.datasets import get_spec, resolve_dataset_names
 
     for declared_key, runtime_key in (
         ("datasets_classification", "dataset_names_classification"),
         ("datasets_regression", "dataset_names_regression"),
     ):
         key = runtime_key if runtime_key in config else declared_key
+        names = resolve_dataset_names(config[key], declared_key.removeprefix("datasets_"))
         config[key] = [
             dataset
-            for dataset in config[key]
+            for dataset in names
             if get_spec(dataset).enabled
             and (not args.include_dataset or dataset in args.include_dataset)
         ]
