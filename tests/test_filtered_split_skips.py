@@ -81,6 +81,7 @@ def test_budgeted_cache_keeps_eligible_minority_class_and_test_rows(tmp_path):
 
 
 def test_loader_errors_are_not_converted_to_skips(tmp_path, monkeypatch, debug_config):
+    monkeypatch.setattr(predictions, "AutoGluonModel", object)
     cell = tmp_path / "experiment" / "cap_2000_n20"
     debug_config["output_dir"] = str(cell)
 
