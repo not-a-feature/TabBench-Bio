@@ -16,6 +16,7 @@ from tabbench_bio import Leaderboard
 from tabbench_bio.bio.datasets import get_spec
 from tabbench_bio.io_utils import atomic_write_json
 from tabbench_bio.leaderboard import _open_results_sqlite, _sqlite_frame
+from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import split_versions, unit_id
 
 
@@ -53,22 +54,19 @@ def reference_inputs(path, cell, output, datasets, task):
                 digests[unit] = digest
                 truths[unit] = _sqlite_frame(connection, digest).sort_index()
         units = {}
+        seeds = get_seeds(config)
         for dataset in selected:
             key = dataset + "_0"
-            for repeat in range(config["n_repetitions"] or 1):
-                seeds = list(range(repeat * folds, (repeat + 1) * folds))
-                assert all((seed, key) in truths for seed in seeds), (
-                    f"Incomplete published CV: {key}"
-                )
-                combined = pd.concat([truths[seed, key] for seed in seeds])
-                assert combined.index.is_unique, f"Overlapping published test folds: {key}"
-                for seed in seeds:
-                    test = truths[seed, key].index.tolist()
-                    units[unit_id(seed, key)] = {
-                        "test_indices": test,
-                        "train_indices": sorted(set(combined.index) - set(test)),
-                        "ground_truth_sha256": digests[seed, key],
-                    }
+            assert all((seed, key) in truths for seed in seeds), f"Incomplete published CV: {key}"
+            combined = pd.concat([truths[seed, key] for seed in seeds])
+            assert combined.index.is_unique, f"Overlapping published test folds: {key}"
+            for seed in seeds:
+                test = truths[seed, key].index.tolist()
+                units[unit_id(seed, key)] = {
+                    "test_indices": test,
+                    "train_indices": sorted(set(combined.index) - set(test)),
+                    "ground_truth_sha256": digests[seed, key],
+                }
     atomic_write_json(
         output / "split_manifest.json",
         {
