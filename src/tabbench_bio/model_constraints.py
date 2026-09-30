@@ -1,20 +1,7 @@
-"""Published regular feature limits declared by the model adapters."""
+"""Published regular feature limits declared in the model registry."""
 
-from tabbench_bio.models.custom import CUSTOM_MODELS
+from tabbench_bio.model_registry import MODEL_REGISTRY
 
 REGULAR_MAX_FEATURES = {
-    "MITRA": 500,
-    "REALTABPFN-V2": 500,
-    "REALTABPFN-V2.5": 2_000,
-    "TABDPT": 2_500,
-    "TABFM": 2_000,
-    "TABICL": 2_000,
-    "TABPFN-V3": 10_000,
+    key: spec.max_features for key, spec in MODEL_REGISTRY.items() if spec.max_features is not None
 }
-REGULAR_MAX_FEATURES.update(
-    {
-        key: entry["max_features"]
-        for key, entry in CUSTOM_MODELS.items()
-        if entry["max_features"] is not None
-    }
-)

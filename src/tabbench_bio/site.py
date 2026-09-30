@@ -43,6 +43,7 @@ from tabbench_bio.coverage import complete_folds, coverage_counts, impute_failur
 from tabbench_bio.elo import compute_elo, fold_scores, score_table, win_counts
 from tabbench_bio.leaderboard import Leaderboard
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC
+from tabbench_bio.model_registry import MODEL_CATEGORY, MODEL_DISPLAY
 from tabbench_bio.result_store import ResultRepository, result_location
 from tabbench_bio.seeds import get_seeds
 
@@ -53,35 +54,6 @@ logger = logging.getLogger(__name__)
 # ---------------------------------------------------------------------------
 
 #: AutoGluon model key → algorithmic family. Keys not listed fall back to "Other".
-MODEL_CATEGORY: dict[str, str] = {
-    "LR": "Traditional ML",
-    "KNN": "Traditional ML",
-    "RF": "Tree-based",
-    "XT": "Tree-based",
-    "GBM": "Gradient Boosting",
-    "XGB": "Gradient Boosting",
-    "CAT": "Gradient Boosting",
-    "NN_TORCH": "Deep Learning",
-    "FASTAI": "Deep Learning",
-    "REALMLP": "Deep Learning",
-    "TABPFN": "Tabular Foundation",
-    "REALTABPFN-V2": "Tabular Foundation",
-    "REALTABPFN-V2.5": "Tabular Foundation",
-    "TABPFN-V3": "Tabular Foundation",
-    "TABPFN-V3.5": "Tabular Foundation",
-    "TABPFN-WIDE": "Tabular Foundation",
-    "TABPFN-WIDE-5K-NE3": "Tabular Foundation",
-    "TABFM": "Tabular Foundation",
-    "TABDPT": "Tabular Foundation",
-    "TABICL": "Tabular Foundation",
-    "TABM": "Tabular Foundation",
-    "MITRA": "Tabular Foundation",
-    "CAUSILO": "Tabular Foundation",
-    "KUMO-TABULAR-MEDIUM": "Tabular Foundation",
-    "LIMIX-2": "Tabular Foundation",
-    "AUTOGLUON": "AutoML",
-    "DUMMY": "Baseline",
-}
 
 #: Family → display colour (used for badges in the table and bars/points in figures).
 CATEGORY_COLOR: dict[str, str] = {
@@ -109,35 +81,6 @@ _MODALITY_PALETTE: list[str] = [
 ]
 
 #: AutoGluon model key → human-friendly display name. Falls back to the key itself.
-MODEL_DISPLAY: dict[str, str] = {
-    "LR": "Logistic Regression",
-    "KNN": "KNN",
-    "RF": "Random Forest",
-    "XT": "Extra Trees",
-    "GBM": "LightGBM",
-    "XGB": "XGBoost",
-    "CAT": "CatBoost",
-    "NN_TORCH": "MLP",
-    "FASTAI": "FastAI",
-    "REALMLP": "RealMLP",
-    "TABPFN": "TabPFN",
-    "REALTABPFN-V2": "RealTabPFN v2",
-    "REALTABPFN-V2.5": "RealTabPFN 2.5",
-    "TABPFN-V3": "TabPFN 3",
-    "TABPFN-V3.5": "TabPFN 3.5",
-    "TABPFN-WIDE": "TabPFN Wide (8k)",
-    "TABPFN-WIDE-5K-NE3": "TabPFN Wide 5k (ne3)",
-    "TABFM": "TabFM",
-    "TABDPT": "TabDPT",
-    "TABICL": "TabICL",
-    "TABM": "TabM",
-    "MITRA": "MITRA",
-    "CAUSILO": "Causilo",
-    "KUMO-TABULAR-MEDIUM": "Kumo Tabular Medium",
-    "LIMIX-2": "LimiX2",
-    "AUTOGLUON": "AutoGluon",
-    "DUMMY": "Random",
-}
 
 
 def _category_of(model_id: str) -> str:

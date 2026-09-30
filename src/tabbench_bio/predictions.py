@@ -48,7 +48,7 @@ from tabbench_bio.gpu_exclusivity import (
 )
 from tabbench_bio.logging_utils import LOG_FORMAT, run_file_logger
 from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
-from tabbench_bio.models.custom import CUSTOM_MODELS
+from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 from tabbench_bio.result_store import ResultRepository, StoredAttempt
 from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
@@ -68,13 +68,9 @@ logger = logging.getLogger(__name__)
 
 # Models whose upstream package implements classification only: a regression unit for one of
 # these is excluded by design (``classification_only``), not counted as a model failure.
-CLASSIFICATION_ONLY_MODELS: set[str] = {
-    "TABPFN-WIDE",
-    "TABPFN-WIDE-5K-NE3",
+CLASSIFICATION_ONLY_MODELS = {
+    key for key, spec in MODEL_REGISTRY.items() if "regression" not in spec.supported_tasks
 }
-CLASSIFICATION_ONLY_MODELS.update(
-    key for key, entry in CUSTOM_MODELS.items() if entry["classification_only"]
-)
 # Bump only when memory handling changes materially. OOMs written by an older version are
 # retried once; current-version OOMs remain terminal on ordinary restarts.
 MEMORY_RETRY_VERSION = 1
@@ -854,8 +850,33 @@ def compute_predictions(
                     pbar.update(1)
                     continue
 
+                parent = canonical_model_key(
+                    model_tuning[model_name]["base_model"]
+                    if model_name in model_tuning
+                    else model_name
+                )
+                spec = MODEL_REGISTRY[parent] if parent in MODEL_REGISTRY else None
+                if (
+                    task_type == TaskType.Classification
+                    and spec is not None
+                    and spec.max_classes is not None
+                ):
+                    n_classes = pd.concat([data_train["target"], data_test["target"]]).nunique()
+                    if n_classes > spec.max_classes:
+                        record_skip(
+                            seed,
+                            key,
+                            model_name,
+                            len(data_train),
+                            len(data_test),
+                            "class_limit",
+                            f"{parent} supports at most {spec.max_classes} classes; task has {n_classes}",
+                        )
+                        pbar.update(1)
+                        continue
+
                 # Skip classification-only models for regression datasets
-                if task_type == TaskType.Regression and model_name in CLASSIFICATION_ONLY_MODELS:
+                if task_type == TaskType.Regression and parent in CLASSIFICATION_ONLY_MODELS:
                     record_skip(
                         seed,
                         key,
