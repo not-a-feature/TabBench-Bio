@@ -144,6 +144,16 @@ model-target fold sets. Elo needs RF and at least one comparable model.
 The website also provides adaptive and conditional views, explained in the model guide.
 Use `--task` to select classification or regression.
 
+### Resource measurements
+
+GPU power and energy are device-wide estimates for the current CUDA device, resolved
+by UUID so pinned workers respect `CUDA_VISIBLE_DEVICES`. Unsupported measurements
+remain missing. Intel RAPL energy covers CPU package 0, including other jobs on that
+package; it is a node-level estimate, not energy attributable to the model. The
+psutil memory peak covers only the main process RSS and excludes child processes.
+The tracemalloc fallback measures Python allocations only. Result records include
+these measurement scopes alongside the values.
+
 ## Caches
 
 Dataset caches hold source downloads, assembled tables and prepared splits. Set
@@ -197,13 +207,3 @@ npx skills add https://tabbench-bio.eu/skill.md
 
 This downloads the Markdown skill. A browsing agent can also read the
 [hosted version](https://tabbench-bio.eu/skill.md) directly.
-
-### Resource measurements
-
-GPU power and energy are device-wide estimates for the current CUDA device, resolved
-by UUID so pinned workers respect `CUDA_VISIBLE_DEVICES`. Unsupported measurements
-remain missing. Intel RAPL energy covers CPU package 0, including other jobs on that
-package; it is a node-level estimate, not energy attributable to the model. The
-psutil memory peak covers only the main process RSS and excludes child processes.
-The tracemalloc fallback measures Python allocations only. Result records include
-these measurement scopes alongside the values.
