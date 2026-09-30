@@ -197,3 +197,13 @@ npx skills add https://tabbench-bio.eu/skill.md
 
 This downloads the Markdown skill. A browsing agent can also read the
 [hosted version](https://tabbench-bio.eu/skill.md) directly.
+
+### Dataset cache consistency
+
+Raw dataset caches record a SHA-256 fingerprint of the full registry specification
+and loader version. A mismatch, including an older cache without a fingerprint,
+stops loading. Review the registry change, then explicitly refresh that dataset with
+`load_bio_dataset(bio_id, cache_dir=..., force_refetch=True)`. Processed split cache
+keys include the same fingerprints; their `split_params.json` records the inputs.
+Raw cache files are replaced atomically. Increment `LOADER_CACHE_VERSION` in
+`bio/fingerprint.py` when loader changes alter matrices, labels or biological groups.

@@ -53,6 +53,7 @@ from tqdm import tqdm
 from tabbench_bio.bio import (
     DEFAULT_MAX_FEATURES,
     bio_dataset_names,
+    fingerprint,
     get_spec,
     is_bio_dataset,
     load_bio_as_dataset,
@@ -221,6 +222,16 @@ class TabBenchBio:
         # comparable across sizes (a learning curve). None = use all training rows.
         self.train_subsample = train_subsample
 
+        requested_names = (
+            bio_dataset_names("binary") + bio_dataset_names("multiclass")
+            if dataset_names_classification is None
+            else list(dataset_names_classification)
+        ) + (
+            bio_dataset_names("regression")
+            if dataset_names_regression is None
+            else list(dataset_names_regression)
+        )
+
         # The processed-split cache must be keyed on *every* parameter that changes the
         # produced splits, not just the seed — otherwise changing e.g. max_classes
         # silently reuses stale splits (see docs/integrity_review.md Finding 3).
@@ -230,6 +241,11 @@ class TabBenchBio:
         split_params = {
             "prepared_data_version": _PREPARED_DATA_VERSION,
             "split_versions": split_versions(),
+            "dataset_specs": {
+                name: fingerprint.spec_fingerprint(get_spec(name))
+                for name in requested_names
+                if is_bio_dataset(name)
+            },
             "test_size": test_size,
             "min_samples_per_class": min_samples_per_class,
             "max_classes": max_classes,
@@ -238,11 +254,20 @@ class TabBenchBio:
             "train_subsample": train_subsample,
             "cv_folds": cv_folds,
         }
-        param_hash = hashlib.md5(json.dumps(split_params, sort_keys=True).encode()).hexdigest()[:8]
+        param_hash = hashlib.sha256(json.dumps(split_params, sort_keys=True).encode()).hexdigest()[
+            :16
+        ]
         self.cache_dir_processed = os.path.join(
             cache_dir, "datasets_processed", f"seed_{random_state}_{param_hash}"
         )
         os.makedirs(self.cache_dir_processed, exist_ok=True)
+        split_params_path = Path(self.cache_dir_processed) / "split_params.json"
+        if split_params_path.exists():
+            assert json.loads(split_params_path.read_text(encoding="utf-8")) == split_params, (
+                f"Split cache metadata mismatch: {split_params_path}"
+            )
+        else:
+            atomic_write_json(split_params_path, split_params)
 
         if dataset_names_classification is None:
             self.dataset_names_classification = bio_dataset_names("binary") + bio_dataset_names(
