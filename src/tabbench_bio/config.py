@@ -108,9 +108,9 @@ def model_limits(models):
     for model in models:
         if not isinstance(model, dict) or "max_cells" not in model:
             continue
-        assert (
-            isinstance(model["max_cells"], int) and model["max_cells"] > 0
-        ), f"model {model['key']!r}: max_cells must be a positive integer"
+        assert isinstance(model["max_cells"], int) and model["max_cells"] > 0, (
+            f"model {model['key']!r}: max_cells must be a positive integer"
+        )
         assert (
             "memory_prior_version" in model
             and isinstance(model["memory_prior_version"], int)
@@ -186,9 +186,9 @@ def load_config(config_path):
         validate_tuning(key, spec)
     if tuning:
         config["model_tuning"] = tuning
-        assert (
-            not config["ensemble"] and not config["optimize"]
-        ), "Tuned variants require ensemble=false and optimize=false"
+        assert not config["ensemble"] and not config["optimize"], (
+            "Tuned variants require ensemble=false and optimize=false"
+        )
     config["models"] = model_keys(roster)
 
     return config

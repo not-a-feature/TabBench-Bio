@@ -148,25 +148,25 @@ def _assert_identical_test_target(
     source = (source_cell, seed, key)
     assert target in ground_truth_hashes, f"Missing held-out-target hash for {target}"
     assert source in ground_truth_hashes, f"Missing held-out-target hash for {source}"
-    assert (
-        ground_truth_hashes[target] == ground_truth_hashes[source]
-    ), f"Held-out targets differ between {target_cell} and {source_cell} for seed {seed}/{key}"
+    assert ground_truth_hashes[target] == ground_truth_hashes[source], (
+        f"Held-out targets differ between {target_cell} and {source_cell} for seed {seed}/{key}"
+    )
 
 
 def _load_status_records(repository: ResultRepository, cell_names: list[str]) -> pd.DataFrame:
     root = repository.root
-    assert (root / CANONICAL_FILENAME).is_file() or (
-        root / WRITER_DIRECTORY
-    ).is_dir(), f"No transactional result bundles found under {root}; import the legacy tree first."
+    assert (root / CANONICAL_FILENAME).is_file() or (root / WRITER_DIRECTORY).is_dir(), (
+        f"No transactional result bundles found under {root}; import the legacy tree first."
+    )
     indexed = repository.current_frame()
     status = indexed[indexed["cell"].isin(cell_names)].copy()
     status = status[status["reason"] != "benchmark_exclusion"]
     status = status[
         ~status["dataset"].map(lambda key: key.rsplit("_", 1)[0]).isin(_DISABLED_DATASETS)
     ]
-    assert (
-        status["n_train_samples"].notna().all()
-    ), "Indexed records used for sample fallback lack n_train_samples"
+    assert status["n_train_samples"].notna().all(), (
+        "Indexed records used for sample fallback lack n_train_samples"
+    )
     status = status.rename(columns={"dataset": "key"})
     memory_failures = []
     attempts = {attempt.key: attempt for attempt in repository.current_attempts()}
@@ -230,9 +230,9 @@ def resolve_sample_fallbacks(
             continue
         unit = (attempt.cell, attempt.seed, attempt.dataset)
         if unit in ground_truth_hashes:
-            assert (
-                ground_truth_hashes[unit] == attempt.ground_truth_sha256
-            ), f"Conflicting held-out-target hashes for {unit}"
+            assert ground_truth_hashes[unit] == attempt.ground_truth_sha256, (
+                f"Conflicting held-out-target hashes for {unit}"
+            )
         ground_truth_hashes[unit] = attempt.ground_truth_sha256
     assert cell_names, "No grid cells supplied for sample-fallback resolution."
     assert len(cell_names) == len(set(cell_names)), "Duplicate grid cells supplied."
@@ -259,9 +259,9 @@ def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
     """Resolve the same sample fallbacks from database metrics without creating files."""
     parsed = {name: parse_grid_cell(name) for name in configs}
     truth_cells = set(ground_truth_hashes)
-    assert not status.duplicated(
-        ["cell", "seed", "key", "model"]
-    ).any(), "Duplicate unit status records found."
+    assert not status.duplicated(["cell", "seed", "key", "model"]).any(), (
+        "Duplicate unit status records found."
+    )
     status_lookup = {
         (row.cell, int(row.seed), row.key, row.model): row for row in status.itertuples(index=False)
     }
@@ -271,9 +271,9 @@ def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
     for task, frame in metrics.items():
         frame = frame.copy()
         if not frame.empty:
-            assert not frame.duplicated(
-                ["cell", "seed", "key", "model"]
-            ).any(), f"Duplicate {task} metric rows found."
+            assert not frame.duplicated(["cell", "seed", "key", "model"]).any(), (
+                f"Duplicate {task} metric rows found."
+            )
             nominal = []
             for row in frame.to_dict("records"):
                 unit = (row["cell"], int(row["seed"]), row["key"], row["model"])
@@ -345,9 +345,9 @@ def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
             manifest.append(manifest_row)
             continue
 
-        assert (
-            source_unit in metric_lookup
-        ), f"Passing duplicate-cell source has no metric row: {source_unit}"
+        assert source_unit in metric_lookup, (
+            f"Passing duplicate-cell source has no metric row: {source_unit}"
+        )
         task, source_row = metric_lookup[source_unit]
         _assert_compatible_configs(configs[target.cell], configs[source_cell], target.model)
         validation_cells = [
@@ -361,9 +361,9 @@ def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
             )
             if cap == target_cap and (name, int(target.seed), target.key) in truth_cells
         ]
-        assert (
-            validation_cells
-        ), f"No same-cap fold target is available to validate duplicate unit {source_unit}"
+        assert validation_cells, (
+            f"No same-cap fold target is available to validate duplicate unit {source_unit}"
+        )
         _assert_identical_test_target(
             ground_truth_hashes,
             validation_cells[0],
@@ -417,9 +417,9 @@ def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
                 break
             source_status = status_lookup[source_unit]
             if source_status.status == "pass":
-                assert (
-                    source_unit in metric_lookup
-                ), f"Passing fallback source has no metric row: {source_unit}"
+                assert source_unit in metric_lookup, (
+                    f"Passing fallback source has no metric row: {source_unit}"
+                )
                 resolved = (source_cell, source_status, metric_lookup[source_unit])
                 break
             if not source_status.memory_failure:
@@ -489,9 +489,9 @@ def resolve_metric_fallbacks(configs, metrics, status, ground_truth_hashes):
         else:
             frame = pd.concat([strict[task], additions], ignore_index=True)
         if not frame.empty:
-            assert not frame.duplicated(
-                ["cell", "seed", "key", "model"]
-            ).any(), f"Adaptive {task} metrics contain duplicate units."
+            assert not frame.duplicated(["cell", "seed", "key", "model"]).any(), (
+                f"Adaptive {task} metrics contain duplicate units."
+            )
             missing = [column for column in _FALLBACK_COLUMNS if column not in frame.columns]
             assert not missing, f"Adaptive metrics lack fallback metadata: {missing}"
         adaptive[task] = frame

@@ -296,14 +296,14 @@ class AutoGluonModel:
             assert groups.index.equals(data_train.index), "Training groups are misaligned"
             assert not groups.isna().any(), "Missing biological training groups"
             if groups.nunique() < len(groups):
-                assert (
-                    groups.nunique() >= 2
-                ), "Internal validation needs at least two biological groups"
+                assert groups.nunique() >= 2, (
+                    "Internal validation needs at least two biological groups"
+                )
                 if self.problem_type in ("binary", "multiclass"):
                     class_groups = DataFrame({"label": data_train[self.label], "group": groups})
-                    assert (
-                        class_groups.groupby("label")["group"].nunique().min() >= 2
-                    ), "Internal validation requires each class in at least two biological groups"
+                    assert class_groups.groupby("label")["group"].nunique().min() >= 2, (
+                        "Internal validation requires each class in at least two biological groups"
+                    )
                 group_column = "__tabbench_biological_group__"
                 assert group_column not in tabular_data.columns
                 tabular_data = tabular_data.copy()

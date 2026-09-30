@@ -115,9 +115,9 @@ class LimiX2Model(AbstractModel):
                 raise ValueError(
                     "LimiX-2 supports 2–10 classes; it does not merge or drop classes."
                 )
-            assert np.array_equal(
-                classes, np.arange(self.num_classes)
-            ), "LimiX-2 requires AutoGluon's consecutive class labels."
+            assert np.array_equal(classes, np.arange(self.num_classes)), (
+                "LimiX-2 requires AutoGluon's consecutive class labels."
+            )
         self._train_X = self.preprocess(X).copy()
         task = "reg" if self.problem_type == "regression" else "cls"
         config = json.loads(

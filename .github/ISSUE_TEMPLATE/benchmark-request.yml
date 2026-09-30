@@ -7,8 +7,8 @@ body:
     attributes:
       label: Request type
       options:
-        - Dataset
         - Model
+        - Dataset
     validations:
       required: true
 
@@ -17,9 +17,9 @@ body:
     attributes:
       label: Task type
       options:
+        - Classification & Regression
         - Regression
         - Classification
-        - Classification & Regression
     validations:
       required: true
 

@@ -16,9 +16,9 @@ def tuning_specs(models):
     for entry in models:
         if not isinstance(entry, dict):
             continue
-        assert ("base_model" in entry) == (
-            "tuning" in entry
-        ), "A tuned variant requires both base_model and tuning"
+        assert ("base_model" in entry) == ("tuning" in entry), (
+            "A tuned variant requires both base_model and tuning"
+        )
         if "tuning" in entry:
             assert entry["key"] not in specs, "Duplicate tuned model key"
             assert "base_model" not in entry["tuning"], "Declare base_model beside tuning"
@@ -41,9 +41,9 @@ def validate_tuning(key, spec):
     assert set(spec) == required, f"Tuning fields must be {sorted(required)}"
     assert spec["base_model"] in TUNABLE_MODELS, "Unsupported tuning parent"
     assert re.fullmatch(r"[A-Z0-9][A-Z0-9_.-]*", key) and key != spec["base_model"]
-    assert (
-        isinstance(spec["protocol"], str) and spec["protocol"].strip()
-    ), "Missing protocol version"
+    assert isinstance(spec["protocol"], str) and spec["protocol"].strip(), (
+        "Missing protocol version"
+    )
     assert spec["selection"] == "inner_holdout", "Only inner_holdout is supported"
     assert 0 < spec["validation_fraction"] < 1
     assert 0 < spec["search_fraction"] < 1, "Reserve part of the total budget for refitting"
@@ -61,9 +61,9 @@ def candidates(spec, task):
     assert expanded and {} in expanded, "Include {} as a library-default candidate"
     encodings = [json.dumps(p, sort_keys=True, allow_nan=False) for p in expanded]
     assert len(set(encodings)) == len(encodings), "Duplicate grid candidates"
-    assert all(
-        not k.startswith("ag") for p in expanded for k in p
-    ), "Grid entries may only change estimator parameters, not AutoGluon controls"
+    assert all(not k.startswith("ag") for p in expanded for k in p), (
+        "Grid entries may only change estimator parameters, not AutoGluon controls"
+    )
     return expanded
 
 
@@ -92,8 +92,8 @@ def selection_split(frame, groups, spec, classification):
             stratify=y if classification else None,
         )
     if classification:
-        assert (
-            set(y.iloc[train]) == set(y) == set(y.iloc[valid])
-        ), "Inner split must contain every class in both partitions; use a larger sample budget"
+        assert set(y.iloc[train]) == set(y) == set(y.iloc[valid]), (
+            "Inner split must contain every class in both partitions; use a larger sample budget"
+        )
     assert len(train) >= 2 and len(valid) >= 2, "Inner split is too small"
     return train, valid

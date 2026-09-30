@@ -14,9 +14,9 @@ class CausiloModel(AbstractModel):
     ag_name = "Causilo"
 
     def _fit(self, X, y, num_cpus=1, num_gpus=0, **kwargs):
-        assert (
-            RELEASE_COMMIT == CHECKPOINT_REVISION
-        ), "Unexpected Causilo checkpoint revision; reinstall the causilo profile."
+        assert RELEASE_COMMIT == CHECKPOINT_REVISION, (
+            "Unexpected Causilo checkpoint revision; reinstall the causilo profile."
+        )
         assert num_cpus >= 1
         if num_gpus and not torch.cuda.is_available():
             raise RuntimeError("Causilo requested a GPU, but CUDA is unavailable.")
@@ -31,9 +31,9 @@ class CausiloModel(AbstractModel):
         )
         self.model.fit(self.preprocess(X), y)
         if self.problem_type != "regression":
-            assert np.array_equal(
-                self.model.classes_, np.arange(self.num_classes)
-            ), "Causilo probabilities must follow AutoGluon's class order."
+            assert np.array_equal(self.model.classes_, np.arange(self.num_classes)), (
+                "Causilo probabilities must follow AutoGluon's class order."
+            )
 
     def _predict_proba(self, X, **kwargs):
         regression = self.problem_type == "regression"

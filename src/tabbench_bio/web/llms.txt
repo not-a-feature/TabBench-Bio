@@ -28,7 +28,7 @@ The leading intervals overlap, so the displayed order should not be interpreted 
 
 ## Evaluated models
 
-AutoGluon, CAUSILO, CatBoost, Constant, Extra Trees, Extra Trees (tuned), KNN, LightGBM, Logistic Regression, Logistic Regression (tuned), MITRA, MLP, Random Forest, Random Forest (tuned), RealMLP, RealTabPFN 2.5, RealTabPFN v2, TabDPT, TabFM, TabICL, TabM, TabPFN 3, TabPFN 3.5, TabPFN Wide (8k), TabPFN Wide 5k (ne3), XGBoost, XGBoost (tuned).
+AutoGluon, CatBoost, Causilo, Constant, Extra Trees, Extra Trees (tuned), KNN, LightGBM, Logistic Regression, Logistic Regression (tuned), MITRA, MLP, Random Forest, Random Forest (tuned), RealMLP, RealTabPFN 2.5, RealTabPFN v2, TabDPT, TabFM, TabICL, TabM, TabPFN 3, TabPFN 3.5, TabPFN Wide (8k), TabPFN Wide 5k (ne3), XGBoost, XGBoost (tuned).
 
 ## Training-data overlap
 

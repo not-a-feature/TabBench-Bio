@@ -530,9 +530,9 @@ def _predict_with_oom_batching(
                 stop = min(start + batch_size, len(data_test))
                 chunks.append(predict_fn(data_test.iloc[start:stop]))
             predictions = pd.concat(chunks)
-            assert predictions.index.equals(
-                data_test.index
-            ), "Batched prediction changed the test-row index or order."
+            assert predictions.index.equals(data_test.index), (
+                "Batched prediction changed the test-row index or order."
+            )
             return predictions, batch_size, oom_retries
         except Exception as error:
             if not _is_cuda_oom(error) or batch_size == 1:
