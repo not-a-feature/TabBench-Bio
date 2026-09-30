@@ -5,6 +5,6 @@ recursive-include environments *.txt *.md
 recursive-include scripts *.py
 recursive-include scripts *.sbatch
 recursive-include tests *.py
-recursive-include skills *.md
+recursive-include skills *.md *.yaml
 
 recursive-include src/tabbench_bio/web *
