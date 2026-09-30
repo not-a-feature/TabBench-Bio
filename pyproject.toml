@@ -143,7 +143,6 @@ where = ["src"]
 [tool.setuptools.package-data]
 tabbench_bio = [
     "bio/data/*.json", "web/*", "web/.nojekyll", "web/js/*", "web/assets/*", "web/assets/fonts/*",
-    "web/skills/*/*", "web/skills/*/agents/*", "web/skills/*/references/*",
 ]
 
 [tool.setuptools.data-files]

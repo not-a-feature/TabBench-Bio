@@ -295,3 +295,11 @@ that launches them; activate a compatible model profile when using those directl
 
 For a small comparison using scikit-learn alone, see [Benchmark my model](README.md).
 That helper exports metrics but does not write SQLite attempt bundles for merging.
+
+
+Model metadata and adapter routing live in `src/tabbench_bio/model_registry.py`.
+Add a `ModelSpec` there with its adapter, profile, device, display/category and
+capabilities. The legacy custom-model map, feature limits, task restrictions and
+both website maps are derived from it. Add the key to `configs/models/all.json`
+only when it should join the default benchmark roster. Per-run device/environment
+overrides remain supported. Profile dependencies stay in `environments/`.

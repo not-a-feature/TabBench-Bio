@@ -76,7 +76,7 @@ def test_grouped_five_fold_has_no_independence_unit_leakage(tmp_path):
             cache_dir=str(tmp_path / f"fold-{fold}"),
             cv_folds=5,
         )
-        train, test = bench._split(data, "grouped", dataset, num_targets=1)
+        train, test = bench._split(data, "grouped", dataset)
         assert set(groups[train.index]).isdisjoint(groups[test.index])
         held_out.extend(test.index.tolist())
 
