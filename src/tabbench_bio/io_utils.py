@@ -2,12 +2,14 @@
 
 from __future__ import annotations
 
+import hashlib
 import json
 import os
 import shutil
 import stat
 import tempfile
 import uuid
+from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 
@@ -29,49 +31,46 @@ def archive_existing(
     return destination
 
 
-def _temporary_sibling(path: Path) -> tuple[int, Path]:
-    path.parent.mkdir(parents=True, exist_ok=True)
+def sha256_file(path: Path) -> str:
+    """Hash a file without reading its contents into memory."""
+    with path.open("rb") as handle:
+        return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+@contextmanager
+def _atomic_path(path: str | os.PathLike[str]):
+    destination = Path(path)
+    destination.parent.mkdir(parents=True, exist_ok=True)
     descriptor, name = tempfile.mkstemp(
-        dir=path.parent,
-        prefix=f".{path.name}.",
-        suffix=".tmp",
+        dir=destination.parent, prefix=f".{destination.name}.", suffix=".tmp"
     )
-    return descriptor, Path(name)
-
-
-def _commit_temporary(path: Path, temporary: Path) -> None:
-    mode = stat.S_IMODE(path.stat().st_mode) if path.exists() else 0o660
-    temporary.chmod(mode | stat.S_IRGRP | stat.S_IWGRP)
-    os.replace(temporary, path)
+    os.close(descriptor)
+    temporary = Path(name)
+    try:
+        yield temporary
+        # Windows requires a writable descriptor for fsync.
+        with temporary.open("r+b") as handle:
+            os.fsync(handle.fileno())
+        mode = stat.S_IMODE(destination.stat().st_mode) if destination.exists() else 0o660
+        temporary.chmod(mode | stat.S_IRGRP | stat.S_IWGRP)
+        os.replace(temporary, destination)
+    finally:
+        temporary.unlink(missing_ok=True)
 
 
 def atomic_write_json(path: str | os.PathLike[str], payload: object, *, indent: int = 2) -> None:
     """Write JSON beside its destination and atomically replace on success."""
-    destination = Path(path)
-    descriptor, temporary = _temporary_sibling(destination)
-    try:
-        with os.fdopen(descriptor, "w", encoding="utf-8") as handle:
+    with _atomic_path(path) as temporary:
+        with temporary.open("w", encoding="utf-8") as handle:
             json.dump(payload, handle, indent=indent)
             handle.write("\n")
-            handle.flush()
-            os.fsync(handle.fileno())
-        _commit_temporary(destination, temporary)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def atomic_to_pickle(frame: object, path: str | os.PathLike[str]) -> None:
     """Publish a complete cache object, including when workers prepare concurrently."""
-    destination = Path(path)
-    descriptor, temporary = _temporary_sibling(destination)
-    try:
-        with os.fdopen(descriptor, "wb") as handle:
+    with _atomic_path(path) as temporary:
+        with temporary.open("wb") as handle:
             pd.to_pickle(frame, handle)
-            handle.flush()
-            os.fsync(handle.fileno())
-        _commit_temporary(destination, temporary)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def atomic_to_csv(
@@ -81,18 +80,8 @@ def atomic_to_csv(
     index: bool,
 ) -> None:
     """Write a dataframe atomically so an interrupted writer leaves the old CSV intact."""
-    destination = Path(path)
-    descriptor, temporary = _temporary_sibling(destination)
-    os.close(descriptor)
-    try:
+    with _atomic_path(path) as temporary:
         frame.to_csv(temporary, index=index)
-        # Windows requires a writable descriptor for fsync; Linux accepts read-only
-        # descriptors, which hid this portability issue in the cluster workflow.
-        with temporary.open("r+b") as handle:
-            os.fsync(handle.fileno())
-        _commit_temporary(destination, temporary)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def atomic_to_parquet(
@@ -102,13 +91,5 @@ def atomic_to_parquet(
     index: bool,
 ) -> None:
     """Write a dataframe atomically so the prior Parquet file survives interruption."""
-    destination = Path(path)
-    descriptor, temporary = _temporary_sibling(destination)
-    os.close(descriptor)
-    try:
+    with _atomic_path(path) as temporary:
         frame.to_parquet(temporary, index=index)
-        with temporary.open("r+b") as handle:
-            os.fsync(handle.fileno())
-        _commit_temporary(destination, temporary)
-    finally:
-        temporary.unlink(missing_ok=True)

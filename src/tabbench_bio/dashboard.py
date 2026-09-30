@@ -20,7 +20,7 @@ from tqdm.auto import tqdm
 from tabbench_bio.bio.loaders.tdc import DATAVERSE_URL, ENDPOINTS
 from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read_inputs
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
-from tabbench_bio.io_utils import atomic_write_json
+from tabbench_bio.io_utils import atomic_write_json, sha256_file
 from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.web_metadata import write_agent_metadata
@@ -127,14 +127,6 @@ DOMAIN_ELO_OUTPUT_FIELDS = (
 CELL_RE = re.compile(r"^cap_(full|\d+)(?:_n(\d+))?$")
 
 
-def sha256_file(path: Path) -> str:
-    digest = hashlib.sha256()
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
 def write_json(path: Path, payload: object) -> None:
     atomic_write_json(path, clean_json(payload))
 
@@ -145,10 +137,6 @@ def clean_json(value):
     if isinstance(value, (list, tuple)):
         return [clean_json(item) for item in value]
     return None if pd.isna(value) else value
-
-
-def digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
 def load_model_registry(configs=()) -> dict[str, dict]:
@@ -785,7 +773,7 @@ def write_leaderboard_export(dashboard: dict[str, object], output: Path) -> dict
         "path": "data/leaderboard.json",
         "records": len(payload["cell_elo"]),
         "bytes": output.stat().st_size,
-        "sha256": digest(output),
+        "sha256": sha256_file(output),
         "source": "generated from data/dashboard.json",
         "format": "json",
         "available": True,
