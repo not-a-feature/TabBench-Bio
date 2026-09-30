@@ -64,5 +64,9 @@ def test_obsolete_mgnify_cache_is_rebuilt(metadata, groups):
         patch("tabbench_bio.bio.adapter.save_cached_raw") as save,
     ):
         loader.return_value.fetch.return_value = fresh
-        assert load_bio_dataset(old.bio_id) is fresh
+        with pytest.raises(AssertionError, match="stale dataset cache"):
+            load_bio_dataset(old.bio_id)
+        actual = load_bio_dataset(old.bio_id, force_refetch=True)
+        pd.testing.assert_frame_equal(actual.X, fresh.X)
+        assert "spec_sha256" in actual.metadata
         save.assert_called_once()
