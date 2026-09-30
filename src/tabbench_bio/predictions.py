@@ -54,10 +54,12 @@ from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import validate_prepared
 from tabbench_bio.tuning import tuning_fingerprint
 
+_MODEL_IMPORT_ERROR = None
 try:
     from tabbench_bio.model import AutoGluonModel
     from tabbench_bio.models.tuned import TunedModel
-except ImportError:
+except ImportError as exc:
+    _MODEL_IMPORT_ERROR = exc
     AutoGluonModel = None  # type: ignore[assignment,misc]
     TunedModel = None  # type: ignore[assignment,misc]
 
@@ -660,6 +662,11 @@ def compute_predictions(
         safe to write). Processes on one host serialize transactions into one writer bundle;
         bundles from different hosts are consolidated later.
     """
+    if AutoGluonModel is None:
+        raise ImportError(
+            "Prediction runs require AutoGluon and the selected model environment. "
+            "Install the profile in environments/ before running predictions."
+        ) from _MODEL_IMPORT_ERROR
     config = copy.deepcopy(config)
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
