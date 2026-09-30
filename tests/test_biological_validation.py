@@ -169,7 +169,7 @@ def test_new_benchmark_reloads_registry_and_excludes_cached_disabled_dataset(mon
     entry["enabled"] = False
     path.write_text(json.dumps([entry]))
     second = TabBenchBio(["toy"], [], cache_dir=str(tmp_path / "cache"))
-    assert not second._has_dataset_in_cache("toy_0")
+    assert second._has_dataset_in_cache("toy_0")  # Disabling a task preserves reusable data.
     second.init_datasets()
     assert second.dataset_names_classification == []
     assert len(second) == 0
