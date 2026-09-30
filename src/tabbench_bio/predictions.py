@@ -95,21 +95,6 @@ def _set_global_seeds(seed: int) -> None:
         pass
 
 
-# ---------------------------------------------------------------------------
-# Data hash (staleness detection)
-# ---------------------------------------------------------------------------
-
-
-def _data_hash(df: pd.DataFrame) -> str:
-    import hashlib
-
-    label_col = df.columns[-1]
-    h = hashlib.md5()
-    h.update(str(len(df)).encode())
-    h.update("|".join(sorted(df[label_col].astype(str))).encode())
-    return h.hexdigest()
-
-
 def _assert_ground_truth_frame_compatible(saved: pd.DataFrame, data_test: pd.DataFrame) -> None:
     """Refuse to reuse results if a bundled held-out target has changed."""
     expected = data_test[["target"]].sort_index()
