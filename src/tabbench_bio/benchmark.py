@@ -52,7 +52,6 @@ from tqdm import tqdm
 
 from tabbench_bio.bio import (
     DEFAULT_MAX_FEATURES,
-    bio_dataset_names,
     fingerprint,
     get_spec,
     is_bio_dataset,
@@ -222,16 +221,6 @@ class TabBenchBio:
         # comparable across sizes (a learning curve). None = use all training rows.
         self.train_subsample = train_subsample
 
-        requested_names = (
-            bio_dataset_names("binary") + bio_dataset_names("multiclass")
-            if dataset_names_classification is None
-            else list(dataset_names_classification)
-        ) + (
-            bio_dataset_names("regression")
-            if dataset_names_regression is None
-            else list(dataset_names_regression)
-        )
-
         # The processed-split cache must be keyed on *every* parameter that changes the
         # produced splits, not just the seed — otherwise changing e.g. max_classes
         # silently reuses stale splits (see docs/integrity_review.md Finding 3).
@@ -241,11 +230,6 @@ class TabBenchBio:
         split_params = {
             "prepared_data_version": _PREPARED_DATA_VERSION,
             "split_versions": split_versions(),
-            "dataset_specs": {
-                name: fingerprint.spec_fingerprint(get_spec(name))
-                for name in requested_names
-                if is_bio_dataset(name)
-            },
             "test_size": test_size,
             "min_samples_per_class": min_samples_per_class,
             "max_classes": max_classes,
@@ -391,8 +375,12 @@ class TabBenchBio:
     # ------------------------------------------------------------------
 
     def _get_cache_paths(self, key: str) -> tuple[str, str]:
-        train = f"{self.cache_dir_processed}/{key}_train.pkl"
-        test = f"{self.cache_dir_processed}/{key}_test.pkl"
+        name, _ = self.split_key(key)
+        directory = Path(self.cache_dir_processed)
+        if is_bio_dataset(name):
+            directory /= f"{name}_{fingerprint.spec_fingerprint(get_spec(name))}"
+        train = str(directory / f"{key}_train.pkl")
+        test = str(directory / f"{key}_test.pkl")
         return train, test
 
     def _has_dataset_in_cache(self, key: str) -> bool:
@@ -401,6 +389,14 @@ class TabBenchBio:
 
     def _save_dataset(self, key: str, train: DataFrame, test: DataFrame):
         train_path, test_path = self._get_cache_paths(key)
+        name, _ = self.split_key(key)
+        if is_bio_dataset(name):
+            spec_path = Path(train_path).parent / "dataset_spec.json"
+            payload = {"bio_id": name, "spec_sha256": fingerprint.spec_fingerprint(get_spec(name))}
+            if spec_path.exists():
+                assert json.loads(spec_path.read_text(encoding="utf-8")) == payload, spec_path
+            else:
+                atomic_write_json(spec_path, payload)
         atomic_to_pickle(train, train_path)
         atomic_to_pickle(test, test_path)
 
