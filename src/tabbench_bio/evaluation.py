@@ -121,23 +121,20 @@ def _build_excluded_keys(config) -> set[str]:
 
     if exclude_datasets or exclude_names:
         stats_path = os.path.join(config["output_dir"], "dataset_stats.json")
-        if not os.path.exists(stats_path):
-            logger.warning(
-                "exclude_datasets/exclude_targets set but dataset_stats.json not found "
-                "— dataset/name-based exclusions skipped."
-            )
-        else:
-            with open(stats_path) as f:
-                stats = json.load(f)
-            for ds_id, s in stats.items():
-                if ds_id in exclude_datasets:
-                    n_targets = len((s or {}).get("target_names") or []) or 1
-                    for idx in range(n_targets):
+        assert os.path.isfile(stats_path), (
+            f"Configured dataset/target exclusions require {stats_path}; prepare datasets first."
+        )
+        with open(stats_path) as f:
+            stats = json.load(f)
+        for ds_id, s in stats.items():
+            if ds_id in exclude_datasets:
+                n_targets = len((s or {}).get("target_names") or []) or 1
+                for idx in range(n_targets):
+                    excluded.add(f"{ds_id}_{idx}")
+            if exclude_names and s and s.get("target_names"):
+                for idx, name in enumerate(s["target_names"]):
+                    if name in exclude_names:
                         excluded.add(f"{ds_id}_{idx}")
-                if exclude_names and s and s.get("target_names"):
-                    for idx, name in enumerate(s["target_names"]):
-                        if name in exclude_names:
-                            excluded.add(f"{ds_id}_{idx}")
 
     return excluded
 
