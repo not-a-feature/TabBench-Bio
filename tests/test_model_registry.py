@@ -39,3 +39,36 @@ def test_aliases_and_checkpoint_overrides():
     spec = MODEL_REGISTRY["TABPFN-WIDE-5K-NE3"]
     assert dict(spec.hyperparameters) == {"model_name": "wide-v2-5k", "n_estimators": 3}
     assert spec.adapter == MODEL_REGISTRY["TABPFN-WIDE"].adapter
+
+
+def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config):
+    from unittest.mock import Mock
+
+    import pandas as pd
+
+    from tabbench_bio import predictions
+    from tabbench_bio.dataset import TaskType
+    from tabbench_bio.result_store import ResultRepository
+
+    frame = pd.DataFrame({"x": range(12), "target": range(12)})
+
+    class Benchmark:
+        _key_list = ["toy_0"]
+        _task_type_list = [TaskType.Classification]
+
+        def __len__(self):
+            return 1
+
+        def __iter__(self):
+            yield frame, frame, "toy_0", TaskType.Classification
+
+    debug_config.update(output_dir=str(tmp_path / "run"), models=["LIMIX-2"], train_subsample=None)
+    monkeypatch.setattr(predictions, "configure_benchmark", lambda config: Benchmark())
+    monkeypatch.setattr(predictions, "get_seeds", lambda config: [0])
+    monkeypatch.setattr(predictions, "_set_global_seeds", lambda seed: None)
+    model = Mock(side_effect=AssertionError("Must skip before fitting"))
+    monkeypatch.setattr(predictions, "AutoGluonModel", model)
+    predictions.compute_predictions(debug_config)
+    (attempt,) = ResultRepository(debug_config["output_dir"], debug_config).current_attempts()
+    assert (attempt.status, attempt.reason) == ("skip", "class_limit")
+    model.assert_not_called()

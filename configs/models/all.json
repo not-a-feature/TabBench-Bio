@@ -68,8 +68,7 @@
     "enforce_memory_prior": false
   },
   {
-    "key": "TABDPT",
-    "training_data_overlap": true
+    "key": "TABDPT"
   },
   {
     "key": "TABICL"

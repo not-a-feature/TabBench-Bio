@@ -22,7 +22,7 @@ from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
 from tabbench_bio.io_utils import atomic_write_json
 from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
-from tabbench_bio.model_registry import MODEL_CATEGORY, MODEL_DISPLAY
+from tabbench_bio.model_registry import MODEL_CATEGORY, MODEL_DISPLAY, MODEL_REGISTRY
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.web_metadata import write_agent_metadata
 
@@ -140,7 +140,13 @@ def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
             REGULAR_MAX_FEATURES[model_id] if model_id in REGULAR_MAX_FEATURES else None
         ),
         "training_data_overlap": (
-            overlap["training_data_overlap"] if "training_data_overlap" in overlap else False
+            overlap["training_data_overlap"]
+            if "training_data_overlap" in overlap
+            else (
+                MODEL_REGISTRY[family_id].training_data_overlap
+                if family_id in MODEL_REGISTRY
+                else False
+            )
         ),
     }
 
