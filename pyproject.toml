@@ -143,11 +143,13 @@ where = ["src"]
 [tool.setuptools.package-data]
 tabbench_bio = [
     "bio/data/*.json", "web/*", "web/.nojekyll", "web/js/*", "web/assets/*", "web/assets/fonts/*",
-    "web/skills/*/*", "web/skills/*/agents/*", "web/skills/*/references/*",
 ]
 
 [tool.setuptools.data-files]
 "share/tabbench-bio/models" = ["configs/models/*.json"]
+"share/tabbench-bio/skills/biomedical-tabular-model-selection" = ["skills/biomedical-tabular-model-selection/SKILL.md"]
+"share/tabbench-bio/skills/biomedical-tabular-model-selection/agents" = ["skills/biomedical-tabular-model-selection/agents/*.yaml"]
+"share/tabbench-bio/skills/biomedical-tabular-model-selection/references" = ["skills/biomedical-tabular-model-selection/references/*.md"]
 
 [tool.black]
 line-length = 100
