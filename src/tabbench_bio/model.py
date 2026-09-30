@@ -152,9 +152,12 @@ class AutoGluonModel:
         autogluon_time_limit: int = 60,
         autogluon_presets: str = "best_quality",
         autogluon_path: str | None = None,
+        parameter_overrides: dict | None = None,
     ) -> None:
         self.task_type = task_type
         self.models = list(models)
+        self.parameter_overrides = dict(parameter_overrides or {})
+        assert not self.parameter_overrides or len(models) == 1
         self._autogluon_native = "AUTOGLUON" in [m.upper() for m in models]
 
         if task_type == TaskType.Regression:
@@ -256,6 +259,10 @@ class AutoGluonModel:
             fit_args["refit_full"] = True
             fit_args["set_best_to_refit_full"] = True
             fit_args["hyperparameters"] = _resolve_hyperparameters(self.models, num_gpus)
+            if self.parameter_overrides:
+                for configurations in fit_args["hyperparameters"].values():
+                    assert len(configurations) == 1
+                    configurations[0].update(self.parameter_overrides)
             if not self.ensemble:
                 fit_args["num_bag_folds"] = 0
                 fit_args["num_stack_levels"] = 0
@@ -289,14 +296,14 @@ class AutoGluonModel:
             assert groups.index.equals(data_train.index), "Training groups are misaligned"
             assert not groups.isna().any(), "Missing biological training groups"
             if groups.nunique() < len(groups):
-                assert groups.nunique() >= 2, (
-                    "Internal validation needs at least two biological groups"
-                )
+                assert (
+                    groups.nunique() >= 2
+                ), "Internal validation needs at least two biological groups"
                 if self.problem_type in ("binary", "multiclass"):
                     class_groups = DataFrame({"label": data_train[self.label], "group": groups})
-                    assert class_groups.groupby("label")["group"].nunique().min() >= 2, (
-                        "Internal validation requires each class in at least two biological groups"
-                    )
+                    assert (
+                        class_groups.groupby("label")["group"].nunique().min() >= 2
+                    ), "Internal validation requires each class in at least two biological groups"
                 group_column = "__tabbench_biological_group__"
                 assert group_column not in tabular_data.columns
                 tabular_data = tabular_data.copy()

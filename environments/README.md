@@ -8,6 +8,8 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 |---|---|
 | `standard` | Existing model roster except TabPFN 3.5, using the established `full` extra |
 | `tabpfn35` | TabPFN 3.5, using its separate extra |
+| `causilo` | Causilo, with its pinned source revision |
+| `limix2` | LimiX2, with its pinned source revision and PyTorch version |
 
 The model roster in `configs/models/all.json` declares these assignments. Entries in
 `src/tabbench_bio/models/custom.py` take precedence. TabPFN-Wide and TabPFN 3.5 require

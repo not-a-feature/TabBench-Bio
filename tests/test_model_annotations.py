@@ -14,15 +14,17 @@ def test_existing_model_roster_contains_annotation():
     )
     tabdpt = next(model for model in models if model["key"] == "TABDPT")
     assert tabdpt["training_data_overlap"] is True
-    assert build_site.model_meta("TABDPT")["training_data_overlap"] is True
+    registry = build_site.load_model_registry()
+    assert build_site.model_meta("TABDPT", registry)["training_data_overlap"] is True
     assert ("TABDPT", "gpu") in parse_models(models)
 
 
-def test_annotation_applies_to_new_model(monkeypatch):
-    monkeypatch.setattr(build_site, "TRAINING_DATA_OVERLAP", {"TABDPT", "RF"})
-    assert build_site.model_meta("TABDPT")["training_data_overlap"]
-    assert build_site.model_meta("RF")["training_data_overlap"]
-    assert not build_site.model_meta("LR")["training_data_overlap"]
+def test_annotation_applies_to_new_model():
+    registry = build_site.load_model_registry()
+    registry["RF"]["training_data_overlap"] = True
+    assert build_site.model_meta("TABDPT", registry)["training_data_overlap"]
+    assert build_site.model_meta("RF", registry)["training_data_overlap"]
+    assert not build_site.model_meta("LR", registry)["training_data_overlap"]
 
 
 def test_social_podium_excludes_all_flagged_models(tmp_path, monkeypatch):

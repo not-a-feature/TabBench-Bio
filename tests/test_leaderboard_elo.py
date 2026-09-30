@@ -8,6 +8,14 @@ from tabbench_bio.elo import compute_elo, fold_scores
 from tabbench_bio.leaderboard import Leaderboard
 
 
+def test_tuned_random_forest_does_not_replace_untuned_anchor():
+    frame = metrics().replace({"MY": "RF-TUNED"})
+    actual = compute_elo(fold_scores(frame, None), n_boot=8).set_index("model_id")
+    assert actual.loc["RF", "Elo"] == 1000
+    assert actual.loc["RF", "Elo_lo"] == actual.loc["RF", "Elo_hi"] == 1000
+    assert actual.loc["RF-TUNED", "Elo"] > 1000
+
+
 def metrics():
     return pd.DataFrame(
         [

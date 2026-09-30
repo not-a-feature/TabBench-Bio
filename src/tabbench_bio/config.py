@@ -3,6 +3,8 @@
 import json
 import os
 
+from tabbench_bio.tuning import tuning_specs, validate_tuning
+
 #: Every key a benchmark config must declare. The config file is the complete, explicit
 #: record of a run: nothing defaults implicitly, so a missing or misspelled key is an
 #: error rather than a silent fallback to a code default. Optional features are listed
@@ -44,6 +46,19 @@ REQUIRED_KEYS = frozenset(
 )
 
 
+def resolve_nan_policy(config: dict, model: str) -> str:
+    """Resolve a variant's policy before its parent's policy and the default."""
+    policies = config["nan_policy"] or {} if "nan_policy" in config else {}
+    tuning = config["model_tuning"] if "model_tuning" in config else {}
+    keys = [model]
+    if model in tuning:
+        keys.append(tuning[model]["base_model"])
+    for key in (*keys, "default"):
+        if key in policies:
+            return policies[key]
+    return "native"
+
+
 def resolve_list(value, base_dir):
     """Resolve a dataset/model list spec to a Python list.
 
@@ -66,9 +81,10 @@ def parse_models(models):
     pairs = []
     for m in models:
         key, device = m["key"], m["device"]
-        assert device in ("gpu", "cpu"), (
-            f"model {key!r}: device must be 'gpu'/'cpu', got {device!r}"
-        )
+        assert device in (
+            "gpu",
+            "cpu",
+        ), f"model {key!r}: device must be 'gpu'/'cpu', got {device!r}"
         pairs.append((key, device))
     return pairs
 
@@ -92,9 +108,9 @@ def model_limits(models):
     for model in models:
         if not isinstance(model, dict) or "max_cells" not in model:
             continue
-        assert isinstance(model["max_cells"], int) and model["max_cells"] > 0, (
-            f"model {model['key']!r}: max_cells must be a positive integer"
-        )
+        assert (
+            isinstance(model["max_cells"], int) and model["max_cells"] > 0
+        ), f"model {model['key']!r}: max_cells must be a positive integer"
         assert (
             "memory_prior_version" in model
             and isinstance(model["memory_prior_version"], int)
@@ -137,10 +153,9 @@ def model_overrides(models):
 def load_config(config_path):
     """Load, validate, and normalise a benchmark JSON config file.
 
-    The config must declare *every* key in :data:`REQUIRED_KEYS` and nothing else (keys
-    prefixed with ``_`` are treated as comments and ignored), so a run is fully described
-    by its config — no key silently falls back to a code default, and a typo'd key is
-    rejected rather than quietly ignored.
+    The config must declare every key in :data:`REQUIRED_KEYS`; ``model_tuning`` is
+    optional. Keys prefixed with ``_`` are comments. Other keys are rejected so
+    misspelled settings cannot silently fall back to defaults.
 
     ``datasets_classification`` / ``datasets_regression`` / ``models`` each accept an
     inline list or a path to a JSON array file (relative to the config's directory); set
@@ -151,7 +166,7 @@ def load_config(config_path):
 
     keys = {k for k in config if not k.startswith("_")}
     missing = REQUIRED_KEYS - keys
-    unknown = keys - REQUIRED_KEYS
+    unknown = keys - REQUIRED_KEYS - {"model_tuning"}
     assert not missing, f"{config_path}: missing required config key(s): {sorted(missing)}"
     assert not unknown, f"{config_path}: unknown config key(s): {sorted(unknown)}"
 
@@ -161,7 +176,20 @@ def load_config(config_path):
     )
     config["dataset_names_regression"] = resolve_list(config["datasets_regression"], base_dir)
     # Device tags (if any) are scheduling metadata only; the pipeline consumes plain keys.
-    config["models"] = model_keys(resolve_list(config["models"], base_dir))
+    roster = resolve_list(config["models"], base_dir)
+    declared = tuning_specs(roster)
+    explicit = config["model_tuning"] if "model_tuning" in config else {}
+    for key in declared.keys() & explicit.keys():
+        assert declared[key] == explicit[key], f"Conflicting tuning specification for {key}"
+    tuning = {**declared, **explicit}
+    for key, spec in tuning.items():
+        validate_tuning(key, spec)
+    if tuning:
+        config["model_tuning"] = tuning
+        assert (
+            not config["ensemble"] and not config["optimize"]
+        ), "Tuned variants require ensemble=false and optimize=false"
+    config["models"] = model_keys(roster)
 
     return config
 
@@ -189,10 +217,12 @@ def config_for_cell(
     test_size,
     random_state,
     min_samples_per_class,
+    tuning=None,
 ):
     # cv_folds set => stratified k-fold per cell x dataset (n_repetitions pinned to 1);
     # None => legacy holdout with n_rep repetitions.
     return {
+        **({"model_tuning": tuning} if tuning else {}),
         "datasets_classification": datasets,
         "datasets_regression": datasets_regression,
         "test_size": test_size,

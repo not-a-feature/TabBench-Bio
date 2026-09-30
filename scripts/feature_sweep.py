@@ -63,6 +63,7 @@ from tabbench_bio.config import model_limits, model_overrides, parse_models, res
 from tabbench_bio.io_utils import atomic_to_csv, atomic_write_json
 from tabbench_bio.result_store import consolidate_results
 from tabbench_bio.sample_fallback import resolve_sample_fallbacks
+from tabbench_bio.tuning import tuning_specs
 
 
 def log(msg: str) -> None:
@@ -185,15 +186,15 @@ def _write_cell_config(
         }
         with open(existing_full_path, encoding="utf-8") as handle:
             frozen = json.load(handle)
-        assert frozen["bio_max_features"] == cap, (
-            f"Existing cell {out_dir} has feature cap {frozen['bio_max_features']}, not {cap}."
-        )
-        assert frozen["train_subsample"] == n_train, (
-            f"Existing cell {out_dir} has sample cap {frozen['train_subsample']}, not {n_train}."
-        )
-        assert os.path.normpath(frozen["output_dir"]) == os.path.normpath(out_dir), (
-            f"Existing cell config points to {frozen['output_dir']}, not {out_dir}."
-        )
+        assert (
+            frozen["bio_max_features"] == cap
+        ), f"Existing cell {out_dir} has feature cap {frozen['bio_max_features']}, not {cap}."
+        assert (
+            frozen["train_subsample"] == n_train
+        ), f"Existing cell {out_dir} has sample cap {frozen['train_subsample']}, not {n_train}."
+        assert os.path.normpath(frozen["output_dir"]) == os.path.normpath(
+            out_dir
+        ), f"Existing cell config points to {frozen['output_dir']}, not {out_dir}."
 
         if not os.path.isfile(config_paths["cpu_cfg"]):
             config_paths["cpu_cfg"] = None
@@ -205,16 +206,16 @@ def _write_cell_config(
             with open(path, encoding="utf-8") as handle:
                 tier = json.load(handle)
             for invariant in ("bio_max_features", "train_subsample", "output_dir"):
-                assert tier[invariant] == frozen[invariant], (
-                    f"Frozen tier config {path} differs from config.json on {invariant}."
-                )
+                assert (
+                    tier[invariant] == frozen[invariant]
+                ), f"Frozen tier config {path} differs from config.json on {invariant}."
             tier_models.extend(tier["models"])
-        assert len(tier_models) == len(set(tier_models)), (
-            f"Frozen tier configs under {out_dir} schedule a model more than once."
-        )
-        assert set(tier_models) == set(frozen["models"]), (
-            f"Frozen tier configs under {out_dir} do not partition config.json models."
-        )
+        assert len(tier_models) == len(
+            set(tier_models)
+        ), f"Frozen tier configs under {out_dir} schedule a model more than once."
+        assert set(tier_models) == set(
+            frozen["models"]
+        ), f"Frozen tier configs under {out_dir} do not partition config.json models."
 
         requested_pairs = parse_models(models)
         requested = _config_for_cell(
@@ -225,6 +226,7 @@ def _write_cell_config(
             models=[key for key, *_ in requested_pairs],
             limits=model_limits(models),
             overrides=model_overrides(models),
+            tuning=tuning_specs(models),
             n_rep=n_rep,
             cv_folds=cv_folds,
             time_limit=time_limit,
@@ -237,6 +239,9 @@ def _write_cell_config(
         drift = sorted(
             key for key in set(frozen) | set(requested) if frozen.get(key) != requested.get(key)
         )
+        assert (
+            "model_tuning" not in drift
+        ), "Tuning protocol changed; use a new model key and output directory"
         if drift:
             log(
                 f"  resume {os.path.basename(out_dir)} from frozen configs; ignoring current "
@@ -267,6 +272,7 @@ def _write_cell_config(
             models=model_keys,
             limits=limits,
             overrides=overrides,
+            tuning=tuning_specs(models),
             n_rep=n_rep,
             cv_folds=cv_folds,
             time_limit=time_limit,
@@ -682,9 +688,9 @@ def main():
         """CLI flag wins, else the grid-config key; set by neither is fatal — no code defaults."""
         if cli is not None:
             return cli
-        assert name in gc, (
-            f"'{name}' is unset: pass --{name.replace('_', '-')} or add it to --grid-config"
-        )
+        assert (
+            name in gc
+        ), f"'{name}' is unset: pass --{name.replace('_', '-')} or add it to --grid-config"
         return gc[name]
 
     caps = _norm_axis(pick("caps", args.caps))
@@ -700,16 +706,16 @@ def main():
     assert isinstance(model_cells, dict), "'model_cells' must map model keys to cell-name lists"
     roster_keys = {entry if isinstance(entry, str) else entry["key"] for entry in models}
     unknown_restricted_models = set(model_cells) - roster_keys
-    assert not unknown_restricted_models, (
-        f"'model_cells' names models outside the roster: {sorted(unknown_restricted_models)}"
-    )
+    assert (
+        not unknown_restricted_models
+    ), f"'model_cells' names models outside the roster: {sorted(unknown_restricted_models)}"
     for model, allowed_cells in model_cells.items():
-        assert isinstance(allowed_cells, list) and allowed_cells, (
-            f"'model_cells[{model}]' must be a non-empty list"
-        )
-        assert len(allowed_cells) == len(set(allowed_cells)), (
-            f"'model_cells[{model}]' contains duplicate cells"
-        )
+        assert (
+            isinstance(allowed_cells, list) and allowed_cells
+        ), f"'model_cells[{model}]' must be a non-empty list"
+        assert len(allowed_cells) == len(
+            set(allowed_cells)
+        ), f"'model_cells[{model}]' contains duplicate cells"
     # cv_folds set => stratified k-fold (k units/cell); null => legacy holdout with n_rep reps
     # (n_rep required only in that mode).
     cv_folds = pick("cv_folds", args.cv_folds)

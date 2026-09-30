@@ -146,9 +146,12 @@ tabbench_bio = [
     "web/skills/*/*", "web/skills/*/agents/*", "web/skills/*/references/*",
 ]
 
+[tool.setuptools.data-files]
+"share/tabbench-bio/models" = ["configs/models/*.json"]
+
 [tool.black]
 line-length = 100
-target-version = ["py311", "py312", "py313"]
+target-version = ["py311", "py312"]
 
 [tool.isort]
 profile = "black"

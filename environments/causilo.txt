@@ -1,0 +1,5 @@
+-r ../requirements-autogluon-fork.txt
+-e .[bio,autogluon]
+causilo @ git+https://github.com/nums-ai/causilo.git@4685c62b9445351786520e2e7b663ea302e996ab
+torch==2.13.0
+huggingface-hub==0.36.2

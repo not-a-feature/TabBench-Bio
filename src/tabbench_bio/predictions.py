@@ -37,6 +37,7 @@ from sklearn.model_selection import train_test_split
 from tqdm import tqdm
 
 from tabbench_bio.benchmark import configure_benchmark
+from tabbench_bio.config import resolve_nan_policy
 from tabbench_bio.coverage import DESIGN_SKIPS
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.exclusions import materialize_exclusions
@@ -51,11 +52,14 @@ from tabbench_bio.result_store import ResultRepository, StoredAttempt
 from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import validate_prepared
+from tabbench_bio.tuning import tuning_fingerprint
 
 try:
     from tabbench_bio.model import AutoGluonModel
+    from tabbench_bio.models.tuned import TunedModel
 except ImportError:
     AutoGluonModel = None  # type: ignore[assignment,misc]
+    TunedModel = None  # type: ignore[assignment,misc]
 
 logger = logging.getLogger(__name__)
 
@@ -429,16 +433,6 @@ def _maybe_subsample(
 #: shared across models; only this fill step is per-model.
 _NAN_POLICIES = ("native", "none", "median", "mean", "zero")
 
-#: Policy for models without a ``nan_policy`` entry: keep NaNs for AutoGluon to impute.
-DEFAULT_NAN_POLICY = "native"
-
-
-def _resolve_nan_policy(model_name: str, nan_policy: dict | None) -> str:
-    """Pick the NaN policy for *model_name*: explicit entry, else the ``default`` key, else native."""
-    if not nan_policy:
-        return DEFAULT_NAN_POLICY
-    return nan_policy.get(model_name, nan_policy.get("default", DEFAULT_NAN_POLICY))
-
 
 def _apply_nan_policy(
     train: pd.DataFrame, test: pd.DataFrame, policy: str
@@ -536,9 +530,9 @@ def _predict_with_oom_batching(
                 stop = min(start + batch_size, len(data_test))
                 chunks.append(predict_fn(data_test.iloc[start:stop]))
             predictions = pd.concat(chunks)
-            assert predictions.index.equals(data_test.index), (
-                "Batched prediction changed the test-row index or order."
-            )
+            assert predictions.index.equals(
+                data_test.index
+            ), "Batched prediction changed the test-row index or order."
             return predictions, batch_size, oom_retries
         except Exception as error:
             if not _is_cuda_oom(error) or batch_size == 1:
@@ -691,6 +685,13 @@ def compute_predictions(
             "timestamp": datetime.now(UTC).isoformat(),
         }
         assert not set(record).intersection(details)
+        specifications = config["model_tuning"] if "model_tuning" in config else {}
+        if model_name in specifications:
+            record["tuning"] = {
+                "fingerprint": tuning_fingerprint(specifications[model_name]),
+                "specification": specifications[model_name],
+                "status": "skipped",
+            }
         record.update(details)
         repository.write(record, seed=seed)
 
@@ -713,6 +714,7 @@ def compute_predictions(
     subsample_config = config["subsample"]
     model_size_limits = config["model_limits"]
     model_overrides = config["model_overrides"]
+    model_tuning = config["model_tuning"] if "model_tuning" in config else {}
     # Grid sample-axis budget for this cell; used to recognise cells whose budget exceeds
     # the data and are therefore duplicates of the full-sample cell.
     train_subsample = config["train_subsample"]
@@ -857,6 +859,10 @@ def compute_predictions(
                     model_size_limits[model_name] if model_name in model_size_limits else None
                 )
                 prior = repository.current(seed, key, model_name)
+                if prior is not None and model_name in model_tuning:
+                    assert "tuning" in prior.record and prior.record["tuning"]["fingerprint"] == (
+                        tuning_fingerprint(model_tuning[model_name])
+                    ), "Tuning protocol changed; use a new model key and output directory"
                 prior_pass = prior is not None and prior.status == "pass"
                 prior_current_memory_failure = (
                     prior is not None
@@ -911,7 +917,17 @@ def compute_predictions(
                 y_pred = None
                 y_proba = None
                 with run_file_logger(log_path) as active_log_path:
-                    model = AutoGluonModel(
+                    model_class = AutoGluonModel
+                    tuning_args = {}
+                    nan_pol = resolve_nan_policy(config, model_name)
+                    if model_name in model_tuning:
+                        model_class = TunedModel
+                        tuning_args = {
+                            "tuning": model_tuning[model_name],
+                            "nan_policy": nan_pol,
+                        }
+                    model = model_class(
+                        **tuning_args,
                         ensemble=over["ensemble"] if "ensemble" in over else ensemble,
                         optimize=over["optimize"] if "optimize" in over else optimize,
                         models=[model_name],
@@ -925,8 +941,6 @@ def compute_predictions(
                             over["num_hpo_trials"] if "num_hpo_trials" in over else num_hpo_trials
                         ),
                     )
-
-                    nan_pol = _resolve_nan_policy(model_name, nan_policy)
 
                     record = {
                         "dataset": key,
@@ -999,6 +1013,8 @@ def compute_predictions(
                             cpu_affinity=sorted(os.sched_getaffinity(0)),
                         )
                     stage = "fit"
+                    if model_name in model_tuning:
+                        record["tuning"] = model.tuning_record
                     try:
                         if guarded_gpu:
                             assert_exclusive_from_environment()
@@ -1006,9 +1022,11 @@ def compute_predictions(
                             data_train, model_name, key, task_type, subsample_config, seed
                         )
                         # Per-model NaN policy: fit fill on this model's train, apply to test.
-                        data_train_fit, data_test_fit = _apply_nan_policy(
-                            data_train_fit, data_test, nan_pol
-                        )
+                        data_test_fit = data_test
+                        if model_name not in model_tuning:
+                            data_train_fit, data_test_fit = _apply_nan_policy(
+                                data_train_fit, data_test, nan_pol
+                            )
                         training_groups = benchmark.training_groups(key, data_train_fit)
                         record["n_training_groups"] = (
                             None if training_groups is None else int(training_groups.nunique())
@@ -1109,6 +1127,11 @@ def compute_predictions(
 
                 if guarded_gpu:
                     assert_exclusive_from_environment()
+                if model_name in model_tuning and record["status"] != "pass":
+                    record["tuning"].update(status="failed", error=record["error"])
+                    for candidate in record["tuning"]["candidates"]:
+                        if candidate["status"] == "failed":
+                            candidate["error"] = record["error"]
                 with open(log_path, encoding="utf-8", errors="replace") as handle:
                     log_text = handle.read()
                 passed = record["status"] == "pass"

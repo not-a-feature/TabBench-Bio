@@ -1,0 +1,6 @@
+# LimiX-2; the similarly named PyPI limix package is unrelated.
+-r ../requirements-autogluon-fork.txt
+-e .[bio,autogluon]
+LimiX @ git+https://github.com/limix-ldm-ai/LimiX.git@516bf396333feb3198cf7aff8a6c10421f218e24
+torch==2.9.1
+huggingface-hub==0.36.2

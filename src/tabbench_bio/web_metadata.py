@@ -103,7 +103,15 @@ The leading intervals overlap, so the displayed order should not be interpreted 
 
 {evaluated_models}.
 
-{overlap_note}## Agent skill
+{overlap_note}## Tuned models and chart interpretation
+
+Tuned models use a small predefined grid under a one-hour budget. Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold. The frozen result configuration records the grid and selection protocol.
+
+Read `models[model_id].tuned_from` and `training_data_overlap` from the dashboard model metadata; these come from the JSON model registry. Untuned Random Forest remains the Elo reference at 1,000. Paired bars show untuned Elo plus the signed tuning change, with a diamond at tuned Elo. Paired rows are ordered by max(untuned Elo, tuned Elo); this display ordering leaves the original ratings unchanged. Only the tuned 95% interval is drawn for a pair; it is not an interval on the tuning change. Displayed error bars are clipped at zero; original statistical intervals remain available in exports and hover details. Budget-response line plots omit untuned parents when their tuned versions are shown, while exports retain both. Unpaired models remain visible.
+
+System configuration: NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.
+
+## Agent skill
 
 Here is a skill for your agent: [TabBench-Bio model selection]({project_url}/skill.md).
 Use it to match task, modality, budgets and compute constraints, and interpret uncertainty and training-data overlap.

@@ -282,6 +282,7 @@ def main():
         description="Run a model in its installed .venvs/<profile> environment.",
     )
     model_p.add_argument("model_key")
+    model_p.add_argument("--model-config", help="JSON model roster, including tuned variants")
     model_p.add_argument(
         "--full-grid", action="store_true", help="Run all 28 cells; default: reference cell"
     )

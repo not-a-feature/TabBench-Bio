@@ -14,6 +14,53 @@ from tabbench_bio.leaderboard import Leaderboard
 from tabbench_bio.result_store import ResultRepository, consolidate_results
 
 
+@pytest.mark.parametrize("parent", ["RF", "XT", "LR", "XGB"])
+def test_tuned_model_metadata_preserves_family(parent):
+    registry = dashboard.load_model_registry()
+    base = dashboard.model_meta(parent, registry)
+    tuned = dashboard.model_meta(f"{parent}-TUNED", registry)
+    assert tuned["tuned_from"] == parent
+    assert tuned["category"] == base["category"]
+    assert tuned["color"] == base["color"]
+    assert tuned["display"] == f"{base['display']} (tuned)"
+
+
+def test_model_metadata_uses_registry_flags_and_custom_parent():
+    registry = dashboard.load_model_registry()
+    assert dashboard.model_meta("TABDPT", registry)["training_data_overlap"] is True
+    registry["TABDPT"]["training_data_overlap"] = False
+    registry["CUSTOM-SEARCH"] = {"base_model": "RF", "training_data_overlap": True}
+    assert dashboard.model_meta("TABDPT", registry)["training_data_overlap"] is False
+    custom = dashboard.model_meta("CUSTOM-SEARCH", registry)
+    assert custom["tuned_from"] == "RF"
+    assert custom["training_data_overlap"] is True
+    assert custom["category"] == "Tree-based"
+
+
+def test_frozen_results_supply_parent_for_retired_rosters():
+    configs = [{"model_tuning": {"HISTORICAL-RF": {"base_model": "RF"}}}]
+    registry = dashboard.load_model_registry(configs)
+    meta = dashboard.model_meta("HISTORICAL-RF", registry)
+    assert meta["tuned_from"] == "RF"
+    assert meta["display"] == "Random Forest (tuned)"
+    assert meta["category"] == dashboard.model_meta("RF", registry)["category"]
+    configs.append({"model_tuning": {"HISTORICAL-RF": {"base_model": "XT"}}})
+    with pytest.raises(AssertionError, match="Conflicting tuning parent"):
+        dashboard.load_model_registry(configs)
+
+
+def test_installed_registry_is_loaded_without_a_source_checkout(tmp_path, monkeypatch):
+    directory = tmp_path / "share/tabbench-bio/models"
+    directory.mkdir(parents=True)
+    (directory / "custom.json").write_text(
+        json.dumps([{"key": "CUSTOM", "base_model": "RF", "training_data_overlap": True}])
+    )
+    monkeypatch.setattr(dashboard, "PACKAGE_ROOT", tmp_path / "lib/site-packages/tabbench_bio")
+    monkeypatch.setattr(dashboard.sysconfig, "get_path", lambda _: str(tmp_path))
+    registry = dashboard.load_model_registry()
+    assert dashboard.model_meta("CUSTOM", registry)["tuned_from"] == "RF"
+
+
 @pytest.fixture
 def database(tmp_path):
     root = tmp_path / "results"

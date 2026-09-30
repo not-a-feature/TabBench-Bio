@@ -5,10 +5,12 @@ import sqlite3
 import stat
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import closing, nullcontext
+from threading import Barrier, Event
 
 import pandas as pd
 import pytest
 
+from tabbench_bio import result_store
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.evaluation import _compute_metrics_from_store
 from tabbench_bio.io_utils import atomic_write_json
@@ -26,6 +28,23 @@ from tabbench_bio.result_store import (
 from tabbench_bio.split_manifest import split_versions, unit_id
 
 
+def test_writes_resolve_hostname_once_and_keep_writer_overrides(tmp_path, monkeypatch):
+    lookups = []
+    monkeypatch.setattr(result_store.socket, "getfqdn", lambda: lookups.append(1) or "node")
+    result_store._hostname.cache_clear()
+    try:
+        monkeypatch.setenv("TABBENCH_WRITER_ID", "worker-a")
+        repository = ResultRepository(tmp_path / "run", {"models": ["RF"]})
+        for seed in (0, 1):
+            repository.write({"dataset": "toy_0", "model": "RF", "status": "fail"}, seed=seed)
+        assert lookups == [1]
+        assert {row.record["host"] for row in repository.attempts()} == {"node"}
+        monkeypatch.setenv("TABBENCH_WRITER_ID", "worker-b")
+        assert result_store.writer_id() == "worker-b"
+    finally:
+        result_store._hostname.cache_clear()
+
+
 def test_reader_uses_sqlite_read_only_mode(tmp_path):
     path = tmp_path / "results # shared.sqlite"
     with sqlite3.connect(path) as connection:
@@ -35,6 +54,49 @@ def test_reader_uses_sqlite_read_only_mode(tmp_path):
         assert connection.execute("SELECT count(*) FROM marker").fetchone() == (0,)
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
             connection.execute("INSERT INTO marker VALUES (1)")
+
+
+def test_initialisation_keeps_the_callers_transaction(tmp_path):
+    with closing(_connect(tmp_path / "writer.sqlite")) as connection:
+        connection.execute("BEGIN IMMEDIATE")
+        result_store._initialise(connection, experiment_id="test", bundle_writer="node")
+        connection.rollback()
+        assert not connection.execute("SELECT name FROM sqlite_master").fetchall()
+
+
+@pytest.mark.parametrize("writers", [("node-a", "node-a"), ("node-a", "node-b")])
+def test_concurrent_writer_creation_is_invisible_until_complete(tmp_path, monkeypatch, writers):
+    ready, release = Barrier(3), Event()
+    initialise = result_store._initialise
+
+    def paused_initialise(connection, **kwargs):
+        initialise(connection, **kwargs)
+        ready.wait(timeout=10)
+        assert release.wait(timeout=10)
+
+    monkeypatch.setattr(result_store, "_initialise", paused_initialise)
+    root = tmp_path / "experiment"
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        futures = [
+            executor.submit(
+                result_store._ensure_writer,
+                root / "writers" / f"{writer}.sqlite",
+                experiment_id=root.name,
+                bundle_writer=writer,
+            )
+            for writer in writers
+        ]
+        try:
+            ready.wait(timeout=10)
+            assert not list((root / "writers").glob("*.sqlite"))
+            assert not ResultRepository.from_root(root).attempts()
+        finally:
+            release.set()
+        for future in futures:
+            future.result()
+    repository = ResultRepository.from_root(root)
+    assert len(repository.bundle_paths()) == len(set(writers))
+    assert not list((root / "writers").glob(".initialise-*"))
 
 
 @pytest.mark.skipif(os.name != "posix", reason="POSIX group permissions")
