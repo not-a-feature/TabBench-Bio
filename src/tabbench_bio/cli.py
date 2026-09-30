@@ -210,6 +210,16 @@ def cmd_site(args):
     )
 
 
+def cmd_cache_adopt(args):
+    from tabbench_bio.bio.migration import adopt_cached_dataset
+
+    for dataset in args.dataset:
+        path = adopt_cached_dataset(
+            dataset, args.cache_dir / "bio", reason=args.reason, manifest=args.manifest
+        )
+        print(f"Adopted {path}")
+
+
 def cmd_info(_args):
     """Print package and ecosystem info."""
     import tabbench_bio
@@ -489,6 +499,17 @@ def main():
     status_p.set_defaults(func=cmd_results)
 
     # ---- info ----
+    adopt_p = sub.add_parser("cache-adopt", help="Explicitly adopt an unversioned dataset cache")
+    adopt_p.add_argument("--cache-dir", type=Path, required=True)
+    adopt_p.add_argument("--dataset", action="append", required=True)
+    adopt_p.add_argument(
+        "--reason", required=True, help="How the cached source and task were verified"
+    )
+    adopt_p.add_argument(
+        "--manifest", type=Path, help="Check frozen target fingerprints before adoption"
+    )
+    adopt_p.set_defaults(func=cmd_cache_adopt)
+
     info_p = sub.add_parser("info", help="Show package and ecosystem info")
     info_p.set_defaults(func=cmd_info)
 

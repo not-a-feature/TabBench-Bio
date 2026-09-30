@@ -1,3 +1,5 @@
+from pathlib import Path
+
 import pandas as pd
 import pytest
 
@@ -59,6 +61,7 @@ def test_cached_split_preserves_the_previously_defined_class_space(tmp_path, min
     benchmark.min_samples_per_class = minimum
     frame = pd.DataFrame({"feature": [1, 2], "target": [0, 1]})
     for path in benchmark._get_cache_paths("OpenML-1106_0"):
+        Path(path).parent.mkdir(parents=True, exist_ok=True)
         frame.to_pickle(path)
     train, test = benchmark._load_dataset_from_cache("OpenML-1106_0")
     pd.testing.assert_frame_equal(train, frame)

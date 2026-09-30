@@ -114,4 +114,8 @@ def test_obsolete_cohort_cache_is_not_reused(tmp_path):
         patch("tabbench_bio.bio.adapter.save_cached_raw"),
     ):
         loader.return_value.fetch.return_value = fresh
-        assert load_bio_dataset("gut-cirrhosis") is fresh
+        with pytest.raises(AssertionError, match="stale dataset cache"):
+            load_bio_dataset("gut-cirrhosis")
+        actual = load_bio_dataset("gut-cirrhosis", force_refetch=True)
+        pd.testing.assert_frame_equal(actual.X, fresh.X)
+        assert "spec_sha256" in actual.metadata
