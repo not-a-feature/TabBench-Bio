@@ -638,6 +638,7 @@
   },
   {
     "bio_id": "gut-cirrhosis",
+    "train_prevalence_filter": 0.1,
     "display_name": "Gut microbiome markers (healthy vs cirrhosis)",
     "source": "metagenomics",
     "fetch_id": "cirrhosis",
