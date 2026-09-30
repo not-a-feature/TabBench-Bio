@@ -22,6 +22,7 @@ from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
 from tabbench_bio.io_utils import atomic_write_json
 from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
+from tabbench_bio.model_registry import MODEL_CATEGORY, MODEL_DISPLAY
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.web_metadata import write_agent_metadata
 
@@ -30,63 +31,6 @@ DOMAIN_ELO_IMPLEMENTATION_FILES = (
     PACKAGE_ROOT / "elo.py",
     PACKAGE_ROOT / "_vendor" / "tabarena_elo_utils.py",
 )
-
-MODEL_CATEGORY = {
-    "DUMMY": "Baseline",
-    "KNN": "Traditional ML",
-    "LR": "Traditional ML",
-    "RF": "Tree-based",
-    "XT": "Tree-based",
-    "CAT": "Gradient Boosting",
-    "GBM": "Gradient Boosting",
-    "XGB": "Gradient Boosting",
-    "NN_TORCH": "Deep Learning",
-    "REALMLP": "Deep Learning",
-    "TABM": "Deep Learning",
-    "MITRA": "Tabular Foundation",
-    "CAUSILO": "Tabular Foundation",
-    "KUMO-TABULAR-MEDIUM": "Tabular Foundation",
-    "LIMIX-2": "Tabular Foundation",
-    "REALTABPFN-V2": "Tabular Foundation",
-    "REALTABPFN-V2.5": "Tabular Foundation",
-    "TABPFN-V3": "Tabular Foundation",
-    "TABPFN-V3.5": "Tabular Foundation",
-    "TABPFN-WIDE": "Tabular Foundation",
-    "TABPFN-WIDE-5K-NE3": "Tabular Foundation",
-    "TABFM": "Tabular Foundation",
-    "TABDPT": "Tabular Foundation",
-    "TABICL": "Tabular Foundation",
-    "AUTOGLUON": "AutoML",
-}
-
-
-MODEL_DISPLAY = {
-    "DUMMY": "Constant",
-    "KNN": "KNN",
-    "LR": "Logistic Regression",
-    "RF": "Random Forest",
-    "XT": "Extra Trees",
-    "CAT": "CatBoost",
-    "GBM": "LightGBM",
-    "XGB": "XGBoost",
-    "NN_TORCH": "MLP",
-    "REALMLP": "RealMLP",
-    "TABM": "TabM",
-    "MITRA": "MITRA",
-    "CAUSILO": "Causilo",
-    "KUMO-TABULAR-MEDIUM": "Kumo Tabular Medium",
-    "LIMIX-2": "LimiX2",
-    "REALTABPFN-V2": "RealTabPFN v2",
-    "REALTABPFN-V2.5": "RealTabPFN 2.5",
-    "TABPFN-V3": "TabPFN 3",
-    "TABPFN-V3.5": "TabPFN 3.5",
-    "TABPFN-WIDE": "TabPFN Wide (8k)",
-    "TABPFN-WIDE-5K-NE3": "TabPFN Wide 5k (ne3)",
-    "TABFM": "TabFM",
-    "TABDPT": "TabDPT",
-    "TABICL": "TabICL",
-    "AUTOGLUON": "AutoGluon",
-}
 
 
 CATEGORY_COLORS = {
