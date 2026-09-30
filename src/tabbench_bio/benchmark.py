@@ -261,7 +261,13 @@ class TabBenchBio:
             cache_dir, "datasets_processed", f"seed_{random_state}_{param_hash}"
         )
         os.makedirs(self.cache_dir_processed, exist_ok=True)
-        atomic_write_json(Path(self.cache_dir_processed) / "split_params.json", split_params)
+        split_params_path = Path(self.cache_dir_processed) / "split_params.json"
+        if split_params_path.exists():
+            assert json.loads(split_params_path.read_text(encoding="utf-8")) == split_params, (
+                f"Split cache metadata mismatch: {split_params_path}"
+            )
+        else:
+            atomic_write_json(split_params_path, split_params)
 
         if dataset_names_classification is None:
             self.dataset_names_classification = bio_dataset_names("binary") + bio_dataset_names(

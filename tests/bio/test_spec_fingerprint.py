@@ -1,4 +1,5 @@
 from dataclasses import replace
+from pathlib import Path
 from unittest.mock import Mock
 
 import pandas as pd
@@ -57,6 +58,23 @@ def test_loader_version_invalidates_fingerprint(spec, monkeypatch):
     old = fingerprint.spec_fingerprint(spec)
     monkeypatch.setattr(fingerprint, "LOADER_CACHE_VERSION", fingerprint.LOADER_CACHE_VERSION + 1)
     assert fingerprint.spec_fingerprint(spec) != old
+
+
+def test_existing_split_metadata_is_validated_without_writing(tmp_path, monkeypatch):
+    initial = TabBenchBio([], [], cache_dir=str(tmp_path))
+    path = Path(initial.cache_dir_processed) / "split_params.json"
+    original = path.read_bytes()
+
+    def forbidden_write(*args, **kwargs):
+        raise AssertionError("Reusing a cache must not rewrite its metadata")
+
+    monkeypatch.setattr("tabbench_bio.benchmark.atomic_write_json", forbidden_write)
+    reused = TabBenchBio([], [], cache_dir=str(tmp_path))
+    assert reused.cache_dir_processed == initial.cache_dir_processed
+    assert path.read_bytes() == original
+    path.write_text("{}", encoding="utf-8")
+    with pytest.raises(AssertionError, match="Split cache metadata mismatch"):
+        TabBenchBio([], [], cache_dir=str(tmp_path))
 
 
 def test_interrupted_pickle_write_preserves_previous_cache(tmp_path, monkeypatch):
