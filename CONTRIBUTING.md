@@ -35,15 +35,17 @@ these sources. Here is the shape of a TCGA entry:
   "redistributable": false,
   "license": "NIH GDC open access",
   "source_url": "https://portal.gdc.cancer.gov/projects/TCGA-LUAD",
-  "citation": "...",
-  "max_features": null
+  "citation": "Add the dataset citation here.",
+  "source_max_features": null
 }
 ```
 
 Choose a stable `bio_id`. Set `fetch_id` to the source accession or dataset ID and
 `target` to the label column or characteristic. `problem_type` accepts `binary`,
-`multiclass` or `regression`. `max_features` sets an optional dataset-specific cap.
-Record the actual citation before submitting the entry.
+`multiclass` or `regression`. `source_max_features` optionally caps features during
+source ingestion, independently of the benchmark's experimental feature cap.
+Keep the licence in `license` and the source URL in `source_url` and actual citation in `citation`.
+Add the entry to the registry's JSON array; a replacement registry must also be an array.
 
 To try a separate registry, set `TABBENCH_BIO_DATASETS` to its JSON file. Check that
 the dataset loads and that its dimensions and task type are correct:
@@ -61,7 +63,7 @@ Keep heavy optional imports inside `fetch()` so loading the core package does no
 require every source's dependencies.
 
 Datasets must be publicly accessible under an open licence and have a classification
-or regression target. Record the licence, source URL and citation in the registry.
+or regression target. Record the licence in `license` and the source URL in `source_url` and citation in `citation`.
 For classification, the full benchmark keeps classes with at least 10 labelled samples,
 filters rare classes before splitting and excludes tasks with fewer than two retained classes.
 
@@ -103,6 +105,13 @@ uv run --no-sync pytest
 ```
 
 CI runs the same checks.
+
+## Website skill
+
+Edit the canonical skill in `skills/biomedical-tabular-model-selection/`, including
+its agent metadata and data reference. The website build generates `skill.md` and
+`skills/biomedical-tabular-model-selection/` from this source. These generated web
+copies should not be edited or added to the packaged web templates.
 
 ## Licence
 
