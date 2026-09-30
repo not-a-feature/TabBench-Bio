@@ -28,24 +28,27 @@ and honour the assigned device and CPU budget. Fit preprocessing on training dat
 Classification probabilities must follow AutoGluon's class order.
 Regression returns numerical predictions.
 
-Then add your key to `CUSTOM_MODELS` in `src/tabbench_bio/models/custom.py`:
+Then add a `ModelSpec` for your key to `MODEL_REGISTRY` in
+`src/tabbench_bio/model_registry.py`:
 
 ```python
-"MYMODEL": {
-    "adapter": "tabbench_bio.models.my_model:MyModel",
-    "environment": "my-model",
-    "device": "gpu",  # or "cpu"
-    "max_features": None,
-    "classification_only": False,
-},
+"MYMODEL": ModelSpec(
+    display="My Model",
+    category="Tabular Foundation",
+    device="gpu",  # or "cpu"
+    environment="my-model",
+    adapter="tabbench_bio.models.my_model:MyModel",
+),
 ```
 
-The entry selects the adapter, environment and device, and whether to skip regression.
-`max_features` records the regular feature limit for reporting.
-Enforce any hard input limit in the adapter.
+The entry selects the adapter, environment and device, and gives the website name and
+category. Optional capabilities: `supported_tasks=("classification",)` skips regression,
+`max_classes` skips tasks with more classes, and `max_features` records the regular
+feature limit for reporting. Enforce any hard input limit in the adapter.
 
-No CLI or grid edits are needed. Keys already listed in `configs/models/all.json`
-also work. Use a new key for a different method or checkpoint version.
+No CLI or grid edits are needed. Add the key to `configs/models/all.json` only when it
+should join the default benchmark roster; per-run device and environment overrides
+remain supported. Use a new key for a different method or checkpoint version.
 Before a long run, test a small fit for each supported task type in the selected
 environment on the intended hardware. Check probability order, saving and reloading,
 and unseen categories. Check the backend's preprocessing too: some fit transforms
@@ -295,11 +298,3 @@ that launches them; activate a compatible model profile when using those directl
 
 For a small comparison using scikit-learn alone, see [Benchmark my model](README.md).
 That helper exports metrics but does not write SQLite attempt bundles for merging.
-
-
-Model metadata and adapter routing live in `src/tabbench_bio/model_registry.py`.
-Add a `ModelSpec` there with its adapter, profile, device, display/category and
-capabilities. The legacy custom-model map, feature limits, task restrictions and
-both website maps are derived from it. Add the key to `configs/models/all.json`
-only when it should join the default benchmark roster. Per-run device/environment
-overrides remain supported. Profile dependencies stay in `environments/`.

@@ -85,11 +85,10 @@ print(lb.rank())
 For resumable jobs and mergeable SQLite results, follow the
 [end-to-end model guide](benchmark_my_model/INTEGRATION.md). Models already registered
 in AutoGluon's `ag_model_registry` need no adapter. Other models need an adapter and
-an entry in `src/tabbench_bio/models/custom.py` with an `environment` field.
+a `ModelSpec` in `src/tabbench_bio/model_registry.py` with an `environment` field.
 Choose an existing compatible profile or add `environments/<profile>.txt` with the
 backend requirements. Install it in `.venvs/<profile>/` and test every supported task
-type before submitting a long run. Built-in model entries in `configs/models/all.json`
-also declare their profile.
+type before submitting a long run.
 
 Run the new model in its own result directory, then merge its database with the
 benchmark. Keep existing frozen cell configurations unchanged.

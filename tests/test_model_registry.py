@@ -3,8 +3,12 @@ from pathlib import Path
 
 from tabbench_bio import dashboard, site
 from tabbench_bio.config import parse_models
-from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
-from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key, model_entry
+from tabbench_bio.model_registry import (
+    MODEL_REGISTRY,
+    REGULAR_MAX_FEATURES,
+    canonical_model_key,
+    model_entry,
+)
 from tabbench_bio.predictions import CLASSIFICATION_ONLY_MODELS
 
 
