@@ -30,6 +30,7 @@ import time
 import tracemalloc
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from functools import cache
 
 import numpy as np
 import pandas as pd
@@ -47,17 +48,19 @@ from tabbench_bio.gpu_exclusivity import (
 )
 from tabbench_bio.logging_utils import LOG_FORMAT, run_file_logger
 from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
-from tabbench_bio.models.custom import CUSTOM_MODELS
+from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 from tabbench_bio.result_store import ResultRepository, StoredAttempt
 from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import validate_prepared
 from tabbench_bio.tuning import tuning_fingerprint
 
+_MODEL_IMPORT_ERROR = None
 try:
     from tabbench_bio.model import AutoGluonModel
     from tabbench_bio.models.tuned import TunedModel
-except ImportError:
+except ImportError as exc:
+    _MODEL_IMPORT_ERROR = exc
     AutoGluonModel = None  # type: ignore[assignment,misc]
     TunedModel = None  # type: ignore[assignment,misc]
 
@@ -65,13 +68,9 @@ logger = logging.getLogger(__name__)
 
 # Models whose upstream package implements classification only: a regression unit for one of
 # these is excluded by design (``classification_only``), not counted as a model failure.
-CLASSIFICATION_ONLY_MODELS: set[str] = {
-    "TABPFN-WIDE",
-    "TABPFN-WIDE-5K-NE3",
+CLASSIFICATION_ONLY_MODELS = {
+    key for key, spec in MODEL_REGISTRY.items() if "regression" not in spec.supported_tasks
 }
-CLASSIFICATION_ONLY_MODELS.update(
-    key for key, entry in CUSTOM_MODELS.items() if entry["classification_only"]
-)
 # Bump only when memory handling changes materially. OOMs written by an older version are
 # retried once; current-version OOMs remain terminal on ordinary restarts.
 MEMORY_RETRY_VERSION = 1
@@ -307,6 +306,29 @@ def _read_rapl():
         return None
 
 
+def _visible_gpu_handle():
+    import torch
+
+    if not torch.cuda.is_available():
+        return None
+    device = torch.cuda.get_device_properties(torch.cuda.current_device())
+    uuid = str(device.uuid)
+    if not uuid.startswith(("GPU-", "MIG-")):
+        uuid = "GPU-" + uuid
+    return _pynvml.nvmlDeviceGetHandleByUUID(uuid)
+
+
+@cache
+def _gpu_power_handle(process_id: int):
+    if not _HAS_PYNVML:
+        return None
+    try:
+        return _visible_gpu_handle()
+    except (ImportError, AttributeError, RuntimeError, _pynvml.NVMLError) as exc:
+        logger.warning("GPU power measurement unavailable: %s", exc)
+        return None
+
+
 class _PowerTracker:
     _POLL_S = 0.1
 
@@ -330,14 +352,11 @@ class _PowerTracker:
     def __enter__(self):
         self._start = time.perf_counter()
         self._gpu_samples = []
-        if _HAS_PYNVML:
-            try:
-                self._gpu_handle = _pynvml.nvmlDeviceGetHandleByIndex(0)
-                self._stop.clear()
-                self._thread = threading.Thread(target=self._poll_gpu, daemon=True)
-                self._thread.start()
-            except Exception:
-                self._gpu_handle = None
+        self._gpu_handle = _gpu_power_handle(os.getpid())
+        if self._gpu_handle is not None:
+            self._stop.clear()
+            self._thread = threading.Thread(target=self._poll_gpu, daemon=True)
+            self._thread.start()
         self._cpu_start = _read_rapl() if _HAS_RAPL else None
         return self
 
@@ -660,11 +679,17 @@ def compute_predictions(
         safe to write). Processes on one host serialize transactions into one writer bundle;
         bundles from different hosts are consolidated later.
     """
+    if AutoGluonModel is None:
+        raise ImportError(
+            "Prediction runs require AutoGluon and the selected model environment. "
+            "Install the profile in environments/ before running predictions."
+        ) from _MODEL_IMPORT_ERROR
     config = copy.deepcopy(config)
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
 
+    _gpu_power_handle(os.getpid())
     mem_backend = "psutil" if _HAS_PSUTIL else "tracemalloc"
     output_dir = config["output_dir"]
     repository = ResultRepository(output_dir, config)
@@ -825,8 +850,33 @@ def compute_predictions(
                     pbar.update(1)
                     continue
 
+                parent = canonical_model_key(
+                    model_tuning[model_name]["base_model"]
+                    if model_name in model_tuning
+                    else model_name
+                )
+                spec = MODEL_REGISTRY[parent] if parent in MODEL_REGISTRY else None
+                if (
+                    task_type == TaskType.Classification
+                    and spec is not None
+                    and spec.max_classes is not None
+                ):
+                    n_classes = pd.concat([data_train["target"], data_test["target"]]).nunique()
+                    if n_classes > spec.max_classes:
+                        record_skip(
+                            seed,
+                            key,
+                            model_name,
+                            len(data_train),
+                            len(data_test),
+                            "class_limit",
+                            f"{parent} supports at most {spec.max_classes} classes; task has {n_classes}",
+                        )
+                        pbar.update(1)
+                        continue
+
                 # Skip classification-only models for regression datasets
-                if task_type == TaskType.Regression and model_name in CLASSIFICATION_ONLY_MODELS:
+                if task_type == TaskType.Regression and parent in CLASSIFICATION_ONLY_MODELS:
                     record_skip(
                         seed,
                         key,
@@ -974,6 +1024,11 @@ def compute_predictions(
                         "train_peak_memory_mb": None,
                         "inference_peak_memory_mb": None,
                         "memory_backend": mem_backend,
+                        "memory_scope": (
+                            "main_process_rss" if _HAS_PSUTIL else "main_process_python_allocations"
+                        ),
+                        "cpu_energy_scope": "node_cpu_package_0",
+                        "gpu_power_scope": "cuda_device_total",
                         "n_models_trained": None,
                         "n_base_models": None,
                         "ag_total_fit_time_s": None,
