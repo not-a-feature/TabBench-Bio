@@ -67,8 +67,11 @@ stable `bio_id`. Edit it to add datasets from a supported source, or set
 `TABBENCH_BIO_DATASETS` to your own registry file. A run config selects tasks through
 `datasets_classification` and `datasets_regression`.
 
-TCGA, GEO and public OpenML downloads need no credentials. Kaggle requires
-`~/.kaggle/kaggle.json`. Some tasks also need local embedding files.
+Missing datasets download automatically and are cached. Curated embedding tables
+come from checksum-verified Parquet assets in the
+[GitHub Release](https://github.com/not-a-feature/TabBench-Bio/releases/tag/v0.1.0).
+Install the `bio` extra for dataset loading; Kaggle requires `~/.kaggle/kaggle.json`.
+Use `--cache-dir` to select the cache or `TABBENCH_BIO_LOCAL_DIR` for local tables.
 The [contributor guide](CONTRIBUTING.md#adding-a-dataset) explains how to add and check a dataset.
 
 The [model roster](configs/models/all.json) includes linear models, trees, neural
