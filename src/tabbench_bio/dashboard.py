@@ -9,6 +9,7 @@ import json
 import math
 import re
 import shutil
+import sysconfig
 from importlib.metadata import version
 from pathlib import Path
 
@@ -29,7 +30,6 @@ DOMAIN_ELO_IMPLEMENTATION_FILES = (
     PACKAGE_ROOT / "elo.py",
     PACKAGE_ROOT / "_vendor" / "tabarena_elo_utils.py",
 )
-TRAINING_DATA_OVERLAP = {"TABDPT"}
 
 MODEL_CATEGORY = {
     "DUMMY": "Baseline",
@@ -145,17 +145,53 @@ def digest(path: Path) -> str:
     return hashlib.sha256(path.read_bytes()).hexdigest()
 
 
-def model_meta(model_id: str) -> dict[str, object]:
-    category = MODEL_CATEGORY[model_id] if model_id in MODEL_CATEGORY else "Custom"
+def load_model_registry(configs=()) -> dict[str, dict]:
+    directory = PACKAGE_ROOT.parents[1] / "configs" / "models"
+    if not directory.is_dir():
+        directory = Path(sysconfig.get_path("data")) / "share" / "tabbench-bio" / "models"
+    paths = sorted(directory.glob("*.json"))
+    assert paths, f"Model registry missing: {directory}"
+    registry = {}
+    for path in paths:
+        for entry in json.loads(path.read_text(encoding="utf-8")):
+            key = entry["key"]
+            assert (
+                key not in registry or registry[key] == entry
+            ), f"Conflicting registry model: {key}"
+            registry[key] = entry
+    for config in configs:
+        if "model_tuning" not in config:
+            continue
+        for key, spec in config["model_tuning"].items():
+            if key in registry:
+                assert (
+                    registry[key]["base_model"] == spec["base_model"]
+                ), f"Conflicting tuning parent: {key}"
+            else:
+                registry[key] = {"key": key, "base_model": spec["base_model"]}
+    return registry
+
+
+def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
+    entry = registry[model_id] if model_id in registry else {}
+    parent = entry["base_model"] if "base_model" in entry else None
+    family_id = parent or model_id
+    parent_entry = registry[parent] if parent in registry else {}
+    overlap = entry if "training_data_overlap" in entry else parent_entry
+    category = MODEL_CATEGORY[family_id] if family_id in MODEL_CATEGORY else "Custom"
+    display = MODEL_DISPLAY[family_id] if family_id in MODEL_DISPLAY else model_id
     return {
         "id": model_id,
-        "display": MODEL_DISPLAY[model_id] if model_id in MODEL_DISPLAY else model_id,
+        "display": f"{display} (tuned)" if parent else display,
+        "tuned_from": parent,
         "category": category,
         "color": CATEGORY_COLORS[category] if category in CATEGORY_COLORS else "#64748b",
-        "regular_max_features": REGULAR_MAX_FEATURES[model_id]
-        if model_id in REGULAR_MAX_FEATURES
-        else None,
-        "training_data_overlap": model_id in TRAINING_DATA_OVERLAP,
+        "regular_max_features": (
+            REGULAR_MAX_FEATURES[model_id] if model_id in REGULAR_MAX_FEATURES else None
+        ),
+        "training_data_overlap": (
+            overlap["training_data_overlap"] if "training_data_overlap" in overlap else False
+        ),
     }
 
 
@@ -663,9 +699,9 @@ def build_cost_grid(
     if adaptive:
         fallback = scores["fallback"].fillna(False).astype(bool)
         scores.loc[fallback, "timing_cell"] = scores.loc[fallback, "reused_from_cell"]
-        assert scores.loc[fallback, "timing_cell"].astype(bool).all(), (
-            "Adaptive fallback rows must identify their timing source cell"
-        )
+        assert (
+            scores.loc[fallback, "timing_cell"].astype(bool).all()
+        ), "Adaptive fallback rows must identify their timing source cell"
 
     run_stats = run_stats[run_stats["status"] == "pass"][
         ["cell", "seed", "key", "model", "train_time_s", "inference_time_s"]
@@ -847,7 +883,8 @@ def build_website(
     model_ids = sorted(
         {model for config in configs.values() for model in config["models"]} | set(status["model"])
     )
-    models = {key: model_meta(key) for key in model_ids}
+    registry = load_model_registry(configs.values())
+    models = {key: model_meta(key, registry) for key in model_ids}
     datasets = dataset_metadata(configs)
     for dataset in datasets:
         dataset["source_url"] = dataset_source_url(dataset["source"], dataset.pop("fetch_id"))

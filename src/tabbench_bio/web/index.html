@@ -69,10 +69,10 @@
   <link rel="icon" href="assets/favicon.svg?v=20260821-4" type="image/svg+xml">
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.min.css?v=20260922-original-width">
+  <link rel="stylesheet" href="style.min.css?v=20260927-point-labels">
   <script defer src="assets/plotly-cartesian.min.js"></script>
   <script defer src="js/analytics.js?v=20260908-optout"></script>
-  <script defer src="js/app.js?v=20260923-v010-release"></script>
+  <script defer src="js/app.js?v=20260927-point-labels"></script>
 </head>
 <body data-page="home">
   <header class="site-header">
@@ -142,12 +142,12 @@
         </div>
         <button id="download-all-figures" class="button figure-download-button" type="button" disabled>Download all figures <span aria-hidden="true">↓</span></button>
       </div>
-      <article class="panel panel-main">
+      <article class="panel panel-main" id="elo-panel">
         <div class="panel-head">
-          <div>
+          <div class="panel-title-toggle"><div>
             <p class="panel-kicker">Leaderboard</p>
             <h3>Bradley–Terry Elo</h3>
-          </div>
+          </div></div>
           <div class="controls">
             <label>Metric<select id="elo-metric" aria-label="Leaderboard metric"></select></label>
             <label>Dataset modality<select id="elo-domain" aria-label="Elo dataset modality"></select></label>
@@ -155,98 +155,116 @@
             <label>Training samples<select id="elo-samples" aria-label="Training samples"></select></label>
           </div>
         </div>
-        <div id="elo-chart" class="plot" role="region" aria-label="Interactive Elo leaderboard"></div>
+        <div id="elo-content" class="panel-chart-content">
+          <div id="elo-chart" class="plot" role="region" aria-label="Interactive Elo leaderboard"></div>
         <p id="elo-metric-note" class="metric-note" hidden>Classification hyperparameter tuning was optimized for Macro-F1. Alternative metrics re-rank the same fitted models.</p>
         <div class="chart-foot">
           <div id="family-legend" class="legend"></div>
           <p id="elo-note">Random Forest is anchored at 1,000. Error bars are target-bootstrap 95% intervals.</p>
         <p id="elo-overlap-warning" class="model-card-limit-warning" hidden></p>
         </div>
+      </div>
       </article>
 
-      <article class="panel panel-main">
+      <article class="panel panel-main panel-collapse is-expanded" id="performance-panel">
         <div class="panel-head">
-          <div>
+          <div class="panel-title-toggle"><div>
             <p class="panel-kicker">Budget response</p>
             <h3>Performance across sample budgets</h3>
-          </div>
+          </div></div>
           <div class="controls controls-wide">
             <label>Dataset modality<select id="perf-domain" aria-label="Performance dataset modality"></select></label>
             <label>Feature cap<select id="perf-cap" aria-label="Performance feature cap"></select></label>
             <label>Models<select id="perf-group" aria-label="Model group"></select></label>
-            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="perf-ci" type="checkbox">Show 95% CI</span></label>
+            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="perf-ci" type="checkbox">95% CI</span></label>
           </div>
+        <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="performance-content" aria-label="Close Performance across sample budgets"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
-        <div id="performance-chart" class="plot" role="region" aria-label="Interactive model performance curves"></div>
+        <div id="performance-content" class="panel-chart-content">
+          <div id="performance-chart" class="plot" role="region" aria-label="Interactive model performance curves"></div>
         <p id="performance-note" class="chart-note"></p>
+      </div>
       </article>
 
-      <details class="panel panel-main panel-collapse" id="feature-budget-panel">
-        <summary class="panel-head">
-          <div>
-            <p class="panel-kicker">Budget response</p>
-            <h3>Performance across feature budgets</h3>
-          </div>
-          <span class="collapse-cue"><span class="collapse-show">Expand</span><span class="collapse-hide">Collapse</span></span>
-        </summary>
+      <article class="panel panel-main panel-collapse" id="feature-budget-panel">
         <div class="panel-head">
-          <div class="controls controls-wide">
+          <div class="panel-title-toggle">
+            <div>
+              <p class="panel-kicker">Budget response</p>
+              <h3>Performance across feature budgets</h3>
+            </div>
+          </div>
+          <div class="controls controls-wide" hidden>
             <label>Dataset modality<select id="feat-domain" aria-label="Feature-budget dataset modality"></select></label>
             <label>Training samples<select id="feat-samples" aria-label="Feature-budget training samples"></select></label>
             <label>Models<select id="feat-group" aria-label="Feature-budget model group"></select></label>
-            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="feat-ci" type="checkbox">Show 95% CI</span></label>
+            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="feat-ci" type="checkbox">95% CI</span></label>
           </div>
+          <button class="panel-toggle" type="button" aria-expanded="false" aria-controls="feature-budget-content"><span class="panel-toggle-label">Expand</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
-        <div id="feature-chart" class="plot" role="region" aria-label="Interactive model performance across feature budgets"></div>
-        <p id="feature-note" class="chart-note"></p>
-      </details>
+        <div id="feature-budget-content" class="panel-chart-content" hidden>
+          <div id="feature-chart" class="plot" role="region" aria-label="Interactive model performance across feature budgets"></div>
+          <p id="feature-note" class="chart-note"></p>
+        </div>
+      </article>
 
-      <article class="panel panel-main">
+      <article class="panel panel-main panel-collapse is-expanded" id="prediction-cost-panel">
         <div class="panel-head compact">
-          <div><p class="panel-kicker">Efficiency</p><h3>Performance vs. prediction cost</h3></div>
+          <div class="panel-title-toggle"><div><p class="panel-kicker">Efficiency</p><h3>Performance vs. prediction cost</h3></div></div>
           <div class="controls">
             <label>Metric<select id="prediction-cost-metric" aria-label="Prediction-cost Pareto metric"></select></label>
             <label>Dataset modality<select id="prediction-cost-domain" aria-label="Prediction-cost dataset modality"></select></label>
             <label>Feature cap<select id="prediction-cost-cap" aria-label="Prediction-cost feature cap"></select></label>
             <label>Training samples<select id="prediction-cost-samples" aria-label="Prediction-cost training samples"></select></label>
           </div>
+        <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="prediction-cost-content" aria-label="Close Performance vs. prediction cost"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
-        <div id="prediction-cost-chart" class="plot" role="region" aria-label="Performance versus prediction cost"></div>
+        <div id="prediction-cost-content" class="panel-chart-content">
+          <div id="prediction-cost-chart" class="plot" role="region" aria-label="Performance versus prediction cost"></div>
+      </div>
       </article>
 
-      <details class="panel panel-main panel-collapse" id="fitting-cost-panel">
-        <summary class="panel-head">
-          <div><p class="panel-kicker">Efficiency</p><h3>Performance vs. fitting cost</h3></div>
-          <span class="collapse-cue"><span class="collapse-show">Expand</span><span class="collapse-hide">Collapse</span></span>
-        </summary>
+      <article class="panel panel-main panel-collapse" id="fitting-cost-panel">
         <div class="panel-head">
-          <div class="controls">
+          <div class="panel-title-toggle">
+            <div><p class="panel-kicker">Efficiency</p><h3>Performance vs. fitting cost</h3></div>
+          </div>
+          <div class="controls" hidden>
             <label>Metric<select id="cost-metric" aria-label="Pareto metric"></select></label>
             <label>Dataset modality<select id="cost-domain" aria-label="Pareto dataset modality"></select></label>
             <label>Feature cap<select id="cost-cap" aria-label="Pareto feature cap"></select></label>
             <label>Training samples<select id="cost-samples" aria-label="Pareto training samples"></select></label>
           </div>
+          <button class="panel-toggle" type="button" aria-expanded="false" aria-controls="fitting-cost-content"><span class="panel-toggle-label">Expand</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
-        <div id="cost-chart" class="plot" role="region" aria-label="Performance versus fitting cost"></div>
-      </details>
+        <div id="fitting-cost-content" class="panel-chart-content" hidden>
+          <div id="cost-chart" class="plot" role="region" aria-label="Performance versus fitting cost"></div>
+        </div>
+      </article>
 
       <div class="panel-grid">
-        <article class="panel">
+        <article class="panel panel-collapse is-expanded" id="rank-panel">
           <div class="panel-head compact">
-            <div><p class="panel-kicker">Stability</p><h3>Rank stability across operating points</h3></div>
+            <div class="panel-title-toggle"><div><p class="panel-kicker">Stability</p><h3>Rank stability across operating points</h3></div></div>
             <div class="controls">
               <label>Reference cell<select id="rank-reference" aria-label="Rank stability reference cell"></select></label>
             </div>
-          </div>
+          <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="rank-content" aria-label="Close Rank stability across operating points"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
+        </div>
+          <div id="rank-content" class="panel-chart-content">
           <div id="rank-chart" class="plot plot-small" role="region" aria-label="Rank stability relative to the selected cell"></div>
           <p id="rank-note" class="chart-note"></p>
-        </article>
-        <article class="panel">
+        </div>
+      </article>
+        <article class="panel panel-collapse is-expanded" id="composition-panel">
           <div class="panel-head compact">
-            <div><p class="panel-kicker">Coverage</p><h3>Datasets by modality</h3></div>
-          </div>
+            <div class="panel-title-toggle"><div><p class="panel-kicker">Coverage</p><h3>Datasets by modality</h3></div></div>
+          <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="composition-content" aria-label="Close Datasets by modality"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
+        </div>
+          <div id="composition-content" class="panel-chart-content">
           <div id="composition-chart" class="plot plot-small" role="region" aria-label="Dataset composition by modality and task"></div>
-        </article>
+        </div>
+      </article>
       </div>
 
 
@@ -254,7 +272,7 @@
       <aside class="run-strip" aria-labelledby="run-title">
         <div class="run-strip-heading">
           <span id="run-title">Living run</span>
-          <span class="status-dot"><i aria-hidden="true"></i> <span id="snapshot-date">v0.1.0</span></span>
+          <span class="status-dot"><i aria-hidden="true"></i> <span id="snapshot-date">Loading snapshot…</span></span>
         </div>
         <div class="run-strip-progress">
           <div class="run-percent"><strong id="progress-percent">—</strong><span>recorded units</span></div>
@@ -277,6 +295,9 @@
       <aside class="metric-note method-note" aria-label="Failure and sensitivity policy">
         <p><strong>Snapshot scope.</strong> The live counter covers the configured benchmark run; performance
         charts remain pinned to the last status-complete aggregation until the cells finish.</p>
+        <p><strong>Tuning protocol.</strong> Tuned models use a small predefined grid under a one-hour budget.
+        Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold.</p>
+        <p><strong>System configuration.</strong> NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.</p>
         <p><strong>Strict website default.</strong> Performance charts and rankings open in Strict
         (primary) mode, using results at the requested feature and sample budgets. Failures are scored
         with the constant predictor. Adaptive remains available as a sensitivity view and may reuse a

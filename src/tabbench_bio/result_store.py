@@ -22,10 +22,12 @@ import zlib
 from contextlib import closing
 from dataclasses import dataclass
 from datetime import UTC, datetime
+from functools import cache
 from pathlib import Path
 
 import pandas as pd
 
+from tabbench_bio.config import load_config
 from tabbench_bio.split_manifest import (
     consistent_truth_hashes,
     load_manifest,
@@ -95,11 +97,14 @@ def _safe_writer_id(value: str) -> str:
     return safe
 
 
+@cache
+def _hostname() -> str:
+    return socket.getfqdn()
+
+
 def writer_id() -> str:
     """Return the explicit writer id, or the current physical host name."""
-    value = (
-        os.environ["TABBENCH_WRITER_ID"] if "TABBENCH_WRITER_ID" in os.environ else socket.getfqdn()
-    )
+    value = os.environ["TABBENCH_WRITER_ID"] if "TABBENCH_WRITER_ID" in os.environ else _hostname()
     return _safe_writer_id(value)
 
 
@@ -146,7 +151,7 @@ def _connect(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
 
 
 def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_writer: str) -> None:
-    connection.executescript("""
+    for statement in """
         CREATE TABLE IF NOT EXISTS metadata (
             key TEXT PRIMARY KEY,
             value TEXT NOT NULL
@@ -180,7 +185,9 @@ def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_wr
         );
         CREATE INDEX IF NOT EXISTS attempts_unit
             ON attempts(cell, seed, dataset, model, timestamp, attempt_id);
-        """)
+        """.split(";"):
+        if statement.strip():
+            connection.execute(statement)
     expected = {
         "schema_version": str(SCHEMA_VERSION),
         "experiment_id": experiment_id,
@@ -197,14 +204,30 @@ def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_wr
             "INSERT INTO metadata(key, value) VALUES (?, ?)", ("created_utc", _utc_now())
         )
     if "host" not in existing:
-        connection.execute(
-            "INSERT INTO metadata(key, value) VALUES (?, ?)", ("host", socket.getfqdn())
-        )
+        connection.execute("INSERT INTO metadata(key, value) VALUES (?, ?)", ("host", _hostname()))
     if "platform" not in existing:
         connection.execute(
             "INSERT INTO metadata(key, value) VALUES (?, ?)",
             ("platform", platform.platform()),
         )
+
+
+def _ensure_writer(path: Path, *, experiment_id: str, bundle_writer: str) -> None:
+    """Publish a complete writer database without replacing a concurrent writer."""
+    if path.exists():
+        return
+    path.parent.mkdir(parents=True, exist_ok=True)
+    with tempfile.TemporaryDirectory(prefix=".initialise-", dir=path.parent) as directory:
+        temporary = Path(directory) / path.name
+        with closing(_connect(temporary)) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            _initialise(connection, experiment_id=experiment_id, bundle_writer=bundle_writer)
+            connection.commit()
+        try:
+            os.link(temporary, path)
+        except FileExistsError:
+            # Another process published this writer while our database was initialising.
+            pass
 
 
 def _register_cell(connection: sqlite3.Connection, cell: str, config: dict) -> None:
@@ -342,9 +365,15 @@ class ResultRepository:
         config_path = output_path / "config.json"
         if config_path.is_file():
             self.cell_config = json.loads(config_path.read_text(encoding="utf-8"))
+            if "model_tuning" in config:
+                # Freeze resolved grids rather than a mutable external roster path.
+                self.cell_config = load_config(str(config_path))
         else:
             self.cell_config = json.loads(json.dumps(config))
         self.root.mkdir(parents=True, exist_ok=True)
+        _ensure_writer(
+            self.writer_path, experiment_id=self.experiment_id, bundle_writer=self.writer
+        )
         with closing(_connect(self.writer_path)) as connection:
             connection.execute("BEGIN IMMEDIATE")
             _initialise(connection, experiment_id=self.experiment_id, bundle_writer=self.writer)
@@ -549,7 +578,7 @@ class ResultRepository:
         payload = dict(record)
         payload["timestamp"] = timestamp
         payload["writer_id"] = self.writer
-        payload["host"] = socket.getfqdn()
+        payload["host"] = _hostname()
         if self.split_manifest is not None:
             payload["split_manifest_sha256"] = self.split_manifest_sha256
             payload["split_versions"] = split_versions()
@@ -610,9 +639,7 @@ class ResultRepository:
                 )
                 assert all(
                     attempt.artifact_hashes == artifact_hashes for attempt in existing_passes
-                ), (
-                    f"Divergent passing results for {(self.cell, seed, payload['dataset'], payload['model'])}"
-                )
+                ), f"Divergent passing results for {(self.cell, seed, payload['dataset'], payload['model'])}"
             connection.execute(
                 "INSERT INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
                 (
@@ -773,8 +800,11 @@ def install_snapshots(
 
 def _merge_cell_config(existing: dict, incoming: dict, cell: str) -> dict:
     dataset_keys = {"datasets_classification", "datasets_regression"}
-    roster_keys = {"models", "model_limits", "model_overrides"} | dataset_keys
+    roster_keys = {"models", "model_limits", "model_overrides", "model_tuning"} | dataset_keys
     left, right = _normalise_config(existing), _normalise_config(incoming)
+    tuning_present = "model_tuning" in left or "model_tuning" in right
+    left.setdefault("model_tuning", {})
+    right.setdefault("model_tuning", {})
     differences = {
         key
         for key in (left.keys() | right.keys()) - roster_keys
@@ -787,24 +817,26 @@ def _merge_cell_config(existing: dict, incoming: dict, cell: str) -> dict:
     for key in dataset_keys & (left.keys() | right.keys()):
         assert key in left and key in right, f"Missing {key} for {cell}"
         if left[key] != right[key]:
-            assert isinstance(left[key], list) and isinstance(right[key], list), (
-                f"Resolve {key} to explicit dataset lists before merging {cell}"
-            )
+            assert isinstance(left[key], list) and isinstance(
+                right[key], list
+            ), f"Resolve {key} to explicit dataset lists before merging {cell}"
             merged[key] = list(dict.fromkeys([*left[key], *right[key]]))
     if dataset_keys <= merged.keys() and all(isinstance(merged[k], list) for k in dataset_keys):
-        assert not set(merged["datasets_classification"]) & set(merged["datasets_regression"]), (
-            f"Dataset task types conflict for {cell}"
-        )
-    for key in ("model_limits", "model_overrides"):
+        assert not set(merged["datasets_classification"]) & set(
+            merged["datasets_regression"]
+        ), f"Dataset task types conflict for {cell}"
+    for key in ("model_limits", "model_overrides", "model_tuning"):
         for model in shared_models | (left[key].keys() & right[key].keys()):
-            assert (model in left[key]) == (model in right[key]), (
-                f"Incompatible {key} for {cell}/{model}"
-            )
+            assert (model in left[key]) == (
+                model in right[key]
+            ), f"Incompatible {key} for {cell}/{model}"
             if model in left[key]:
-                assert left[key][model] == right[key][model], (
-                    f"Incompatible {key} for {cell}/{model}"
-                )
+                assert (
+                    left[key][model] == right[key][model]
+                ), f"Incompatible {key} for {cell}/{model}"
         merged[key] = {**left[key], **right[key]}
+    if not tuning_present:
+        del merged["model_tuning"]
     return merged
 
 
@@ -881,9 +913,9 @@ def _assert_consistent_passes(connection: sqlite3.Connection) -> None:
     for row in connection.execute(_ATTEMPT_SELECT + " WHERE status = 'pass'"):
         attempt = _attempt_from_row(row)
         previous = passing_artifacts.setdefault(attempt.key, attempt.artifact_hashes)
-        assert previous == attempt.artifact_hashes, (
-            f"Divergent passing results for {attempt.key}: {previous} != {attempt.artifact_hashes}"
-        )
+        assert (
+            previous == attempt.artifact_hashes
+        ), f"Divergent passing results for {attempt.key}: {previous} != {attempt.artifact_hashes}"
 
 
 def consolidate_results(results_root: str | os.PathLike[str]) -> Path:
@@ -1001,7 +1033,9 @@ def import_legacy_results(
         cells = [root]
     assert cells, f"No configured result cells found under {root}"
 
+    _ensure_writer(destination, experiment_id=root.name, bundle_writer=bundle_writer)
     with closing(_connect(destination)) as connection:
+        connection.execute("BEGIN IMMEDIATE")
         _initialise(connection, experiment_id=root.name, bundle_writer=bundle_writer)
         connection.commit()
         for cell_dir in cells:

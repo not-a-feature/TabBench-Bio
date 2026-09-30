@@ -184,6 +184,16 @@ const FIGURE_EXPORTS = [
 ];
 
 async function figureBlobs(plot, height) {
+  if (plot.layout.meta?.cost) {
+    const { rows, metric, timing } = plot.layout.meta.cost;
+    const spec = costPlotSpec(rows, metric, timing, false, 1100);
+    const visibility = new Map(plot.data.map((trace) => [trace.name, trace.visible]));
+    spec.traces.forEach((trace) => { trace.visible = visibility.get(trace.name); });
+    const hidden = new Set(spec.traces.filter((trace) => trace.visible === "legendonly" || trace.visible === false).flatMap((trace) => trace.ids || []));
+    spec.layout.annotations.forEach((label) => { label.visible = !hidden.has(label.name); });
+    plot = { data: spec.traces, layout: spec.layout };
+    height = spec.layout.height;
+  }
   const svg = await Plotly.toImage(plot, {
     format: "svg",
     width: 1100,
@@ -278,7 +288,7 @@ function eloGridFigures() {
 
 async function addEloGridFigure(folder, figure) {
   const spec = eloPlotSpec(figure.rows, false, figure.featureCap);
-  await addFigure(folder, `grid/elo-cells/${figure.filename}`, { data: [spec.trace], layout: spec.layout }, spec.layout.height);
+  await addFigure(folder, `grid/elo-cells/${figure.filename}`, { data: spec.traces, layout: spec.layout }, spec.layout.height);
 }
 
 function costGridFigures() {
@@ -398,7 +408,9 @@ function initializeMeta() {
   byId("footer-affiliation").firstChild.textContent = `${meta.affiliation} `;
   renderReferencePodium();
 
-  byId("snapshot-date").textContent = "v0.1.0";
+  byId("snapshot-date").textContent = new Date(meta.snapshot_utc).toLocaleDateString("en-GB", {
+    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
+  });
   byId("progress-percent").textContent = percent(progress.fraction);
   const progressTrack = byId("progress-track");
   progressTrack.setAttribute("aria-valuenow", (100 * progress.fraction).toFixed(1));
@@ -409,7 +421,7 @@ function initializeMeta() {
   byId("progress-pass").style.width = percent(progress.status.pass / progress.expected);
   byId("progress-skip").style.width = percent(progress.status.skip / progress.expected);
   byId("progress-fail").style.width = percent(progress.status.fail / progress.expected);
-  byId("cell-count").textContent = `${DATA.cell_options.length} cells are shown from recorded metrics; ${progress.cells_status_complete} are status-complete in v0.1.0.`;
+  byId("cell-count").textContent = `${DATA.cell_options.length} cells are shown from recorded metrics; ${progress.cells_status_complete} are status-complete in this snapshot.`;
   const recordedFoldCounts = DATA.datasets.flatMap((dataset) =>
     dataset.performance.models.map((model) => model.folds)
   );
@@ -555,13 +567,17 @@ function initializeModelCard() {
   renderModelCard();
 }
 
-function renderFamilyLegend(rows) {
+function renderFamilyLegend(rows, hasTuned = false) {
   const categories = [...new Set(rows.map((row) => row.category))];
   const entries = categories.map((category) => {
     const model = rows.find((row) => row.category === category);
     return `<span><i style="background:${escapeHtml(model.color)}"></i>${escapeHtml(category)}</span>`;
   });
   if (rows.length) entries.push('<span><i class="legend-hatch" aria-hidden="true"></i>Diagonal bars: over regular feature limit</span>');
+  if (hasTuned) entries.push(
+    '<span><i class="legend-tuning-change" aria-hidden="true"></i>Tuning change</span>',
+    '<span><i class="legend-tuned-elo" aria-hidden="true"></i>Tuned Elo</span>',
+  );
   byId("family-legend").innerHTML = entries.join("");
   const flagged = rows.filter(hasTrainingOverlap);
   const warning = byId("elo-overlap-warning");
@@ -597,14 +613,28 @@ function initializeElo() {
   renderElo();
 }
 
+function nonnegativeEloInterval(row) {
+  if (row.Elo_hi < 0) return null;
+  const center = Math.max(0, row.Elo);
+  return { center, plus: Math.max(0, row.Elo_hi) - center, minus: center - Math.max(0, row.Elo_lo) };
+}
+
 function eloPlotSpec(rows, mobile, featureCap) {
-  const visible = rows.filter((row) => row.Elo >= 0);
+  const byModel = new Map(rows.map((row) => [row.model_id, row]));
+  const paired = rows.filter((row) => byModel.has(DATA.models[row.model_id].tuned_from));
+  const pairedIds = new Set(paired.flatMap((row) => [row.model_id, DATA.models[row.model_id].tuned_from]));
+  const visible = rows.filter((row) => row.Elo >= 0 || pairedIds.has(row.model_id));
   const autogluon = visible.find((row) => row.model_id === "AUTOGLUON");
-  const peers = visible.filter((row) => row.model_id !== "AUTOGLUON");
+  const tunedByParent = new Map(paired.map((row) => [DATA.models[row.model_id].tuned_from, row]));
+  const rankingElo = (row) => Math.max(row.Elo, (tunedByParent.get(row.model_id) || row).Elo);
+  const peers = visible.filter((row) => row.model_id !== "AUTOGLUON" && !paired.includes(row))
+    .sort((a, b) => rankingElo(a) - rankingElo(b));
   const aboveLimit = peers.map((row) => aboveRegularFeatureLimit(row, featureCap));
   const trace = {
     type: "bar",
     orientation: "h",
+    width: 0.72,
+    showlegend: false,
     x: peers.map((row) => row.Elo),
     y: peers.map(modelLabel),
     marker: {
@@ -615,8 +645,8 @@ function eloPlotSpec(rows, mobile, featureCap) {
     error_x: {
       type: "data",
       symmetric: false,
-      array: peers.map((row) => row.Elo_hi - row.Elo),
-      arrayminus: peers.map((row) => row.Elo - row.Elo_lo),
+      array: peers.map((row) => tunedByParent.has(row.model_id) || row.Elo < 0 ? null : nonnegativeEloInterval(row)?.plus),
+      arrayminus: peers.map((row) => tunedByParent.has(row.model_id) || row.Elo < 0 ? null : nonnegativeEloInterval(row)?.minus),
       color: css("--muted"), thickness: 1, width: 3,
     },
     customdata: peers.map((row, index) => [
@@ -624,11 +654,60 @@ function eloPlotSpec(rows, mobile, featureCap) {
       row.Elo_hi,
       row.category,
       overlapTooltip(row),
+      rankingElo(row),
+      (tunedByParent.get(row.model_id) || row).Elo,
     ]),
-    hovertemplate: "<b>%{y}</b><br>Elo %{x:.0f}<br>95% interval [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<br>%{customdata[2]}%{customdata[3]}<extra></extra>",
+    hovertemplate: peers.map((row) => tunedByParent.has(row.model_id)
+      ? "<b>%{y}</b><br>Ranking Elo (max) %{customdata[4]:.0f}<br>Untuned Elo %{x:.0f}<br>Tuned Elo %{customdata[5]:.0f}<br>%{customdata[2]}%{customdata[3]}<extra></extra>"
+      : "<b>%{y}</b><br>Elo %{x:.0f}<br>95% interval [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<br>%{customdata[2]}%{customdata[3]}<extra></extra>"),
   };
+  const traces = [trace];
+  if (paired.length) {
+    const parents = paired.map((row) => byModel.get(DATA.models[row.model_id].tuned_from));
+    const labels = parents.map(modelLabel);
+    const details = paired.map((row, i) => [
+      modelLabel(row), parents[i].Elo, row.Elo, row.Elo - parents[i].Elo, row.Elo_lo, row.Elo_hi, overlapTooltip(row),
+    ]);
+    const hover = "<b>%{customdata[0]}</b><br>Untuned Elo %{customdata[1]:.0f}<br>Tuned Elo %{customdata[2]:.0f}<br>Tuned 95% interval [%{customdata[4]:.0f}, %{customdata[5]:.0f}]%{customdata[6]}<extra></extra>";
+    // Explicit bases preserve signed changes: the segment ends at tuned Elo, never their sum.
+    traces.push({
+      type: "bar", orientation: "h", name: "Tuning change", width: 0.72,
+      base: parents.map((row) => row.Elo),
+      x: paired.map((row, i) => row.Elo - parents[i].Elo), y: labels,
+      marker: {
+        color: paired.map((row, i) => row.Elo < parents[i].Elo ? css("--amber") : row.color),
+        line: { color: css("--ink"), width: 0.7 },
+        pattern: { shape: ".", size: 5, solidity: 0.25, bgcolor: paired.map(() => css("--surface")) },
+      },
+      customdata: details, hoverinfo: "skip", showlegend: false,
+    }, {
+      type: "scatter", mode: "markers", name: "Tuned Elo", showlegend: false,
+      x: paired.map((row) => row.Elo), y: labels,
+      marker: { symbol: "diamond", size: 7, color: css("--ink") },
+      error_x: {
+        type: "data", symmetric: false,
+        array: paired.map((row) => row.Elo < 0 ? null : nonnegativeEloInterval(row)?.plus),
+        arrayminus: paired.map((row) => row.Elo < 0 ? null : nonnegativeEloInterval(row)?.minus),
+        color: css("--ink"), thickness: 1, width: 3,
+      },
+      customdata: details, hovertemplate: hover,
+    });
+  }
+  const crossing = [...peers.filter((row) => !tunedByParent.has(row.model_id)), ...paired]
+    .filter((row) => row.Elo < 0 && nonnegativeEloInterval(row));
+  if (crossing.length) traces.push({
+    type: "scatter", mode: "markers", showlegend: false, hoverinfo: "skip",
+    x: crossing.map(() => 0),
+    y: crossing.map((row) => paired.includes(row) ? modelLabel(byModel.get(DATA.models[row.model_id].tuned_from)) : modelLabel(row)),
+    marker: { size: 0 },
+    error_x: {
+      type: "data", symmetric: false, array: crossing.map((row) => nonnegativeEloInterval(row).plus),
+      arrayminus: crossing.map(() => 0), color: css("--ink"), thickness: 1, width: 3,
+    },
+  });
   const referenceValues = autogluon ? [autogluon.Elo, autogluon.Elo_hi] : [];
-  const xMax = Math.ceil(Math.max(1000, ...peers.map((row) => row.Elo_hi), ...referenceValues) / 100) * 100;
+  const xMax = Math.ceil(Math.max(1000, ...visible.map((row) => tunedByParent.has(row.model_id) ? row.Elo : row.Elo_hi), ...referenceValues) / 100) * 100;
+  const xMin = Math.floor(Math.min(0, ...visible.map((row) => row.Elo < 0 || tunedByParent.has(row.model_id) ? row.Elo : Math.max(0, row.Elo_lo))) / 100) * 100;
   const shapes = [{
     type: "line", x0: 1000, x1: 1000, y0: -0.5, y1: peers.length - 0.5,
     line: { color: css("--ink"), dash: "dot", width: 1.2 },
@@ -651,18 +730,25 @@ function eloPlotSpec(rows, mobile, featureCap) {
     height: Math.max(mobile ? 650 : 570, 31 * peers.length + (mobile ? 155 : 115)),
     margin: { l: mobile ? 112 : 150, r: mobile ? 18 : 30, t: autogluon ? 38 : 18, b: mobile ? 94 : 62 },
     bargap: 0.24,
+    barmode: "overlay",
     showlegend: false,
-    xaxis: axes({ title: "Bradley–Terry Elo (Random Forest = 1,000)", range: [0, xMax] }),
-    yaxis: axes({ showgrid: false, tickfont: { color: css("--ink"), size: 13 } }),
+    xaxis: axes({ title: "Bradley–Terry Elo (untuned Random Forest = 1,000)", range: [xMin, xMax] }),
+    yaxis: axes({
+      showgrid: false, categoryorder: "array", categoryarray: peers.map(modelLabel),
+      tickmode: "array", tickvals: peers.map(modelLabel),
+      ticktext: peers.map(modelLabel),
+      tickfont: { color: css("--ink"), size: 13 },
+    }),
     shapes,
     annotations,
   });
   return {
-    trace,
+    traces,
     layout,
     peers,
     autogluon,
-    hiddenNegativeCount: rows.filter((row) => row.Elo < 0).length,
+    paired,
+    hiddenNegativeCount: rows.length - visible.length,
   };
 }
 
@@ -687,18 +773,21 @@ function renderElo() {
     return;
   }
   const spec = eloPlotSpec(rows, mobile, option.feature_cap);
-  renderFamilyLegend(spec.peers);
+  renderFamilyLegend([...spec.peers, ...spec.paired], spec.paired.length > 0);
   if (Array.isArray(chart.data)) {
-    Plotly.react(chart, [spec.trace], spec.layout, PLOT_CONFIG);
+    Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG);
   } else {
     chart.replaceChildren();
-    Plotly.newPlot(chart, [spec.trace], spec.layout, PLOT_CONFIG);
+    Plotly.newPlot(chart, spec.traces, spec.layout, PLOT_CONFIG);
   }
   const referenceNote = spec.autogluon ? " · solid line: AutoGluon 1 h reference" : "";
   const hiddenNote = spec.hiddenNegativeCount
     ? ` · ${spec.hiddenNegativeCount} negative-Elo model${spec.hiddenNegativeCount === 1 ? "" : "s"} hidden`
     : "";
-  byId("elo-note").textContent = `${ELO_METRICS[metric]} · ${option.label} · ${domainDescription(domain)} · ${spec.peers[0].n_targets} binding targets · Random Forest is anchored at 1,000${hiddenNote} · error bars are target-bootstrap 95% intervals${referenceNote}.`;
+  const tuningNote = spec.paired.length
+    ? " Solid bars show untuned Elo; dotted segments show the tuning change, ending at the tuned diamond. Decreases point left and are amber. Rows are ordered by the higher of untuned and tuned Elo; both original ratings remain unchanged. For paired models, only the tuned rating has an interval. Tuning uses a small predefined grid under a one-hour budget."
+    : "";
+  byId("elo-note").textContent = `${ELO_METRICS[metric]} · ${option.label} · ${domainDescription(domain)} · ${spec.peers.length ? spec.peers[0].n_targets : 0} binding targets · untuned Random Forest is anchored at 1,000${hiddenNote} · error bars are target-bootstrap 95% intervals${referenceNote}. Displayed intervals are clipped at zero; hover shows the original bounds.${tuningNote}`;
 }
 
 const BUDGET_VIEWS = {
@@ -761,6 +850,11 @@ function initializeBudget(prefix) {
   renderBudget(prefix);
 }
 
+function preferTunedRows(rows) {
+  const parents = new Set(rows.map((row) => DATA.models[row.model_id].tuned_from).filter(Boolean));
+  return rows.filter((row) => !parents.has(row.model_id));
+}
+
 function renderBudget(prefix) {
   const view = BUDGET_VIEWS[prefix];
   const mobile = isMobileViewport();
@@ -776,6 +870,7 @@ function renderBudget(prefix) {
   let rows = DATA.domain_elo.filter((row) =>
     row.metric === "f1_macro" && row.domain === domain && cellIds.has(row.cell) && !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON"
   );
+  rows = preferTunedRows(rows);
   if (!rows.length) return;
 
   // Use the 100-sample reference ranking for sample-budget curves; feature-budget
@@ -820,8 +915,8 @@ function renderBudget(prefix) {
         visible: showCI,
         type: "data",
         symmetric: false,
-        array: points.map((row) => row.Elo_hi - row.Elo),
-        arrayminus: points.map((row) => row.Elo - row.Elo_lo),
+        array: points.map((row) => row.Elo < 0 ? null : nonnegativeEloInterval(row)?.plus),
+        arrayminus: points.map((row) => row.Elo < 0 ? null : nonnegativeEloInterval(row)?.minus),
         color: meta.color,
         thickness: 0.8,
         width: 2,
@@ -838,7 +933,20 @@ function renderBudget(prefix) {
     };
   });
 
-  const yLow = Math.min(...rows.map((row) => showCI ? row.Elo_lo : row.Elo));
+  if (showCI) modelIds.forEach((modelId) => {
+    const crossing = rows.filter((row) => row.model_id === modelId && row.Elo < 0 && nonnegativeEloInterval(row));
+    if (!crossing.length) return;
+    traces.push({
+      type: "scatter", mode: "markers", showlegend: false, hoverinfo: "skip",
+      x: crossing.map((row) => position(budgetByCell[row.cell])), y: crossing.map(() => 0),
+      marker: { size: 0 },
+      error_y: {
+        type: "data", symmetric: false, array: crossing.map((row) => nonnegativeEloInterval(row).plus),
+        arrayminus: crossing.map(() => 0), color: DATA.models[modelId].color, thickness: 0.8, width: 2,
+      },
+    });
+  });
+  const yLow = Math.min(...rows.map((row) => showCI ? Math.min(row.Elo, Math.max(0, row.Elo_lo)) : row.Elo));
   const yHigh = Math.max(...rows.map((row) => showCI ? row.Elo_hi : row.Elo));
   const yPadding = Math.max(25, (yHigh - yLow) * 0.08);
   const yRange = [Math.floor((yLow - yPadding) / 25) * 25, Math.ceil((yHigh + yPadding) / 25) * 25];
@@ -847,13 +955,13 @@ function renderBudget(prefix) {
     : axes({ title: view.axisTitle, type: "log", tickvals: ticks, ticktext: ticks.map(view.axisLabel) });
   const layout = baseLayout({
     height: mobile ? 680 : 560,
-    margin: { l: mobile ? 58 : 70, r: mobile ? 16 : 25, t: 22, b: mobile ? 150 : 70 },
+    margin: { l: mobile ? 58 : 70, r: prefix === "feat" ? 10 : mobile ? 16 : 25, t: 22, b: mobile ? 150 : 70 },
     xaxis,
     yaxis: axes({ title: "Bradley–Terry Elo (Random Forest = 1,000)", range: yRange }),
     legend: { orientation: "h", x: 0, y: mobile ? -0.3 : -0.2, font: { size: mobile ? 11 : 12, color: css("--muted") } },
   });
   Plotly.react(byId(view.chart), traces, layout, PLOT_CONFIG);
-  const intervalNote = showCI ? "target-bootstrap 95% intervals shown" : "95% intervals available on hover";
+  const intervalNote = showCI ? "target-bootstrap 95% intervals clipped at zero; original bounds available on hover" : "95% intervals available on hover";
   const limitNote = beyondLimit.length
     ? ` · open markers: beyond the regular feature limit of ${beyondLimit.join(", ")}`
     : "";
@@ -863,7 +971,7 @@ function renderBudget(prefix) {
   const poolNote = prefix === "perf"
     ? " Targets can differ across budgets; the paper uses a fixed shared target pool."
     : "";
-  byId(view.note).textContent = `${domainDescription(domain)} · ${view.describe(control)} · Elo at each available ${view.budgetNote}${selectionNote}${limitNote} · ${intervalNote}.${poolNote}`;
+  byId(view.note).textContent = `${domainDescription(domain)} · ${view.describe(control)} · Elo at each available ${view.budgetNote}${selectionNote}${limitNote} · ${intervalNote}. Tuned versions replace their untuned counterparts where available.${poolNote}`;
 }
 
 function initializeCost() {
@@ -909,16 +1017,58 @@ function paretoFrontier(rows, metric, timeColumn) {
   )).sort((a, b) => a[timeColumn] - b[timeColumn]);
 }
 
-function costPlotSpec(rows, metric, timing, mobile) {
+function costLabelAnnotations(rows, metric, timeColumn, mobile, width, height, xRange, yRange) {
+  const fontSize = mobile ? 10 : 11;
+  const context = typeof document.createElement === "function" ? document.createElement("canvas").getContext("2d") : null;
+  if (context) context.font = fontSize + 'px "Atkinson Hyperlegible Next", sans-serif';
+  const points = rows.map((row) => ({
+    row, x: width * (Math.log10(row[timeColumn]) - xRange[0]) / (xRange[1] - xRange[0]),
+    y: height * (yRange[1] - row[metric]) / (yRange[1] - yRange[0]),
+    w: Math.min(width - 8, (context ? context.measureText(modelLabel(row)).width : modelLabel(row).length * fontSize * 0.65) + 10),
+  }));
+  const occupied = [];
+  const overlaps = (a, b) => a[0] < b[2] && a[2] > b[0] && a[1] < b[3] && a[3] > b[1];
+  // Place wide labels first; search the actual plot geometry instead of dropping labels.
+  return [...points].sort((a, b) => b.w - a.w || a.y - b.y).map((point) => {
+    let best, bestScore = Infinity;
+    const h = fontSize + 8;
+    for (let y = h / 2 + 4; y <= height - h / 2 - 4; y += h + 3) {
+      for (let x = point.w / 2 + 4; x <= width - point.w / 2 - 4; x += 8) {
+        const box = [x - point.w / 2, y - h / 2, x + point.w / 2, y + h / 2];
+        if (occupied.some((other) => overlaps(box, other))) continue;
+        const covered = points.filter((p) => overlaps(box, [p.x - 8, p.y - 8, p.x + 8, p.y + 8])).length;
+        const score = (x - point.x) ** 2 + (y - point.y) ** 2 + covered * 1000000;
+        if (score < bestScore) { bestScore = score; best = { x, y, box }; }
+      }
+    }
+    if (!best) throw new Error("Insufficient space for timing labels");
+    occupied.push(best.box);
+    return {
+      x: Math.log10(point.row[timeColumn]), y: point.row[metric], xref: "x", yref: "y",
+      name: point.row.model_id, text: modelLabel(point.row), showarrow: true, arrowhead: 0, arrowwidth: 0.7,
+      arrowcolor: css("--muted"), standoff: 7,
+      ax: best.x - point.x, ay: best.y - point.y, axref: "pixel", ayref: "pixel",
+      xanchor: "center", yanchor: "middle", borderpad: 2,
+      bgcolor: css("--surface"), font: { size: fontSize, color: css("--ink") },
+      captureevents: false,
+    };
+  });
+}
+
+function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 1100) {
   const metricLabel = ELO_METRICS[metric];
   const categories = [...new Set(rows.map((row) => row.category))];
   const frontier = paretoFrontier(rows, metric, timing.column);
   const frontierIds = new Set(frontier.map((row) => row.model_id));
-  const positions = ["top center", "bottom center", "middle right", "middle left"];
-  const labelPosition = new Map(
-    [...rows].sort((a, b) => a[timing.column] - b[timing.column])
-      .map((row, index) => [row.model_id, positions[index % positions.length]])
-  );
+  const margin = { l: mobile ? 58 : 78, r: mobile ? 16 : 28, t: 24, b: mobile ? 165 : 110, autoexpand: false };
+  const width = Math.max(180, chartWidth - margin.l - margin.r);
+  const height = Math.max(420, rows.length * (mobile ? 26 : 23) + 24);
+  const logs = rows.map((row) => Math.log10(row[timing.column]));
+  const values = rows.map((row) => row[metric]);
+  const xPad = Math.max(0.15, (Math.max(...logs) - Math.min(...logs)) * 0.12);
+  const yPad = Math.max(0.01, (Math.max(...values) - Math.min(...values)) * 0.15);
+  const xRange = [Math.min(...logs) - xPad, Math.max(...logs) + xPad];
+  const yRange = [Math.min(...values) - yPad, Math.max(...values) + yPad];
   const frontierTrace = {
     type: "scatter",
     mode: "lines+markers",
@@ -934,13 +1084,11 @@ function costPlotSpec(rows, metric, timing, mobile) {
     const points = rows.filter((row) => row.category === category);
     return {
       type: "scatter",
-      mode: "markers+text",
+      mode: "markers",
       name: category,
+      ids: points.map((row) => row.model_id),
       x: points.map((row) => row[timing.column]),
       y: points.map((row) => row[metric]),
-      text: points.map(modelLabel),
-      textposition: points.map((row) => labelPosition.get(row.model_id)),
-      textfont: { size: mobile ? 10 : 11, color: css("--ink") },
       cliponaxis: false,
       marker: { color: points[0].color, size: points.map((row) => frontierIds.has(row.model_id) ? 12 : 9), opacity: 0.88, line: { color: css("--surface"), width: 1 } },
       customdata: points.map((row) => modelLabel(row) + overlapTooltip(row)),
@@ -948,11 +1096,13 @@ function costPlotSpec(rows, metric, timing, mobile) {
     };
   });
   const layout = baseLayout({
-    height: mobile ? 680 : 560,
-    margin: { l: mobile ? 58 : 78, r: mobile ? 36 : 72, t: 44, b: mobile ? 145 : 76 },
-    xaxis: axes({ title: timing.axis, type: "log" }),
-    yaxis: axes({ title: `Mean ${metricLabel}` }),
-    legend: { orientation: "h", x: 0, y: mobile ? -0.29 : -0.2, font: { size: mobile ? 11 : 12, color: css("--muted") } },
+    height: height + margin.t + margin.b,
+    margin,
+    meta: { cost: { rows, metric, timing } },
+    annotations: costLabelAnnotations(rows, metric, timing.column, mobile, width, height, xRange, yRange),
+    xaxis: axes({ title: timing.axis, type: "log", range: xRange, automargin: false }),
+    yaxis: axes({ title: `Mean ${metricLabel}`, range: yRange, automargin: false }),
+    legend: { orientation: "h", x: 0, y: -75 / height, yanchor: "top", font: { size: mobile ? 11 : 12, color: css("--muted") } },
   });
   return { traces: [frontierTrace, ...categoryTraces], layout };
 }
@@ -970,8 +1120,15 @@ function renderCost(prefix) {
     row.cell === option.id && row.domain === domain && !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON"
   );
   if (!rows.length) return;
-  const spec = costPlotSpec(rows, metric, timing, mobile);
-  Plotly.react(byId(timing.chart), spec.traces, spec.layout, PLOT_CONFIG);
+  const chart = byId(timing.chart);
+  const spec = costPlotSpec(rows, metric, timing, mobile, chart.clientWidth || chart.closest(".panel").clientWidth);
+  Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
+    chart.removeAllListeners("plotly_restyle");
+    chart.on("plotly_restyle", () => {
+      const visible = new Set(chart.data.filter((trace) => trace.visible !== "legendonly" && trace.visible !== false).flatMap((trace) => trace.ids || []));
+      Plotly.relayout(chart, { annotations: chart.layout.annotations.map((label) => ({ ...label, visible: visible.has(label.name) })) });
+    });
+  });
 }
 
 function initializeRank() {
@@ -1201,9 +1358,27 @@ async function main() {
     downloadButton.disabled = false;
     downloadButton.addEventListener("click", () => downloadAllFigures(downloadButton));
     CHARTS_READY = true;
+    let costResizeTimer;
+    window.addEventListener("resize", () => {
+      clearTimeout(costResizeTimer);
+      costResizeTimer = setTimeout(() => { renderCost("cost"); renderCost("prediction-cost"); }, 120);
+    });
     document.querySelectorAll(".panel-collapse").forEach((panel) => {
-      panel.addEventListener("toggle", () => {
-        if (panel.open) Plotly.Plots.resize(panel.querySelector(".plot"));
+      const toggle = panel.querySelector(".panel-toggle");
+      toggle.addEventListener("click", () => {
+        const expanded = toggle.getAttribute("aria-expanded") !== "true";
+        toggle.setAttribute("aria-expanded", String(expanded));
+        toggle.querySelector(".panel-toggle-label").textContent = expanded ? "×" : "Expand";
+        toggle.setAttribute("aria-label", (expanded ? "Close " : "Expand ") + panel.querySelector("h3").textContent);
+        panel.classList.toggle("is-expanded", expanded);
+        const controls = panel.querySelector(".panel-head .controls");
+        if (controls) controls.hidden = !expanded;
+        byId(toggle.getAttribute("aria-controls")).hidden = !expanded;
+        if (expanded) {
+          if (panel.id === "fitting-cost-panel") renderCost("cost");
+          else if (panel.id === "prediction-cost-panel") renderCost("prediction-cost");
+          else Plotly.Plots.resize(panel.querySelector(".plot"));
+        }
       });
     });
   } else if (page === "models") {

@@ -20,7 +20,9 @@ Use the current responses and check their schema before relying on these fields.
   budgets rather than constructing IDs. A null budget means full/uncapped.
 - `analysis_views.strict` and `.adaptive` contain the respective `domain_elo`,
   `cost_grid`, `model_card_coverage`, `reference` and other view-specific arrays.
-  Top-level model metadata is shared. Check view availability explicitly.
+  Top-level rankings follow the Strict website default, declared by
+  `meta.primary_analysis_view`, matching the paper analysis. Top-level model
+  metadata is shared. Check view availability explicitly.
 - `domain_elo`: filter `cell`, `domain`, `metric`; join on `model_id`.
   Read `Elo`, `Elo_lo`, `Elo_hi`, `n_targets`.
 - `cost_grid`: join `cell`, `domain`, `model_id`; read `train_time_s`,
@@ -32,33 +34,26 @@ Use the current responses and check their schema before relying on these fields.
 - `meta.snapshot_utc` identifies the exported snapshot. Monitoring progress may
   include runs newer than the completed aggregation used for the displayed scores.
 
+## Tuned models and timing
+
+Use `models[model_id].tuned_from` to join a tuned configuration to its parent;
+do not infer this relation from names. For a paired bar, untuned Elo is the base,
+`tuned.Elo - parent.Elo` is the signed extension, and the diamond marks tuned Elo.
+Untuned Random Forest remains anchored at 1,000. Only the tuned configuration's
+95% interval is drawn for a pair; it is not an interval for the difference.
+Plotted error bars are clipped at zero. The original statistical intervals remain
+unchanged in the exports, including any negative lower bound.
+The parent remains available in the JSON even when omitted from budget-response
+line plots. Only parent/tuned rows at the same cell, modality, metric and analysis
+view are comparable.
+
+The completed tuning snapshot uses a small predefined grid under a one-hour budget.
+Read the frozen configuration attached to a result before reporting its search size.
+System configuration: NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.
+
 ## Minimal lookup example
 
-This standard-library Python example queries an *example* operating point. Replace
-its budgets, modality and metric with those appropriate to the user's problem.
-It fetches metadata only and does not fit models or download biomedical datasets.
-
-```python
-import json
-from urllib.request import urlopen
-
-url = "https://tabbench-bio.eu/data/dashboard.json"
-with urlopen(url, timeout=30) as response:
-    data = json.load(response)
-view = data["analysis_views"]["strict"]
-cell = next(c for c in data["cell_options"]
-            if c["feature_cap"] == 10000 and c["n_train"] == 100)
-rows = [r for r in view["domain_elo"]
-        if r["cell"] == cell["id"] and r["domain"] == "Gene expression"
-        and r["metric"] == "f1_macro"]
-print("Snapshot:", data["meta"]["snapshot_utc"], "Cell:", cell["label"])
-for row in sorted(rows, key=lambda r: r["Elo"], reverse=True):
-    model = data["models"][row["model_id"]]
-    if row["model_id"] in data["meta"]["plot_excluded_models"]:
-        continue
-    print(model["display"], row["Elo"], row["Elo_lo"], row["Elo_hi"],
-          row["n_targets"], "training-data overlap:", model["training_data_overlap"])
-```
+See the [minimal lookup in the main skill](../SKILL.md#minimal-lookup-example).
 
 ## Dataset-specific scores
 
@@ -69,7 +64,7 @@ The response has `dataset_id` and `scores`; each score has `cell`, `model_id`, a
 `values` keyed by metric. Use the index entry's `metrics[].better` direction
 (`high` or `low`), especially for regression errors. These are exported dataset
 scores, not per-fold observations or automatically paired significance tests.
-Do not label them adaptive unless their provenance explicitly says so.
+These dataset-specific exports use Strict nominal-cell scores, matching the homepage default.
 
 If deeper analysis requires SQLite, read `raw_exports` in the dashboard and check
 `available`, URL, size and checksum first. Do not infer a download URL from a

@@ -2,7 +2,7 @@
 
 Add an adapter, register its key and choose its environment profile. Then run the
 benchmark, merge its results and build a leaderboard. The same model command works
-locally and on TCML.
+locally and in a cluster job.
 
 ## Install once
 
@@ -47,7 +47,9 @@ Enforce any hard input limit in the adapter.
 No CLI or grid edits are needed. Keys already listed in `configs/models/all.json`
 also work. Use a new key for a different method or checkpoint version.
 Before a long run, test a small fit for each supported task type in the selected
-environment on the intended hardware.
+environment on the intended hardware. Check probability order, saving and reloading,
+and unseen categories. Check the backend's preprocessing too: some fit transforms
+on training and test rows together.
 
 ## Choose an environment profile
 
@@ -62,7 +64,8 @@ Compatible models can share a profile. For a new dependency set, add
 
 Keep the AutoGluon fork: it removes the 500-feature cap on tabular foundation models.
 Put model-specific packages in this file. You do not need to add a package extra or
-change the CLI. Profile names use lower-case letters, digits, hyphens and underscores,
+change the CLI. Pin Git dependencies to a commit and downloaded weights to a revision.
+Profile names use lower-case letters, digits, hyphens and underscores,
 starting with a letter or digit.
 
 From the repository root, install the profile once on each machine:
@@ -100,13 +103,11 @@ Repeat the command to resume. You can finish the reference cell first, then add
 `--output` directory.
 
 One fit runs at a time, using at most one GPU. The command selects the first GPU in
-`CUDA_VISIBLE_DEVICES` and respects Slurm's allocation. It defaults to 32 model/library
-threads. The TCML reference reserves 18 Slurm CPUs and uses 32 model threads.
-
-The command warns if the allocation differs from 18 Slurm CPUs, the model thread
-count differs from 32 or the GPU is not an NVIDIA L40S. Outside Slurm, it also warns
-when fewer than 32 CPUs are available. These differences can affect timings and
-time-limited results. Hardware details are saved in the run records and `hardware.jsonl`.
+`CUDA_VISIBLE_DEVICES`. Set `--threads` explicitly to match your CPU allocation;
+the command's default thread count is independent of that allocation.
+Hardware details are saved in the run records and `hardware.jsonl`. The runner may
+warn when hardware differs from the benchmark reference, because resource changes
+can affect timings and time-limited results.
 
 A GPU model stops if CUDA is unavailable. If the adapter supports CPU execution,
 select it explicitly:
@@ -232,34 +233,65 @@ database and the largest input snapshot.
 Continue training in the per-model directories. Keep released databases unchanged
 and publish later results as a new release.
 
-## Run on TCML
+## Run on a cluster
 
-On TCML, install the core environment and the model's profile from the checkout.
-Export credentials and data paths, then submit the reference run:
+Run the same model command inside your scheduler's job allocation. Install the core
+environment and the model profile where compute nodes can access them. Make the
+checkout, data cache and result directory available to the job, and configure any
+dataset credentials or checkpoint access before submitting it.
+
+Choose CPU count, memory, GPU requirements and wall time for your model. Keep model
+threads within the allocation and use one benchmark worker per GPU. The scheduler's
+wall-time limit covers the entire job; it is separate from the per-fit benchmark
+budget. Submit only one model-command job per result directory at a time.
+
+For example, save this as `run_benchmark.sbatch` on a Slurm cluster. The resource
+values are illustrative: adapt them and add your site's account or partition
+directives. For a GPU model, uncomment the GPU request and adjust its syntax if
+your cluster requires a GPU type.
+
+```bash
+#!/usr/bin/env bash
+#SBATCH --job-name=tabbench
+#SBATCH --ntasks=1
+#SBATCH --cpus-per-task=8
+#SBATCH --mem=32G
+#SBATCH --time=1-00:00:00
+#SBATCH --output=logs/benchmark.%j.out
+#SBATCH --error=logs/benchmark.%j.err
+##SBATCH --gres=gpu:1
+
+set -euo pipefail
+cd "${SLURM_SUBMIT_DIR:?Submit from the repository checkout}"
+srun .venv/bin/tabbench-bio "$@" --threads "${SLURM_CPUS_PER_TASK:?}"
+```
+
+Submit from the repository root after creating the log directory:
 
 ```bash
 mkdir -p logs
-sbatch scripts/run_model_tcml.sbatch MYMODEL
+sbatch run_benchmark.sbatch MYMODEL --output results/my-model
 ```
 
-For the full grid, submit this instead:
+For a tuned model, pass the JSON definition from the [tuning guide](TUNING.md):
 
 ```bash
-sbatch scripts/run_model_tcml.sbatch MYMODEL --full-grid
+sbatch run_benchmark.sbatch MY-MODEL-TUNED --model-config my_grid.json --output results/my-tuned-model
 ```
 
-Submit one job per run directory. The launcher requests one L40S, 18 Slurm CPUs and
-90 GiB RAM, with 32 model threads by default. It runs the same resumable command
-used locally, selecting the environment from the model registry. Export any access
-tokens or checkpoint paths required by the backend. For TabPFN, the launcher can
-source a token file through `TABPFN_CREDENTIAL_FILE`.
+Add `--full-grid` to either submission to run every configured feature and sample
+budget. Use `--device cpu` if you want CPU execution and the adapter supports it;
+otherwise request the GPU required by the model's registry entry. The model command
+selects its installed environment profile automatically.
 
-GPU runs use one benchmark worker per GPU. The multi-model feature sweep follows
-the same policy: model entries need `"device": "gpu"`, with no `solo` flag.
-The lower-level `run` command and `scripts/feature_sweep.py` use their current Python
-interpreter. Launch them from a profile that supports all selected models. The
-separate V3.5 launcher uses `.venvs/tabpfn35/` and also runs its version smoke test.
-Installing or registering a model submits no jobs.
+If a job stops at its wall-time limit, submit the same command again after it exits.
+Completed benchmark units are resumed from the same result directory. Keep the
+model definition, split settings and environment unchanged between submissions.
+For another scheduler, replace the allocation directives and launch command while
+keeping the TabBench command and paths the same.
+
+The lower-level `run` command and `scripts/feature_sweep.py` use the interpreter
+that launches them; activate a compatible model profile when using those directly.
 
 For a small comparison using scikit-learn alone, see [Benchmark my model](README.md).
 That helper exports metrics but does not write SQLite attempt bundles for merging.

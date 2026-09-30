@@ -17,7 +17,7 @@ shortlist; otherwise state assumptions. A task description and counts suffice.
 
 Start with [llms.txt](https://tabbench-bio.eu/llms.txt). Use
 [data reference](https://tabbench-bio.eu/skills/biomedical-tabular-model-selection/references/data.md)
-for JSON endpoints, joins and an example query.
+for JSON endpoints and joins.
 Record the snapshot date; disclose unavailable evidence rather than inventing it.
 
 Choose matching `cell_options` and filter `domain_elo` by cell, domain and metric.
@@ -26,13 +26,56 @@ the mismatch. `null` means full/uncapped, never zero. Aggregate reference rankin
 are not modality-specific evidence; use task-specific scores and metric directions
 for regression or individual datasets. Report limited target coverage.
 
+### Minimal lookup example
+
+This standard-library Python example queries an *example* operating point. Replace
+its budgets, modality and metric with those appropriate to the user's problem.
+It fetches metadata only and does not fit models or download biomedical datasets.
+
+```python
+import json
+from urllib.request import urlopen
+
+url = "https://tabbench-bio.eu/data/dashboard.json"
+with urlopen(url, timeout=30) as response:
+    data = json.load(response)
+view = data["analysis_views"]["strict"]
+cell = next(c for c in data["cell_options"]
+            if c["feature_cap"] == 10000 and c["n_train"] == 100)
+rows = [r for r in view["domain_elo"]
+        if r["cell"] == cell["id"] and r["domain"] == "Gene expression"
+        and r["metric"] == "f1_macro"]
+print("View: strict", "Snapshot:", data["meta"]["snapshot_utc"], "Cell:", cell["label"])
+for row in sorted(rows, key=lambda r: r["Elo"], reverse=True):
+    model = data["models"][row["model_id"]]
+    if row["model_id"] in data["meta"]["plot_excluded_models"]:
+        continue
+    print(model["display"], row["Elo"], row["Elo_lo"], row["Elo_hi"],
+          row["n_targets"], "training-data overlap:", model["training_data_overlap"])
+```
+
 ## 2. Compare candidates fairly
 
-- Use **strict** results as primary evidence. Adaptive results may reuse a smaller
+- The website defaults to **strict** results, matching its default rankings,
+  nominal-budget comparisons and the paper.
+  Always name the view. Adaptive results may reuse a smaller
   sample budget after training OOM; label them as sensitivity results, not nominal
   measurements. Never mix views.
 - Compare Elo, 95% intervals and `n_targets` at the same operating point. Elo is not
   accuracy, and individual intervals do not establish pairwise significance.
+- Identify tuned families using `models[model_id].tuned_from`, which is exported from
+  the JSON model registry. Untuned Random Forest remains the Elo reference at 1,000.
+  A paired bar shows untuned Elo plus the signed tuning change; its diamond is tuned
+  Elo. Only the tuned interval is drawn for a pair; the hidden untuned interval is
+  still available in the data. The interval is not uncertainty on the tuning change.
+  Plotted error bars stop at zero; exports retain the original statistical interval,
+  including a negative lower bound.
+  Budget-response line plots omit an untuned parent when its tuned version is shown;
+  underlying exports retain both versions. Unpaired models remain visible.
+- The completed tuned snapshot uses a small predefined grid under a one-hour budget.
+  Read the frozen run configuration for its actual candidate set. A changed registry
+  does not retroactively change previously measured scores.
+- System configuration: NVIDIA L40S, 48 GB VRAM, 16 CPU cores and 80 GB RAM.
 - Include a competitive simple baseline and a few complementary candidates.
   Compare `cost_grid` at the same cell/domain; its per-fold timings are not hardware
   guarantees or per-patient latency.

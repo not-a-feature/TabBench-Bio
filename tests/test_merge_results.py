@@ -3,6 +3,7 @@
 import json
 import sqlite3
 from contextlib import closing
+from pathlib import Path
 
 import pandas as pd
 import pytest
@@ -17,6 +18,7 @@ from tabbench_bio.result_store import (
     consolidate_results,
     merge_results,
 )
+from tabbench_bio.tuning import tuning_specs
 
 
 def bundle(root, model, *, truth_values=(0, 1, 0, 1), correct=True, **settings):
@@ -50,6 +52,28 @@ def bundle(root, model, *, truth_values=(0, 1, 0, 1), correct=True, **settings):
         seed=0,
     )
     return repository.writer_path
+
+
+def test_merge_frozen_tuning_variants_from_live_writer_directories(tmp_path):
+    root = Path(__file__).parents[1]
+    spec = tuning_specs(json.loads((root / "configs/models/rf_tuned.json").read_text()))["RF-TUNED"]
+    other_spec = {**spec, "seed": spec["seed"] + 1}
+    first = bundle(tmp_path / "first", "RF-TUNED", model_tuning={"RF-TUNED": spec})
+    second = bundle(tmp_path / "second", "RF-CUSTOM", model_tuning={"RF-CUSTOM": other_spec})
+    before = {path: path.read_bytes() for path in (first, second)}
+    output = merge_results(
+        [first.parent.parent, second.parent.parent], tmp_path / "merged" / "results.sqlite"
+    )
+    assert all(path.read_bytes() == before[path] for path in before)
+    repository = ResultRepository.from_root(output.parent)
+    assert len(repository.attempts()) == 6
+    with closing(sqlite3.connect(output)) as connection:
+        config = json.loads(connection.execute("SELECT config_json FROM cells").fetchone()[0])
+    assert config["model_tuning"] == {"RF-TUNED": spec, "RF-CUSTOM": other_spec}
+    conflicting = bundle(tmp_path / "changed", "RF-TUNED", model_tuning={"RF-TUNED": other_spec})
+    with pytest.raises(AssertionError, match="model_tuning"):
+        merge_results([first, conflicting], tmp_path / "incompatible.sqlite")
+    assert not (tmp_path / "incompatible.sqlite").exists()
 
 
 def test_cli_merge_preserves_inputs_deduplicates_and_ranks(tmp_path, monkeypatch):

@@ -2,39 +2,47 @@
 
 > TabBench-Bio is a living benchmark for tabular learning in high-dimensional biomedical regimes. It compares classical models, neural networks, AutoML, and tabular foundation models across controlled feature and sample budgets.
 
-Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard and leaderboard top-level rankings follow this Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. The Failures-omitted view drops failed runs instead of scoring them at chance, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports and the downloadable LaTeX leaderboard use Strict results.
+Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard and leaderboard top-level rankings follow this Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. The Failures-omitted view drops failed runs instead of scoring them at chance, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports use Strict results.
 
-## v0.1.0
+## Results
 
-- Generated from the published result bundle at 2026-09-23T07:22:11.629261Z.
+- Generated from the result bundle at 2026-09-30T06:57:34.107402+00:00.
 - 43 registered datasets: 30 classification, 13 regression.
 - Dataset modalities: DNA methylation: 4, GLM/PLM Embeddings: 4, Gene expression: 11, Genomic prediction: 4, Metagenomics: 10, Molecular properties: 8, Other: 2.
-- 19 configured model configurations; 21 currently represented in aggregate results.
+- 25 configured model configurations; 27 currently represented in aggregate results.
 - 28 feature-by-sample operating points currently have aggregate metrics.
 - 6,020 configured dataset-cell-fold evaluation points per model.
-- Run monitoring has recorded 120,830 of 120,830 planned units (100.0%): 84,717 pass, 28,173 design skip, and 7,940 fail.
+- Run monitoring has recorded 156,950 of 156,950 planned units (100.0%): 111,475 pass, 35,817 design skip, and 9,658 fail.
 
 ## Current reference results
 
 The predeclared reference operating point is p=10,000, n=100. Bradley–Terry Elo combines the classification and regression target comparisons at this cell and anchors Random Forest at 1,000. Target-bootstrap intervals quantify ranking uncertainty.
 
-1. RealTabPFN v2.5: Elo 1,156 (95% CI 1,098–1,212; 42 targets)
-2. TabPFN v3: Elo 1,070 (95% CI 1,016–1,123; 42 targets)
-3. Logistic Regression: Elo 1,063 (95% CI 994–1,127; 42 targets)
-4. MLP: Elo 1,044 (95% CI 987–1,098; 42 targets)
-5. TabPFN Wide 5k (ne3): Elo 1,038 (95% CI 952–1,114; 30 targets)
+1. TabPFN 3.5: Elo 1,208 (95% CI 1,158–1,255; 42 targets)
+2. RealTabPFN 2.5: Elo 1,158 (95% CI 1,102–1,215; 42 targets)
+3. TabPFN 3: Elo 1,075 (95% CI 1,021–1,126; 42 targets)
+4. Logistic Regression: Elo 1,068 (95% CI 998–1,132; 42 targets)
+5. Logistic Regression (tuned): Elo 1,065 (95% CI 1,004–1,127; 42 targets)
 
 The leading intervals overlap, so the displayed order should not be interpreted as a statistically resolved universal ranking. Use the interactive controls or canonical database for other operating points.
 
 ## Evaluated models
 
-AutoGluon, CatBoost, Constant, Extra Trees, KNN, LightGBM, Logistic Regression, MITRA, MLP, Random Forest, RealMLP, RealTabPFN v2, RealTabPFN v2.5, TabDPT, TabFM, TabICLv2, TabM, TabPFN Wide (8k), TabPFN Wide 5k (ne3), TabPFN v3, XGBoost.
+AutoGluon, CAUSILO, CatBoost, Constant, Extra Trees, Extra Trees (tuned), KNN, LightGBM, Logistic Regression, Logistic Regression (tuned), MITRA, MLP, Random Forest, Random Forest (tuned), RealMLP, RealTabPFN 2.5, RealTabPFN v2, TabDPT, TabFM, TabICL, TabM, TabPFN 3, TabPFN 3.5, TabPFN Wide (8k), TabPFN Wide 5k (ne3), XGBoost, XGBoost (tuned).
 
 ## Training-data overlap
 
 - † TabDPT: Part of the benchmark training data was used in the training process of this model.
 
 These models remain in the benchmark results but are excluded from the Reference leaders podium and social card.
+
+## Tuned models and chart interpretation
+
+Tuned models use a small predefined grid under a one-hour budget. Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold. The frozen result configuration records the grid and selection protocol.
+
+Read `models[model_id].tuned_from` and `training_data_overlap` from the dashboard model metadata; these come from the JSON model registry. Untuned Random Forest remains the Elo reference at 1,000. Paired bars show untuned Elo plus the signed tuning change, with a diamond at tuned Elo. Paired rows are ordered by max(untuned Elo, tuned Elo); this display ordering leaves the original ratings unchanged. Only the tuned 95% interval is drawn for a pair; it is not an interval on the tuning change. Displayed error bars are clipped at zero; original statistical intervals remain available in exports and hover details. Budget-response line plots omit untuned parents when their tuned versions are shown, while exports retain both. Unpaired models remain visible.
+
+System configuration: NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.
 
 ## Agent skill
 
@@ -55,7 +63,7 @@ Download the Markdown file directly; no repository clone is needed.
 - [Leaderboard JSON](https://tabbench-bio.eu/data/leaderboard.json): aggregate rankings.
 - [Dataset index JSON](https://tabbench-bio.eu/data/datasets/index.json): task-specific metrics and links to per-dataset scores.
 
-- [Results SQLite · v0.1.0](https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/results.sqlite): 120,886 attempts, SHA-256 `98878cbc989c45a563f8b56ec3d3708eadf134fa7952fccddd04ecf6523d5b27`
+- Results SQLite: download link not configured; 1960.1 MB, SHA-256 `384448edffd3e0e3e0606c2c48236d6d94962e9f25ac583714ece8fc7b52039d`
 
 ## Citation
 

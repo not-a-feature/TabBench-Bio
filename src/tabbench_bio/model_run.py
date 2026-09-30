@@ -18,15 +18,16 @@ from tabbench_bio.config import (
 from tabbench_bio.io_utils import atomic_write_json
 from tabbench_bio.models.custom import CUSTOM_MODELS
 from tabbench_bio.result_store import ResultRepository, consolidate_results
+from tabbench_bio.tuning import tuning_specs
 
 CHECKOUT = Path(__file__).resolve().parents[2]
 
 
 def model_python(profile: str) -> str:
     """Find the installed interpreter for a model's environment profile."""
-    assert re.fullmatch(r"[a-z0-9][a-z0-9_-]*", profile), (
-        f"Invalid environment profile: {profile!r}"
-    )
+    assert re.fullmatch(
+        r"[a-z0-9][a-z0-9_-]*", profile
+    ), f"Invalid environment profile: {profile!r}"
     requirements = CHECKOUT / "environments" / f"{profile}.txt"
     assert requirements.is_file(), f"Missing environment profile: {requirements}"
     environment = CHECKOUT / ".venvs" / profile
@@ -100,9 +101,9 @@ def worker_environment(
             flush=True,
         )
     if device == "gpu":
-        assert hardware["gpu"] is not None, (
-            "This model requires a GPU. Allocate one, or pass --device cpu to try CPU execution."
-        )
+        assert (
+            hardware["gpu"] is not None
+        ), "This model requires a GPU. Allocate one, or pass --device cpu to try CPU execution."
     return env, hardware
 
 
@@ -114,9 +115,13 @@ def run_model(args) -> None:
     grid = json.loads(grid_path.read_text(encoding="utf-8"))
     roster = resolve_list(grid["models"], str(grid_path.parent))
     entries = {entry["key"]: entry for entry in roster}
-    assert key in entries or key in CUSTOM_MODELS, (
-        f"Unknown model {key}. Add its adapter to models/custom.py."
-    )
+    if args.model_config:
+        variants = json.loads(Path(args.model_config).read_text(encoding="utf-8"))
+        tuning_specs(variants)
+        entries.update({entry["key"]: entry for entry in variants})
+    assert (
+        key in entries or key in CUSTOM_MODELS
+    ), f"Unknown model {key}. Add its adapter to models/custom.py."
     entry = dict(entries[key]) if key in entries else {"key": key}
     if key in CUSTOM_MODELS:
         entry.update(CUSTOM_MODELS[key])
@@ -138,7 +143,7 @@ def run_model(args) -> None:
             "hp={} if sys.argv[1]=='AUTOGLUON' else "
             "_resolve_hyperparameters([sys.argv[1]],int(sys.argv[2])); "
             "assert all(not isinstance(k,str) for k in hp), 'Unknown AutoGluon model'",
-            key,
+            entry["base_model"] if "base_model" in entry else key,
             str(int(device == "gpu")),
         ],
         env=env,
@@ -155,6 +160,7 @@ def run_model(args) -> None:
         "models": [key],
         "limits": model_limits([entry]),
         "overrides": model_overrides([entry]),
+        "tuning": tuning_specs([entry]),
         "n_rep": 1,
         "cv_folds": grid["cv_folds"],
         "time_limit": grid["time_limit"],
@@ -178,9 +184,10 @@ def run_model(args) -> None:
             path = output / "config.json"
             if path.is_file():
                 frozen = json.loads(path.read_text(encoding="utf-8"))
-                assert {**frozen, "cache_dir": cache} == config, (
-                    f"Settings changed for {name}; use a new --output directory"
-                )
+                assert {
+                    **frozen,
+                    "cache_dir": cache,
+                } == config, f"Settings changed for {name}; use a new --output directory"
                 config = frozen
             cells.append((path, config))
     root.mkdir(parents=True, exist_ok=True)

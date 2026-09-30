@@ -1,0 +1,28 @@
+[
+  {
+    "key": "LR-TUNED",
+    "base_model": "LR",
+    "device": "cpu",
+    "environment": "standard",
+    "tuning": {
+      "protocol": "holdout-grid-v1",
+      "selection": "inner_holdout",
+      "validation_fraction": 0.2,
+      "seed": 42,
+      "search_fraction": 0.8,
+      "grid": [
+        {},
+        {
+          "C": [
+            0.01,
+            0.1,
+            10,
+            100,
+            0.001,
+            0.0001
+          ]
+        }
+      ]
+    }
+  }
+]

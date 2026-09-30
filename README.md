@@ -155,6 +155,19 @@ Keep the metric cache locally. Deleting it forces recalculation.
 `--workers` controls both metric and Elo calculations. Progress bars show completed
 folds and comparison pools, elapsed time and estimated time remaining.
 
+## Tuned models
+
+Define a tuned variant in a JSON model roster: choose a supported parent adapter,
+give the variant its own key, and specify the candidate parameters. Selection
+uses training data only, with search and refitting sharing the run's time budget.
+
+```sh
+tabbench-bio MY-MODEL-TUNED --model-config my_grid.json --output results/my-tuned-model
+```
+
+See [Add a tuned model](benchmark_my_model/TUNING.md) for the JSON template and
+[Run on a cluster](benchmark_my_model/INTEGRATION.md#run-on-a-cluster) for batch execution.
+
 ## Licence
 
 EUPL-1.2. See [LICENSE](LICENSE). The vendored TabArena Elo helper retains Apache-2.0,
