@@ -487,6 +487,23 @@ def main():
     status_p.add_argument("--results-dir", required=True)
     status_p.set_defaults(func=cmd_results)
 
+    from tabbench_bio.doctor import cmd_doctor
+
+    doctor_p = sub.add_parser(
+        "doctor", help="Check registry, caches, skills and model environments"
+    )
+    doctor_p.add_argument("--cache-dir", type=Path, default=Path(".cache"))
+    doctor_p.add_argument(
+        "--site-dir", type=Path, help="Also verify a generated site's skill copies"
+    )
+    doctor_p.add_argument(
+        "--model",
+        action="append",
+        default=[],
+        help="Probe an adapter in its registered environment",
+    )
+    doctor_p.set_defaults(func=cmd_doctor)
+
     # ---- info ----
     info_p = sub.add_parser("info", help="Show package and ecosystem info")
     info_p.set_defaults(func=cmd_info)
