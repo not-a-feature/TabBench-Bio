@@ -3,6 +3,7 @@
 import json
 import os
 
+from tabbench_bio.model_registry import model_entry
 from tabbench_bio.tuning import tuning_specs, validate_tuning
 
 #: Every key a benchmark config must declare. The config file is the complete, explicit
@@ -80,7 +81,8 @@ def parse_models(models):
     """Return ``(key, device)`` pairs; each GPU worker has exclusive use of its device."""
     pairs = []
     for m in models:
-        key, device = m["key"], m["device"]
+        resolved = model_entry(m)
+        key, device = resolved["key"], resolved["device"]
         assert device in (
             "gpu",
             "cpu",

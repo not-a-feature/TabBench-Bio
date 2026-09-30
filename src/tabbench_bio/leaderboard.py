@@ -266,13 +266,7 @@ def _metrics_from_sqlite(
         if probability_sha256 is not None:
             probability = _sqlite_frame(connection, str(probability_sha256)).sort_index()
             assert np.array_equal(data_test.index, probability.index), (cell, seed, dataset, model)
-            probability.columns = probability.columns.astype(str)
-            wanted = [str(value) for value in np.unique(data_test["target"])]
-            y_proba = (
-                probability.reindex(columns=wanted).to_numpy()
-                if set(wanted).issubset(probability.columns)
-                else probability.to_numpy()
-            )
+            y_proba = probability
         batch.append(
             (
                 metric_row,
