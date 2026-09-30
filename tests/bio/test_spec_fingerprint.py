@@ -51,7 +51,11 @@ def test_registry_changes_invalidate_raw_and_split_cache(tmp_path, monkeypatch, 
     first = TabBenchBio(["toy"], [], cache_dir=str(tmp_path))
     monkeypatch.setitem(datasets.BIO_DATASETS, "toy", changed)
     second = TabBenchBio(["toy"], [], cache_dir=str(tmp_path))
-    assert first.cache_dir_processed != second.cache_dir_processed
+    assert first.cache_dir_processed == second.cache_dir_processed
+    monkeypatch.setitem(datasets.BIO_DATASETS, "toy", spec)
+    original_paths = first._get_cache_paths("toy_0")
+    monkeypatch.setitem(datasets.BIO_DATASETS, "toy", changed)
+    assert second._get_cache_paths("toy_0") != original_paths
 
 
 def test_loader_version_invalidates_fingerprint(spec, monkeypatch):
@@ -91,3 +95,33 @@ def test_interrupted_pickle_write_preserves_previous_cache(tmp_path, monkeypatch
         cache.save_cached_raw(tmp_path, raw)
     assert path.read_bytes() == previous
     assert list(path.parent.iterdir()) == [path]
+
+
+@pytest.mark.parametrize(
+    "changes",
+    [
+        {"notes": "new notes"},
+        {"display_name": "New name"},
+        {"license": "EUPL-1.2"},
+        {"enabled": False},
+        {"data_type": "Other"},
+        {"eval_metric": "accuracy"},
+        {"redistributable": False},
+    ],
+)
+def test_provenance_changes_do_not_invalidate_data(spec, changes):
+    assert fingerprint.spec_fingerprint(spec) == fingerprint.spec_fingerprint(
+        replace(spec, **changes)
+    )
+
+
+def test_dataset_selection_does_not_change_existing_split_paths(tmp_path):
+    first = TabBenchBio(["OpenML-1138"], [], cache_dir=str(tmp_path))
+    second = TabBenchBio(["OpenML-1138", "OpenML-1083"], [], cache_dir=str(tmp_path))
+    assert first._get_cache_paths("OpenML-1138_0") == second._get_cache_paths("OpenML-1138_0")
+
+
+def test_prevalence_only_invalidates_its_dataset(spec):
+    original = fingerprint.spec_fingerprint(spec)
+    assert fingerprint.spec_fingerprint(replace(spec, train_prevalence_filter=None)) == original
+    assert fingerprint.spec_fingerprint(replace(spec, train_prevalence_filter=0.1)) != original
