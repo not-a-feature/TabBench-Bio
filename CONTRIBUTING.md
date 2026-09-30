@@ -34,7 +34,8 @@ these sources. Here is the shape of a TCGA entry:
   "enabled": true,
   "redistributable": false,
   "license": "NIH GDC open access",
-  "notes": "Source: https://portal.gdc.cancer.gov/projects/TCGA-LUAD; add the dataset citation here.",
+  "source_url": "https://portal.gdc.cancer.gov/projects/TCGA-LUAD",
+  "citation": "Add the dataset citation here.",
   "source_max_features": null
 }
 ```
@@ -43,7 +44,7 @@ Choose a stable `bio_id`. Set `fetch_id` to the source accession or dataset ID a
 `target` to the label column or characteristic. `problem_type` accepts `binary`,
 `multiclass` or `regression`. `source_max_features` optionally caps features during
 source ingestion, independently of the benchmark's experimental feature cap.
-Keep the licence in `license` and the source URL and actual citation in `notes`.
+Keep the licence in `license` and the source URL in `source_url` and actual citation in `citation`.
 Add the entry to the registry's JSON array; a replacement registry must also be an array.
 
 To try a separate registry, set `TABBENCH_BIO_DATASETS` to its JSON file. Check that
@@ -62,7 +63,7 @@ Keep heavy optional imports inside `fetch()` so loading the core package does no
 require every source's dependencies.
 
 Datasets must be publicly accessible under an open licence and have a classification
-or regression target. Record the licence in `license` and the source URL and citation in `notes`.
+or regression target. Record the licence in `license` and the source URL in `source_url` and citation in `citation`.
 For classification, the full benchmark keeps classes with at least 10 labelled samples,
 filters rare classes before splitting and excludes tasks with fewer than two retained classes.
 

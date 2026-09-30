@@ -97,6 +97,10 @@ class BioDatasetSpec:
         Whether the processed data may be re-hosted (provenance / future HF mirror).
     license : str | None
         License string captured for provenance.
+    source_url : str | None
+        Canonical source URL for provenance.
+    citation : str | None
+        Dataset citation for provenance.
     data_file : str | None
         Kaggle-only: which table to load when a dataset ships more than one.
     embedding_column : str | None
@@ -131,6 +135,8 @@ class BioDatasetSpec:
     enabled: bool = True
     redistributable: bool = True
     license: str | None = None
+    source_url: str | None = None
+    citation: str | None = None
     data_file: str | None = None
     embedding_column: str | None = None
     group_column: str | None = None
