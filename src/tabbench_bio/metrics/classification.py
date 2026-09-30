@@ -14,7 +14,6 @@ from sklearn.metrics import (
     recall_score,
     roc_auc_score,
 )
-from sklearn.preprocessing import LabelBinarizer
 
 
 class ClassificationMetrics:
@@ -34,6 +33,7 @@ class ClassificationMetrics:
         y_true: np.ndarray,
         y_pred: np.ndarray,
         y_proba: np.ndarray | None = None,
+        labels: np.ndarray | None = None,
     ) -> dict[str, float]:
         """Return a dict of all standard classification metrics.
 
@@ -58,11 +58,11 @@ class ClassificationMetrics:
         }
         if y_proba is not None:
             try:
-                metrics["roc_auc"] = self.roc_auc(y_true, y_proba)
+                metrics["roc_auc"] = self.roc_auc(y_true, y_proba, labels=labels)
             except ValueError:
                 metrics["roc_auc"] = np.nan
             try:
-                metrics["log_loss"] = self.log_loss(y_true, y_proba)
+                metrics["log_loss"] = self.log_loss(y_true, y_proba, labels=labels)
             except ValueError:
                 metrics["log_loss"] = np.nan
         return metrics
@@ -92,20 +92,39 @@ class ClassificationMetrics:
     def matthews_corrcoef(self, y_true, y_pred) -> float:
         return float(matthews_corrcoef(y_true, y_pred))
 
-    def roc_auc(self, y_true, y_proba, multi_class: str = "ovr") -> float:
-        n_classes = len(np.unique(y_true))
-        if n_classes == 2:
-            if y_proba.ndim == 2:
-                y_proba = y_proba[:, 1]
-            return float(roc_auc_score(y_true, y_proba))
-        lb = LabelBinarizer()
-        y_true_bin = lb.fit_transform(y_true)
+    @staticmethod
+    def _labels(y_true, y_proba, labels):
+        labels = np.unique(y_true) if labels is None else np.asarray(labels)
+        width = 2 if np.ndim(y_proba) == 1 else np.shape(y_proba)[1]
+        assert len(labels) == width, "Supply the full class labels in probability-column order"
+        assert np.array_equal(labels, np.unique(labels)), "Class labels must be unique and sorted"
+        assert np.isin(y_true, labels).all(), "True labels are missing from probability columns"
+        return labels
+
+    def roc_auc(self, y_true, y_proba, multi_class: str = "ovr", labels=None) -> float:
+        labels = self._labels(y_true, y_proba, labels)
+        if len(np.unique(y_true)) != len(labels):
+            return np.nan  # A missing class has no defined one-vs-rest AUC.
+        if len(labels) == 2:
+            scores = y_proba[:, 1] if np.ndim(y_proba) == 2 else y_proba
+            return float(roc_auc_score(y_true, scores, labels=labels))
+        # Correct only storage-rounding drift, as for cross-entropy.
+        probabilities = np.asarray(y_proba, dtype=np.float64)
+        sums = probabilities.sum(axis=1, keepdims=True)
+        assert np.allclose(sums, 1, rtol=0, atol=1e-6), "Class probabilities must sum to one"
         return float(
-            roc_auc_score(y_true_bin, y_proba, multi_class=multi_class, average=self.average)
+            roc_auc_score(
+                y_true,
+                probabilities / sums,
+                labels=labels,
+                multi_class=multi_class,
+                average=self.average,
+            )
         )
 
-    def log_loss(self, y_true, y_proba) -> float:
+    def log_loss(self, y_true, y_proba, labels=None) -> float:
         """Cross-entropy. Accepts 1-D proba for binary or 2-D (n_samples, n_classes)."""
+        labels = self._labels(y_true, y_proba, labels)
         y_proba = np.asarray(y_proba, dtype=np.float64)
         assert np.isfinite(y_proba).all() and ((0 <= y_proba) & (y_proba <= 1)).all(), (
             "Class probabilities must be finite and between 0 and 1"
@@ -121,7 +140,7 @@ class ClassificationMetrics:
         )
         # CSV restores float32 predictions as float64. Correct only rounding-sized drift.
         y_proba = y_proba / row_sums
-        return float(log_loss(y_true, y_proba, labels=np.unique(y_true)))
+        return float(log_loss(y_true, y_proba, labels=labels))
 
     def confusion_matrix(self, y_true, y_pred, normalize=None) -> np.ndarray:
         return confusion_matrix(y_true, y_pred, normalize=normalize)

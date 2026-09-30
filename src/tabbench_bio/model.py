@@ -48,8 +48,8 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
     Each name is resolved against AutoGluon's model registry so that both
     built-in models (``GBM``, ``RF``, ``LR``, ...) and tabular foundation models
     (``TABPFN``, ``TABDPT``, ``REALMLP``, ...) work.  GPU-capable foundation
-    models receive ``ag.num_gpus=1`` when a GPU is available.  Unknown keys fall
-    back to the raw string, letting AutoGluon raise a clear error.
+    models receive ``ag.num_gpus=1`` when a GPU is available. Registry and adapter
+    import errors propagate before fitting.
     """
     from autogluon.tabular.registry import ag_model_registry
 
@@ -94,11 +94,9 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
 
             hp[TabPFNV3Model] = [{**gpu_arg}]
             continue
-        try:
-            cls = ag_model_registry.key_to_cls(key)
-            hp[cls] = [{**gpu_arg}]
-        except Exception:
-            hp[key] = [{}]
+        cls = ag_model_registry.key_to_cls(key)
+        assert isinstance(cls, type), f"Unknown AutoGluon model key: {key}"
+        hp[cls] = [{**gpu_arg}]
     return hp
 
 
@@ -159,6 +157,8 @@ class AutoGluonModel:
         self.parameter_overrides = dict(parameter_overrides or {})
         assert not self.parameter_overrides or len(models) == 1
         self._autogluon_native = "AUTOGLUON" in [m.upper() for m in models]
+        if not self._autogluon_native:
+            _resolve_hyperparameters(self.models, 0)
 
         if task_type == TaskType.Regression:
             self.metric: str = PRIMARY_REG_METRIC
