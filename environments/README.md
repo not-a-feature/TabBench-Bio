@@ -10,6 +10,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `tabpfn35` | TabPFN 3.5, using its separate extra |
 | `causilo` | Causilo, with its pinned source revision |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
+| `kumo` | Kumo Tabular Medium, with pinned SDM source and checkpoint revisions |
 
 The model roster in `configs/models/all.json` declares these assignments. Entries in
 `src/tabbench_bio/models/custom.py` take precedence. TabPFN-Wide and TabPFN 3.5 require
@@ -40,3 +41,9 @@ helper use the interpreter that launches them. They do not switch profiles.
 Database merging and leaderboard generation need only the core environment.
 
 To add a model, follow the [integration guide](../benchmark_my_model/INTEGRATION.md).
+
+`KUMO-TABULAR-MEDIUM` is a tabular foundation model using the Medium checkpoint,
+eight sequential ensemble members, and uncached attention using training-only processed context. Its internal 500-column
+selection is removed; the benchmark's feature cells still apply. Other released
+preprocessing remains unchanged. Code is Apache-2.0; weights are OpenMDW-1.1.
+Run with `tabbench-bio KUMO-TABULAR-MEDIUM` after installing the `kumo` profile.
