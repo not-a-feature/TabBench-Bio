@@ -16,7 +16,7 @@ from tabbench_bio.config import (
     resolve_list,
 )
 from tabbench_bio.io_utils import atomic_write_json
-from tabbench_bio.models.custom import CUSTOM_MODELS
+from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key, model_entry
 from tabbench_bio.result_store import ResultRepository, consolidate_results
 from tabbench_bio.tuning import tuning_specs
 
@@ -108,7 +108,7 @@ def worker_environment(
 
 
 def run_model(args) -> None:
-    key = args.model_key.upper()
+    key = canonical_model_key(args.model_key)
     assert re.fullmatch(r"[A-Z0-9][A-Z0-9_.-]*", key), f"Invalid model key: {key}"
     grid_path = CHECKOUT / "configs/grid_sweep_all.json"
     assert grid_path.is_file(), "Use an editable clone: uv pip install -e '.[bio,autogluon]'"
@@ -119,12 +119,10 @@ def run_model(args) -> None:
         variants = json.loads(Path(args.model_config).read_text(encoding="utf-8"))
         tuning_specs(variants)
         entries.update({entry["key"]: entry for entry in variants})
-    assert key in entries or key in CUSTOM_MODELS, (
-        f"Unknown model {key}. Add its adapter to models/custom.py."
+    assert key in entries or key in MODEL_REGISTRY, (
+        f"Unknown model {key}. Add its adapter to model_registry.py."
     )
-    entry = dict(entries[key]) if key in entries else {"key": key}
-    if key in CUSTOM_MODELS:
-        entry.update(CUSTOM_MODELS[key])
+    entry = model_entry(entries[key] if key in entries else {"key": key})
     assert "environment" in entry, f"Model {key} must declare an environment profile"
     profile = entry["environment"]
     python = model_python(profile)

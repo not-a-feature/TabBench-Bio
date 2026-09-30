@@ -198,12 +198,15 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     dashboard.build_website(database, output, n_boot=8)
 
     # Installed wheels must generate the same skill without a source checkout.
-    installed = tmp_path / "share/tabbench-bio/skills" / skill.name
+    installed = tmp_path / "installed/tabbench_bio/skills" / skill.name
     shutil.copytree(skill, installed)
     monkeypatch.setattr(web_metadata, "PACKAGE_ROOT", tmp_path / "lib/site-packages/tabbench_bio")
-    monkeypatch.setattr(web_metadata.sysconfig, "get_path", lambda _: str(tmp_path))
+    monkeypatch.setattr(web_metadata, "files", lambda _: tmp_path / "installed/tabbench_bio")
     (output / "skill.md").write_text("stale copy", encoding="utf-8")
+    stale = output / "skills" / skill.name / "removed.md"
+    stale.write_text("old", encoding="utf-8")
     web_metadata.write_agent_metadata(output, payload)
+    assert not stale.exists()
     assert (output / "skill.md").read_bytes() == (skill / "SKILL.md").read_bytes()
 
 

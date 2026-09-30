@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 MARKER_URL = (
     "https://raw.githubusercontent.com/segatalab/metaml/master/data/marker_presence.txt.bz2"
 )
-MIN_PREVALENCE = 0.10  # drop markers present in <10% of samples
 HEALTHY = frozenset({"n", "nd", "n_relative"})  # disease codes counted as healthy
 COHORT = "Quin_gut_liver_cirrhosis"  # original spelling in MetAML
 COHORT_VERSION = "cirrhosis-matched-stool-v1"
@@ -106,7 +105,6 @@ class MetagenomicsLoader:
             metadata={
                 "disease": target_disease,
                 "n_markers": int(X.shape[1]),
-                "min_prevalence": MIN_PREVALENCE,
                 "prevalence_fitted_on": "training_rows_only",
                 "cohort_version": COHORT_VERSION,
                 "cohort": COHORT,
