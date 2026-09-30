@@ -806,18 +806,6 @@ class TabBenchBio:
         )
         return data_df
 
-    def _drop_classes(self, data_df: DataFrame, key: str, classes: list) -> DataFrame | None:
-        if not classes:
-            return data_df
-        dataset_name, _ = self.split_key(key)
-        if dataset_name not in self.dataset_names_classification:
-            return data_df
-        label_col = data_df.columns[-1]
-        data_df = data_df[~data_df[label_col].isin(classes)]
-        if data_df[label_col].nunique() < 2:
-            return None
-        return data_df
-
     # ------------------------------------------------------------------
     # Group-aware train/test split (regression leakage prevention)
     # ------------------------------------------------------------------

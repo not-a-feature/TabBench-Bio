@@ -519,7 +519,7 @@ def main():
     )
     doctor_p.set_defaults(func=cmd_doctor)
 
-    # ---- info ----
+    # ---- cache-adopt ----
     adopt_p = sub.add_parser("cache-adopt", help="Explicitly adopt an unversioned dataset cache")
     adopt_p.add_argument("--cache-dir", type=Path, required=True)
     adopt_p.add_argument("--dataset", action="append", required=True)
@@ -531,6 +531,7 @@ def main():
     )
     adopt_p.set_defaults(func=cmd_cache_adopt)
 
+    # ---- info ----
     info_p = sub.add_parser("info", help="Show package and ecosystem info")
     info_p.set_defaults(func=cmd_info)
 
