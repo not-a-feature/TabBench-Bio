@@ -60,7 +60,6 @@ from tabbench_bio.bio import (
     reload as reload_bio_registry,
 )
 from tabbench_bio.bio.datasets import resolve_dataset_names
-from tabbench_bio.bio.loaders.metagenomics import MIN_PREVALENCE
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.io_utils import atomic_to_pickle, atomic_write_json
 from tabbench_bio.split_manifest import apply_frozen_split, load_manifest, split_versions
@@ -663,10 +662,14 @@ class TabBenchBio:
         X_test = test.drop(columns=[label_col])
         n_start = X_train.shape[1]
 
-        if self.split_key(key)[0] == "gut-cirrhosis":
+        dataset_name = self.split_key(key)[0]
+        prevalence = (
+            get_spec(dataset_name).train_prevalence_filter if is_bio_dataset(dataset_name) else None
+        )
+        if prevalence is not None:
             # Estimate prevalence after training subsampling, before the feature cap.
-            cols = X_train.columns[X_train.ne(0).mean() >= MIN_PREVALENCE]
-            assert len(cols), f"{key}: no markers meet training prevalence >= {MIN_PREVALENCE}"
+            cols = X_train.columns[(X_train.notna() & X_train.ne(0)).mean() >= prevalence]
+            assert len(cols), f"{key}: no markers meet training prevalence >= {prevalence}"
             X_train, X_test = X_train[cols], X_test[cols]
 
         # 1. Drop features mostly missing in the *training* partition.
