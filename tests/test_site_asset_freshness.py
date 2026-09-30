@@ -2,11 +2,13 @@
 
 import hashlib
 import json
+import shutil
+from pathlib import Path
 
 import pandas as pd
 import pytest
 
-from tabbench_bio import dashboard
+from tabbench_bio import dashboard, web_metadata
 from tabbench_bio.cli import main
 from tabbench_bio.config import config_for_cell
 from tabbench_bio.elo import compute_elo, fold_scores
@@ -158,6 +160,13 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     assert not list(output.rglob("*.tex"))
     assert (output / "models.html").is_file()
     assert (output / "assets/plotly-cartesian.min.js").is_file()
+    skill = Path(__file__).resolve().parents[1] / "skills" / web_metadata.SKILL_NAME
+    assert b"license: EUPL-1.2" in (output / "skill.md").read_bytes()
+    assert (output / "skill.md").read_bytes() == (skill / "SKILL.md").read_bytes()
+    for asset in skill.rglob("*"):
+        if asset.is_file():
+            relative = asset.relative_to(skill)
+            assert (output / "skills" / skill.name / relative).read_bytes() == asset.read_bytes()
     for asset in (dashboard.PACKAGE_ROOT / "web").rglob("*"):
         if asset.is_file() and asset.name not in {"llms.txt", "robots.txt", "sitemap.xml"}:
             relative = asset.relative_to(dashboard.PACKAGE_ROOT / "web")
@@ -187,6 +196,15 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     assert (tmp_path / "site.cache/fold_metrics.sqlite").is_file()
     assert not list(output.rglob("*.sqlite"))
     dashboard.build_website(database, output, n_boot=8)
+
+    # Installed wheels must generate the same skill without a source checkout.
+    installed = tmp_path / "share/tabbench-bio/skills" / skill.name
+    shutil.copytree(skill, installed)
+    monkeypatch.setattr(web_metadata, "PACKAGE_ROOT", tmp_path / "lib/site-packages/tabbench_bio")
+    monkeypatch.setattr(web_metadata.sysconfig, "get_path", lambda _: str(tmp_path))
+    (output / "skill.md").write_text("stale copy", encoding="utf-8")
+    web_metadata.write_agent_metadata(output, payload)
+    assert (output / "skill.md").read_bytes() == (skill / "SKILL.md").read_bytes()
 
 
 def test_cli_writes_matching_reports_and_website(database, tmp_path, monkeypatch):
