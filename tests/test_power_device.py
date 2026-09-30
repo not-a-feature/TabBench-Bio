@@ -30,7 +30,8 @@ def test_power_uses_cuda_device_identity(monkeypatch, visible):
         nvml.nvmlDeviceGetHandleByUUID.assert_not_called()
 
 
-def test_unresolved_device_does_not_fall_back_to_physical_zero(monkeypatch):
+def test_unresolved_device_does_not_fall_back_to_physical_zero(monkeypatch, caplog):
+    predictions._gpu_power_handle.cache_clear()
     monkeypatch.setattr(predictions, "_HAS_PYNVML", True)
     monkeypatch.setattr(predictions, "_HAS_RAPL", False)
     monkeypatch.setattr(predictions, "_pynvml", SimpleNamespace(NVMLError=RuntimeError))
@@ -43,3 +44,20 @@ def test_unresolved_device_does_not_fall_back_to_physical_zero(monkeypatch):
         assert tracker._gpu_handle is None
     assert tracker.gpu_mean_power_w is None
     assert tracker.gpu_energy_j is None
+
+    with predictions._PowerTracker():
+        pass
+    assert caplog.text.count("GPU power measurement unavailable") == 1
+    predictions._gpu_power_handle.cache_clear()
+
+
+def test_power_device_is_resolved_once_per_process(monkeypatch):
+    predictions._gpu_power_handle.cache_clear()
+    monkeypatch.setattr(predictions, "_HAS_PYNVML", True)
+    resolver = Mock(return_value="handle")
+    monkeypatch.setattr(predictions, "_visible_gpu_handle", resolver)
+    assert predictions._gpu_power_handle(1) == predictions._gpu_power_handle(1) == "handle"
+    resolver.assert_called_once()
+    assert predictions._gpu_power_handle(2) == "handle"
+    assert resolver.call_count == 2
+    predictions._gpu_power_handle.cache_clear()

@@ -30,6 +30,7 @@ import time
 import tracemalloc
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from functools import cache
 
 import numpy as np
 import pandas as pd
@@ -319,6 +320,17 @@ def _visible_gpu_handle():
     return _pynvml.nvmlDeviceGetHandleByUUID(uuid)
 
 
+@cache
+def _gpu_power_handle(process_id: int):
+    if not _HAS_PYNVML:
+        return None
+    try:
+        return _visible_gpu_handle()
+    except (ImportError, AttributeError, RuntimeError, _pynvml.NVMLError) as exc:
+        logger.warning("GPU power measurement unavailable: %s", exc)
+        return None
+
+
 class _PowerTracker:
     _POLL_S = 0.1
 
@@ -342,16 +354,11 @@ class _PowerTracker:
     def __enter__(self):
         self._start = time.perf_counter()
         self._gpu_samples = []
-        if _HAS_PYNVML:
-            try:
-                self._gpu_handle = _visible_gpu_handle()
-                if self._gpu_handle is not None:
-                    self._stop.clear()
-                    self._thread = threading.Thread(target=self._poll_gpu, daemon=True)
-                    self._thread.start()
-            except (ImportError, AttributeError, RuntimeError, _pynvml.NVMLError) as exc:
-                logger.warning("GPU power measurement unavailable: %s", exc)
-                self._gpu_handle = None
+        self._gpu_handle = _gpu_power_handle(os.getpid())
+        if self._gpu_handle is not None:
+            self._stop.clear()
+            self._thread = threading.Thread(target=self._poll_gpu, daemon=True)
+            self._thread.start()
         self._cpu_start = _read_rapl() if _HAS_RAPL else None
         return self
 
@@ -674,6 +681,7 @@ def compute_predictions(
         safe to write). Processes on one host serialize transactions into one writer bundle;
         bundles from different hosts are consolidated later.
     """
+    _gpu_power_handle(os.getpid())
     config = copy.deepcopy(config)
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
