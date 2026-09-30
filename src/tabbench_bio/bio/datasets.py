@@ -250,3 +250,13 @@ def bio_dataset_names(problem_type: str | None = None) -> list[str]:
     if problem_type is not None:
         specs = [s for s in specs if s.problem_type == problem_type]
     return [s.bio_id for s in specs]
+
+
+def resolve_dataset_names(names: list[str] | None, task: str) -> list[str]:
+    """Expand the all-datasets sentinel, preserving an explicitly empty selection."""
+    assert task in ("classification", "regression"), task
+    if names is not None:
+        return list(names)
+    if task == "regression":
+        return bio_dataset_names("regression")
+    return bio_dataset_names("binary") + bio_dataset_names("multiclass")
