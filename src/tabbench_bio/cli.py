@@ -43,16 +43,17 @@ warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
 
 def _apply_run_filters(config, args):
     """Apply scheduling-only filters without changing a frozen cell configuration."""
-    from tabbench_bio.bio.datasets import get_spec
+    from tabbench_bio.bio.datasets import get_spec, resolve_dataset_names
 
     for declared_key, runtime_key in (
         ("datasets_classification", "dataset_names_classification"),
         ("datasets_regression", "dataset_names_regression"),
     ):
         key = runtime_key if runtime_key in config else declared_key
+        names = resolve_dataset_names(config[key], declared_key.removeprefix("datasets_"))
         config[key] = [
             dataset
-            for dataset in config[key]
+            for dataset in names
             if get_spec(dataset).enabled
             and (not args.include_dataset or dataset in args.include_dataset)
         ]
@@ -207,6 +208,16 @@ def cmd_site(args):
     print(
         f"Publish: commit {args.out}/ and enable GitHub Pages (Deploy from branch → /{args.out})."
     )
+
+
+def cmd_cache_adopt(args):
+    from tabbench_bio.bio.migration import adopt_cached_dataset
+
+    for dataset in args.dataset:
+        path = adopt_cached_dataset(
+            dataset, args.cache_dir / "bio", reason=args.reason, manifest=args.manifest
+        )
+        print(f"Adopted {path}")
 
 
 def cmd_info(_args):
@@ -505,6 +516,17 @@ def main():
     doctor_p.set_defaults(func=cmd_doctor)
 
     # ---- info ----
+    adopt_p = sub.add_parser("cache-adopt", help="Explicitly adopt an unversioned dataset cache")
+    adopt_p.add_argument("--cache-dir", type=Path, required=True)
+    adopt_p.add_argument("--dataset", action="append", required=True)
+    adopt_p.add_argument(
+        "--reason", required=True, help="How the cached source and task were verified"
+    )
+    adopt_p.add_argument(
+        "--manifest", type=Path, help="Check frozen target fingerprints before adoption"
+    )
+    adopt_p.set_defaults(func=cmd_cache_adopt)
+
     info_p = sub.add_parser("info", help="Show package and ecosystem info")
     info_p.set_defaults(func=cmd_info)
 

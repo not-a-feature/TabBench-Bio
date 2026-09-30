@@ -216,3 +216,16 @@ raw and processed dataset caches. Add `--site-dir website` to verify generated s
 assets. Add `--model RF` (repeatable) to test adapter importability in that model's
 installed environment; without it, only adapter file presence is checked. The
 command does not download data, fit models, or repair caches. Failures exit nonzero.
+
+Legacy caches can be adopted explicitly after verifying that their source and task match the
+current registry, without downloading live sources again:
+
+```bash
+tabbench-bio cache-adopt --cache-dir .cache --dataset OpenML-1138 --reason "Verified against the original registry" --manifest results/run/split_manifest.json
+```
+
+The optional manifest verifies frozen target fingerprints before any cache is changed.
+Adoption records the reason and timestamp in cache metadata and refuses already-versioned
+or obsolete grouped caches. It cannot establish feature provenance; verify that separately.
+Raw fingerprints cover data-affecting fields, not descriptions or licences. Processed split
+paths include the individual dataset fingerprint, so filtered runs reuse full-run splits.

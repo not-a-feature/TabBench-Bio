@@ -135,11 +135,16 @@ class BioDatasetSpec:
     embedding_column: str | None = None
     group_column: str | None = None
     source_max_features: int | None = None
+    train_prevalence_filter: float | None = None
     download_url: str | None = None
     download_sha256: str | None = None
     notes: str = ""
 
     def __post_init__(self) -> None:
+        if self.train_prevalence_filter is not None:
+            assert 0 < self.train_prevalence_filter <= 1, (
+                f"{self.bio_id}: train_prevalence_filter must be in (0, 1]"
+            )
         assert (self.download_url is None) == (self.download_sha256 is None), (
             f"{self.bio_id}: download_url and download_sha256 must be supplied together"
         )
@@ -250,3 +255,13 @@ def bio_dataset_names(problem_type: str | None = None) -> list[str]:
     if problem_type is not None:
         specs = [s for s in specs if s.problem_type == problem_type]
     return [s.bio_id for s in specs]
+
+
+def resolve_dataset_names(names: list[str] | None, task: str) -> list[str]:
+    """Expand the all-datasets sentinel, preserving an explicitly empty selection."""
+    assert task in ("classification", "regression"), task
+    if names is not None:
+        return list(names)
+    if task == "regression":
+        return bio_dataset_names("regression")
+    return bio_dataset_names("binary") + bio_dataset_names("multiclass")
