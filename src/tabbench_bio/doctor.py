@@ -12,9 +12,9 @@ from tabbench_bio.bio.datasets import load_specs
 from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
 from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 from tabbench_bio.model_run import model_python
+from tabbench_bio.web_metadata import SKILL_NAME
 
 CHECKOUT = Path(__file__).resolve().parents[2]
-SKILL_NAME = "biomedical-tabular-model-selection"
 
 
 def check_metadata(root: Path) -> list[str]:
