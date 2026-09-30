@@ -1,6 +1,8 @@
 from argparse import Namespace
 from copy import deepcopy
 
+import pytest
+
 from tabbench_bio.cli import _apply_run_filters
 
 
@@ -23,6 +25,20 @@ def _config():
         "datasets_classification": ["OpenML-1138", "OpenML-1458"],
         "datasets_regression": ["OpenML-46983", "OpenML-430"],
     }
+
+
+@pytest.mark.parametrize("prefix", ["datasets", "dataset_names"])
+def test_null_dataset_lists_expand_before_filters(prefix):
+    config = {"models": ["RF"], f"{prefix}_classification": None, f"{prefix}_regression": None}
+    _apply_run_filters(config, _args(include_dataset=["OpenML-1138", "OpenML-46983"]))
+    assert config[f"{prefix}_classification"] == ["OpenML-1138"]
+    assert config[f"{prefix}_regression"] == ["OpenML-46983"]
+
+
+def test_empty_dataset_lists_stay_empty():
+    config = {"models": ["RF"], "datasets_classification": [], "datasets_regression": []}
+    _apply_run_filters(config, _args())
+    assert config["datasets_classification"] == config["datasets_regression"] == []
 
 
 def test_dataset_filter_preserves_models_and_excludes_other_datasets():
