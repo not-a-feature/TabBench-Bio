@@ -78,7 +78,7 @@ _MAX_FEATURE_MISSING_FRAC = 0.5
 
 #: Increment whenever prepared train/test matrices change semantics so stale split caches
 #: cannot survive a scientific preprocessing correction.
-_PREPARED_DATA_VERSION = 3
+_PREPARED_DATA_VERSION = 4
 
 
 def configure_benchmark(config, init_benchmark: bool = True) -> "TabBenchBio":
@@ -136,15 +136,14 @@ class TabBenchBio:
         Classes with fewer samples than this are removed before splitting
         (classification only).  Default 9.
     group_regression_splits : bool
-        If ``True`` (default), use :class:`~sklearn.model_selection.GroupShuffleSplit`
-        to keep co-measured samples in the same split, preventing leakage in
-        multi-measurement datasets.
+        Deprecated compatibility option; must be False. Only explicit biological groups
+        supplied by the loader constrain regression splits.
     cv_folds : int | None
         If set to ``k``, evaluate with k-fold cross-validation instead of a random
         holdout: classification uses
         :class:`~sklearn.model_selection.StratifiedKFold`, regression uses
         :class:`~sklearn.model_selection.KFold` (or
-        :class:`~sklearn.model_selection.GroupKFold` when ``group_regression_splits``).
+        :class:`~sklearn.model_selection.GroupKFold` when the loader supplies groups).
         ``random_state`` is then interpreted as the global split index ``g`` and the
         run yields fold ``g % k`` of the shuffle for repeat ``g // k`` — so across the
         ``k`` splits of a repeat every sample is tested exactly once and the across-split
@@ -190,12 +189,15 @@ class TabBenchBio:
         random_state: int = 42,
         cache_dir: str | None = None,
         min_samples_per_class: int = 10,
-        group_regression_splits: bool = True,
+        group_regression_splits: bool = False,
         bio_max_features: int | None = DEFAULT_MAX_FEATURES,
         max_classes: int | None = None,
         train_subsample: int | None = None,
         cv_folds: int | None = None,
     ):
+        assert group_regression_splits is False, (
+            "Use explicit loader groups; group_regression_splits must be False"
+        )
         reload_bio_registry()
         if not cache_dir:
             cache_dir = ".cache"
@@ -210,7 +212,6 @@ class TabBenchBio:
         self.test_size = test_size
         self.random_state = random_state
         self.min_samples_per_class = min_samples_per_class
-        self.group_regression_splits = group_regression_splits
         self.max_classes = max_classes
         # (Repeated) k-fold CV toggle. When set, random_state carries the global split
         # index and _split returns one CV fold; None keeps the repeated random holdout.
@@ -234,7 +235,6 @@ class TabBenchBio:
             "min_samples_per_class": min_samples_per_class,
             "max_classes": max_classes,
             "bio_max_features": bio_max_features,
-            "group_regression_splits": group_regression_splits,
             "train_subsample": train_subsample,
             "cv_folds": cv_folds,
         }
@@ -479,7 +479,7 @@ class TabBenchBio:
         # Split FIRST, then fit every data-dependent feature transform on train only and
         # apply it to test — no test-set leakage (docs/integrity_review.md Finding 1).
         if self.split_manifest is None:
-            train, test = self._split(data_df, dataset_name, dataset, num_targets)
+            train, test = self._split(data_df, dataset_name, dataset)
         else:
             train, test = apply_frozen_split(
                 self.split_manifest,
@@ -545,12 +545,10 @@ class TabBenchBio:
         # Shuffle so row order doesn't encode the per-class grouping.
         return pd.concat(frames).sample(frac=1, random_state=self.random_state)
 
-    def _split(
-        self, data_df: DataFrame, dataset_name: str, dataset, num_targets: int
-    ) -> tuple[DataFrame, DataFrame]:
+    def _split(self, data_df: DataFrame, dataset_name: str, dataset) -> tuple[DataFrame, DataFrame]:
         """Train/test split: k-fold when ``cv_folds`` is set, else holdout.
 
-        Holdout mode is grouped for regression (leakage-safe) and stratified otherwise.
+        Explicit biological groups stay together; ungrouped classification is stratified.
         """
         is_regression = dataset_name in self.dataset_names_regression
         explicit_groups = self._explicit_groups(data_df, dataset)
@@ -559,8 +557,6 @@ class TabBenchBio:
             return self._kfold_split(
                 data_df,
                 dataset_name,
-                dataset,
-                num_targets,
                 is_regression,
                 explicit_groups=explicit_groups,
             )
@@ -571,10 +567,6 @@ class TabBenchBio:
                 groups=explicit_groups,
                 stratify=not is_regression,
             )
-
-        if is_regression and self.group_regression_splits:
-            group_by_df = self._group_by_df(data_df, dataset, num_targets)
-            return self._grouped_train_test_split(data_df, group_by_df=group_by_df)
 
         label_col = data_df.columns[-1]
         stratify = data_df[label_col] if not is_regression else None
@@ -589,8 +581,6 @@ class TabBenchBio:
         self,
         data_df: DataFrame,
         dataset_name: str,
-        dataset,
-        num_targets: int,
         is_regression: bool,
         explicit_groups: np.ndarray | None = None,
     ) -> tuple[DataFrame, DataFrame]:
@@ -637,14 +627,6 @@ class TabBenchBio:
             )
             splitter = StratifiedKFold(n_splits=k, shuffle=True, random_state=repeat)
             splits = list(splitter.split(data_df, y))
-        elif self.group_regression_splits:
-            groups = self._group_labels(self._group_by_df(data_df, dataset, num_targets))
-            if len(np.unique(groups)) >= k:
-                # GroupKFold has no shuffle/seed, so repeats reproduce the same folds.
-                splits = list(GroupKFold(n_splits=k).split(data_df, groups=groups))
-            else:
-                splitter = KFold(n_splits=k, shuffle=True, random_state=repeat)
-                splits = list(splitter.split(data_df))
         else:
             splitter = KFold(n_splits=k, shuffle=True, random_state=repeat)
             splits = list(splitter.split(data_df))
@@ -815,60 +797,13 @@ class TabBenchBio:
     # Group-aware train/test split (regression leakage prevention)
     # ------------------------------------------------------------------
 
-    def _group_by_df(self, data_df: DataFrame, dataset, num_targets: int) -> DataFrame:
-        """The frame whose identical non-zero rows define co-measured groups.
-
-        Multi-target datasets group on the full target matrix; single-target datasets on
-        the one target column.
-        """
-        if num_targets > 1:
-            return pd.DataFrame(dataset.targets, columns=dataset.target_names).loc[data_df.index]
-        return data_df[[data_df.columns[-1]]]
-
-    @staticmethod
-    def _group_labels(group_by_df: DataFrame) -> np.ndarray:
-        """Map each row to a group id.
-
-        Two rows share a group when their non-zero values are identical (the same physical
-        measurement); an all-zero row is placed in its own unique group.
-        """
-
-        def _row_key(row):
-            nonzero = {col: val for col, val in row.items() if val != 0}
-            return frozenset(nonzero.items()) if nonzero else None
-
-        keys = group_by_df.apply(_row_key, axis=1)
-        unique_counter = 0
-        group_labels = []
-        seen: dict = {}
-        for k in keys:
-            if k is None:
-                group_labels.append(f"__unique_{unique_counter}")
-                unique_counter += 1
-            else:
-                if k not in seen:
-                    seen[k] = str(k)
-                group_labels.append(seen[k])
-        return np.array(group_labels)
-
     def _grouped_train_test_split(
         self,
         data_df: DataFrame,
-        group_by_df: DataFrame | None = None,
-        groups: np.ndarray | None = None,
+        groups: np.ndarray,
         stratify: bool = False,
     ) -> tuple[DataFrame, DataFrame]:
-        """Split while keeping co-measured samples in the same partition.
-
-        Rows that share a group key (see :meth:`_group_labels`) always land in the same
-        split, preventing train/test leakage from replicate measurements of the same
-        sample. Falls back to a plain :func:`~sklearn.model_selection.train_test_split`
-        when every row is in its own unique group.
-        """
-        if groups is None:
-            if group_by_df is None:
-                group_by_df = data_df[[data_df.columns[-1]]]
-            groups = self._group_labels(group_by_df)
+        """Split while keeping explicit biological groups in the same partition."""
         if len(np.unique(groups)) == len(data_df):
             y = data_df[data_df.columns[-1]] if stratify else None
             return train_test_split(
