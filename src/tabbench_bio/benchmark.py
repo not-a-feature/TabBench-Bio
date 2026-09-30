@@ -60,6 +60,7 @@ from tabbench_bio.bio import (
 from tabbench_bio.bio import (
     reload as reload_bio_registry,
 )
+from tabbench_bio.bio.fingerprint import spec_fingerprint
 from tabbench_bio.bio.loaders.metagenomics import MIN_PREVALENCE
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.io_utils import atomic_to_pickle, atomic_write_json
@@ -221,29 +222,6 @@ class TabBenchBio:
         # comparable across sizes (a learning curve). None = use all training rows.
         self.train_subsample = train_subsample
 
-        # The processed-split cache must be keyed on *every* parameter that changes the
-        # produced splits, not just the seed — otherwise changing e.g. max_classes
-        # silently reuses stale splits (see docs/integrity_review.md Finding 3).
-        # The NaN fill policy is deliberately absent: it is applied per model at predict
-        # time (predictions._apply_nan_policy), so the cached split holds NaN-intact
-        # features and is independent of the policy.
-        split_params = {
-            "prepared_data_version": _PREPARED_DATA_VERSION,
-            "split_versions": split_versions(),
-            "test_size": test_size,
-            "min_samples_per_class": min_samples_per_class,
-            "max_classes": max_classes,
-            "bio_max_features": bio_max_features,
-            "group_regression_splits": group_regression_splits,
-            "train_subsample": train_subsample,
-            "cv_folds": cv_folds,
-        }
-        param_hash = hashlib.md5(json.dumps(split_params, sort_keys=True).encode()).hexdigest()[:8]
-        self.cache_dir_processed = os.path.join(
-            cache_dir, "datasets_processed", f"seed_{random_state}_{param_hash}"
-        )
-        os.makedirs(self.cache_dir_processed, exist_ok=True)
-
         if dataset_names_classification is None:
             self.dataset_names_classification = bio_dataset_names("binary") + bio_dataset_names(
                 "multiclass"
@@ -273,6 +251,37 @@ class TabBenchBio:
             len(self.dataset_names_classification),
             len(self.dataset_names_regression),
         )
+
+        # The processed-split cache must be keyed on *every* parameter that changes the
+        # produced splits, not just the seed — otherwise changing e.g. max_classes
+        # silently reuses stale splits (see docs/integrity_review.md Finding 3).
+        # The NaN fill policy is deliberately absent: it is applied per model at predict
+        # time (predictions._apply_nan_policy), so the cached split holds NaN-intact
+        # features and is independent of the policy.
+        split_params = {
+            "prepared_data_version": _PREPARED_DATA_VERSION,
+            "split_versions": split_versions(),
+            "dataset_specs": {
+                name: spec_fingerprint(get_spec(name))
+                for name in self.dataset_names_classification + self.dataset_names_regression
+                if is_bio_dataset(name)
+            },
+            "test_size": test_size,
+            "min_samples_per_class": min_samples_per_class,
+            "max_classes": max_classes,
+            "bio_max_features": bio_max_features,
+            "group_regression_splits": group_regression_splits,
+            "train_subsample": train_subsample,
+            "cv_folds": cv_folds,
+        }
+        param_hash = hashlib.sha256(json.dumps(split_params, sort_keys=True).encode()).hexdigest()[
+            :16
+        ]
+        self.cache_dir_processed = os.path.join(
+            cache_dir, "datasets_processed", f"seed_{random_state}_{param_hash}"
+        )
+        os.makedirs(self.cache_dir_processed, exist_ok=True)
+        atomic_write_json(Path(self.cache_dir_processed) / "split_params.json", split_params)
 
         self._key_list: list[str] = []
         self._task_type_list: list[TaskType] = []
