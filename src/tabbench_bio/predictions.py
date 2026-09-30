@@ -30,6 +30,7 @@ import time
 import tracemalloc
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from functools import cache
 
 import numpy as np
 import pandas as pd
@@ -309,6 +310,29 @@ def _read_rapl():
         return None
 
 
+def _visible_gpu_handle():
+    import torch
+
+    if not torch.cuda.is_available():
+        return None
+    device = torch.cuda.get_device_properties(torch.cuda.current_device())
+    uuid = str(device.uuid)
+    if not uuid.startswith(("GPU-", "MIG-")):
+        uuid = "GPU-" + uuid
+    return _pynvml.nvmlDeviceGetHandleByUUID(uuid)
+
+
+@cache
+def _gpu_power_handle(process_id: int):
+    if not _HAS_PYNVML:
+        return None
+    try:
+        return _visible_gpu_handle()
+    except (ImportError, AttributeError, RuntimeError, _pynvml.NVMLError) as exc:
+        logger.warning("GPU power measurement unavailable: %s", exc)
+        return None
+
+
 class _PowerTracker:
     _POLL_S = 0.1
 
@@ -332,14 +356,11 @@ class _PowerTracker:
     def __enter__(self):
         self._start = time.perf_counter()
         self._gpu_samples = []
-        if _HAS_PYNVML:
-            try:
-                self._gpu_handle = _pynvml.nvmlDeviceGetHandleByIndex(0)
-                self._stop.clear()
-                self._thread = threading.Thread(target=self._poll_gpu, daemon=True)
-                self._thread.start()
-            except Exception:
-                self._gpu_handle = None
+        self._gpu_handle = _gpu_power_handle(os.getpid())
+        if self._gpu_handle is not None:
+            self._stop.clear()
+            self._thread = threading.Thread(target=self._poll_gpu, daemon=True)
+            self._thread.start()
         self._cpu_start = _read_rapl() if _HAS_RAPL else None
         return self
 
@@ -672,6 +693,7 @@ def compute_predictions(
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
 
+    _gpu_power_handle(os.getpid())
     mem_backend = "psutil" if _HAS_PSUTIL else "tracemalloc"
     output_dir = config["output_dir"]
     repository = ResultRepository(output_dir, config)
@@ -981,6 +1003,11 @@ def compute_predictions(
                         "train_peak_memory_mb": None,
                         "inference_peak_memory_mb": None,
                         "memory_backend": mem_backend,
+                        "memory_scope": (
+                            "main_process_rss" if _HAS_PSUTIL else "main_process_python_allocations"
+                        ),
+                        "cpu_energy_scope": "node_cpu_package_0",
+                        "gpu_power_scope": "cuda_device_total",
                         "n_models_trained": None,
                         "n_base_models": None,
                         "ag_total_fit_time_s": None,
