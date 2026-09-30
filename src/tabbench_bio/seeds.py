@@ -1,4 +1,4 @@
-"""Seed management for multi-repetition benchmark runs."""
+"""Split indices for benchmark runs."""
 
 
 def get_seeds(config):
@@ -7,10 +7,9 @@ def get_seeds(config):
     The returned integers are the per-split ``random_state`` values the pipeline iterates
     over — each one both seeds the split and names its ``seed_<n>/`` output directory.
 
-    * ``cv_folds`` set to ``k`` — (repeated) k-fold CV: yields
-      ``[0, 1, ..., k * repeats - 1]``, where ``repeats = n_repetitions or 1``. The
-      benchmark reads each index ``g`` as ``repeat = g // k``, ``fold = g % k`` (see
-      :meth:`tabbench_bio.benchmark.TabBenchBio._kfold_split`).
+    * ``cv_folds`` set to ``k`` — one k-fold partition: yields ``[0, 1, ..., k - 1]``,
+      the fold indices (see :meth:`tabbench_bio.benchmark.TabBenchBio._kfold_split`).
+      ``n_repetitions`` must then be null or 1.
     * ``cv_folds`` null, ``n_repetitions`` set — repeated random holdout: yields
       ``[0, 1, ..., n_repetitions-1]``.
     * both null — the single ``random_state`` seed.
@@ -31,8 +30,8 @@ def get_seeds(config):
     n_repetitions = config["n_repetitions"]
     cv_folds = config["cv_folds"]
     if cv_folds is not None:
-        repeats = n_repetitions if n_repetitions is not None else 1
-        return list(range(cv_folds * repeats))
+        assert n_repetitions in (None, 1), "Repeated k-fold CV is not supported"
+        return list(range(cv_folds))
     if n_repetitions is not None:
         return list(range(n_repetitions))
     return [config["random_state"]]
