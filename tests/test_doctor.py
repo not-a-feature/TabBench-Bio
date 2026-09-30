@@ -31,8 +31,11 @@ def test_doctor_reports_stale_raw_and_processed_caches_without_writing(tmp_path,
     raw_path = save_cached_raw(tmp_path / "bio", raw)
     split = tmp_path / "datasets_processed/seed_0_hash/split_params.json"
     split.parent.mkdir(parents=True)
-    split.write_text(json.dumps({"dataset_specs": {"toy": fingerprint}}))
-    before = {p: p.read_bytes() for p in (raw_path, split)}
+    split.write_text("{}")
+    dataset_metadata = split.parent / fingerprint / "dataset_spec.json"
+    dataset_metadata.parent.mkdir()
+    dataset_metadata.write_text(json.dumps({"bio_id": "toy", "spec_sha256": fingerprint}))
+    before = {p: p.read_bytes() for p in (raw_path, split, dataset_metadata)}
     assert doctor.check_cache(tmp_path) == []
     spec = replace(spec, target="changed")
     problems = doctor.check_cache(tmp_path)
@@ -54,14 +57,12 @@ def test_skill_copy_license_drift_is_reported(tmp_path):
     assert "Apache" in (site / "skill.md").read_text()
 
 
-def test_missing_profile_adapter_and_map_drift_are_reported(tmp_path, monkeypatch):
+def test_missing_profile_and_adapter_are_reported(tmp_path, monkeypatch):
     spec = replace(MODEL_REGISTRY["RF"], adapter="tabbench_bio.models.absent:Model")
     monkeypatch.setattr(doctor, "MODEL_REGISTRY", {"RF": spec})
-    monkeypatch.setattr(doctor.site, "MODEL_CATEGORY", {"RF": "wrong"})
     problems = doctor.check_metadata(tmp_path)
     assert any("missing environment profile" in issue for issue in problems)
     assert any("missing adapter module" in issue for issue in problems)
-    assert any("site category differs" in issue for issue in problems)
 
 
 def test_import_probe_uses_the_model_environment(monkeypatch):
@@ -88,3 +89,15 @@ def test_command_status_reflects_failures(tmp_path, monkeypatch, capsys, problem
         doctor.cmd_doctor(Namespace(cache_dir=tmp_path, site_dir=None, model=[]))
     assert error.value.code == code
     assert "Adapter imports not tested" in capsys.readouterr().out
+
+
+def test_cli_help_does_not_import_doctor(monkeypatch):
+    import sys
+
+    from tabbench_bio.cli import main
+
+    monkeypatch.setitem(sys.modules, "tabbench_bio.doctor", None)
+    monkeypatch.setattr(sys, "argv", ["tabbench-bio", "--help"])
+    with pytest.raises(SystemExit) as result:
+        main()
+    assert result.value.code == 0

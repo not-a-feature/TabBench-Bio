@@ -210,6 +210,12 @@ def cmd_site(args):
     )
 
 
+def cmd_doctor(args):
+    from tabbench_bio.doctor import cmd_doctor as run_doctor
+
+    run_doctor(args)
+
+
 def cmd_cache_adopt(args):
     from tabbench_bio.bio.migration import adopt_cached_dataset
 
@@ -497,8 +503,6 @@ def main():
     status_p = results_sub.add_parser("status", help="Show current-unit counts across bundles")
     status_p.add_argument("--results-dir", required=True)
     status_p.set_defaults(func=cmd_results)
-
-    from tabbench_bio.doctor import cmd_doctor
 
     doctor_p = sub.add_parser(
         "doctor", help="Check registry, caches, skills and model environments"

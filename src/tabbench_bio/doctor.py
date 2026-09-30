@@ -7,7 +7,6 @@ import pickle
 import subprocess
 from pathlib import Path
 
-from tabbench_bio import dashboard, site
 from tabbench_bio.bio.cache import load_cached_raw
 from tabbench_bio.bio.datasets import load_specs
 from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
@@ -28,14 +27,6 @@ def check_metadata(root: Path) -> list[str]:
             module, _ = spec.adapter.split(":")
             if importlib.util.find_spec(module) is None:
                 problems.append(f"{key}: missing adapter module {module}")
-        for name, mapping, expected in (
-            ("site category", site.MODEL_CATEGORY, spec.category),
-            ("dashboard category", dashboard.MODEL_CATEGORY, spec.category),
-            ("site display", site.MODEL_DISPLAY, spec.display),
-            ("dashboard display", dashboard.MODEL_DISPLAY, spec.display),
-        ):
-            if key not in mapping or mapping[key] != expected:
-                problems.append(f"{key}: {name} differs from the model registry")
     return problems
 
 
@@ -88,12 +79,18 @@ def check_cache(cache_dir: Path) -> list[str]:
             problems.append(f"{directory}: missing split fingerprints; rebuild this cache")
             continue
         params = json.loads(metadata.read_text(encoding="utf-8"))
-        if "dataset_specs" not in params:
-            problems.append(f"{directory}: missing dataset_specs; rebuild this cache")
-            continue
-        for name, fingerprint in params["dataset_specs"].items():
-            if name not in specs or spec_fingerprint(specs[name]) != fingerprint:
-                problems.append(f"{directory}: stale split specification for {name}")
+        if "dataset_specs" in params:
+            for name, fingerprint in params["dataset_specs"].items():
+                if name not in specs or spec_fingerprint(specs[name]) != fingerprint:
+                    problems.append(f"{directory}: stale split specification for {name}")
+        for path in directory.glob("*/dataset_spec.json"):
+            record = json.loads(path.read_text(encoding="utf-8"))
+            name = record["bio_id"]
+            if name not in specs or spec_fingerprint(specs[name]) != record["spec_sha256"]:
+                problems.append(f"{path.parent}: stale split specification for {name}")
+        for frame in directory.rglob("*_train.pkl"):
+            if "dataset_specs" not in params and not (frame.parent / "dataset_spec.json").is_file():
+                problems.append(f"{frame}: missing dataset fingerprint; rebuild this cache")
     return problems
 
 

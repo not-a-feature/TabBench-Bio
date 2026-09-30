@@ -211,7 +211,7 @@ Raw cache files are replaced atomically. Increment `LOADER_CACHE_VERSION` in
 ### Check a checkout
 
 Run `tabbench-bio doctor --cache-dir .cache` to check registered adapter files,
-environment profiles, model names/categories, skill licences/copies, and existing
+environment profiles, skill licences/copies, and existing
 raw and processed dataset caches. Add `--site-dir website` to verify generated skill
 assets. Add `--model RF` (repeatable) to test adapter importability in that model's
 installed environment; without it, only adapter file presence is checked. The
