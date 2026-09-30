@@ -65,6 +65,7 @@ def get_loader(spec: BioDatasetSpec, *, cache_dir: str | None = None) -> BioLoad
         return LocalLoader(
             embedding_column=spec.embedding_column,
             group_column=spec.group_column,
+            cache_dir=Path(cache_dir) / "local_raw" if cache_dir else None,
         )
     if source == "mgnify":
         from tabbench_bio.bio.loaders.mgnify import MgnifyLoader

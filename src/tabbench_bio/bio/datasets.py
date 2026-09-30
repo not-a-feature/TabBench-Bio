@@ -18,6 +18,7 @@ from __future__ import annotations
 
 import json
 import os
+import re
 from dataclasses import dataclass, field, fields
 from pathlib import Path
 
@@ -72,7 +73,7 @@ class BioDatasetSpec:
         Source-specific identifier passed to the loader (GEO accession, optionally
         ``"<accession>@<GPL>"``; a ``geo_matrix`` accession for a streamed GEO series
         matrix; the pinned FusionAI NT representation; OpenML dataset id; Kaggle ``owner/slug``; TCGA
-        ``project/data_category``; ``local`` path to a bundled CSV, relative to the
+        ``project/data_category``; ``local`` path to a tabular file, relative to the
         local-data dir or absolute; MGnify study accession (``MGYSxxxxxxxx``);
         ``metagenomics`` MetAML disease code, e.g. ``"cirrhosis"``; or a curated
         Therapeutics Data Commons endpoint slug (e.g. ``"bbb_martins"``); a curated
@@ -111,6 +112,10 @@ class BioDatasetSpec:
     source_max_features : int | None
         Maximum number of features retained while ingesting a source matrix. This is
         independent of the benchmark's experimental feature cap.
+    download_url : str | None
+        Pinned HTTPS asset URL for a local table that can be downloaded when missing.
+    download_sha256 : str | None
+        SHA-256 checksum required when ``download_url`` is configured.
     notes : str
         Free-text curation notes (label semantics, caveats).
     """
@@ -130,9 +135,21 @@ class BioDatasetSpec:
     embedding_column: str | None = None
     group_column: str | None = None
     source_max_features: int | None = None
+    download_url: str | None = None
+    download_sha256: str | None = None
     notes: str = ""
 
     def __post_init__(self) -> None:
+        assert (self.download_url is None) == (self.download_sha256 is None), (
+            f"{self.bio_id}: download_url and download_sha256 must be supplied together"
+        )
+        if self.download_url is not None:
+            assert self.source == "local" and self.download_url.startswith("https://"), (
+                f"{self.bio_id}: downloadable local tables require an HTTPS URL"
+            )
+            assert re.fullmatch(r"[0-9a-f]{64}", self.download_sha256), (
+                f"{self.bio_id}: download_sha256 must be a lowercase SHA-256 checksum"
+            )
         if self.source not in BioSource:
             raise ValueError(
                 f"{self.bio_id}: unknown source {self.source!r} (expected one of {BioSource})."

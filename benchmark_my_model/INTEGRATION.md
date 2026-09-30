@@ -122,7 +122,7 @@ You can also choose the result and cache directories:
 tabbench-bio MYMODEL --output results/my_experiment --cache-dir /path/to/cache
 ```
 
-Prepare checkpoint access, dataset credentials and local embedding files before
+Prepare checkpoint access, dataset credentials and a writable dataset cache before
 starting. `TABBENCH_BIO_LOCAL_DIR` selects the embedding directory, and
 `TABBENCH_CACHE_DIR` selects the shared cache. Raw data, split settings and
 preprocessing must match the reference benchmark.

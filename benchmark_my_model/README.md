@@ -82,8 +82,9 @@ Published baseline predictions are reused across every configured fold.
 
 Select a different published cell to change the feature or sample budget.
 Omit `--dataset` to use all classification datasets in that cell, or add
-`--task regression` for regression. Some tasks need local embedding files or
-source credentials that the package does not include.
+`--task regression` for regression. Missing datasets are downloaded and cached;
+the curated embedding tables come from checksum-pinned GitHub Release assets.
+Some sources require credentials that the package does not include.
 
 Start with the two public datasets above. A subset run covers fewer targets than
 the full benchmark, and the report shows that coverage. Describe it as a subset

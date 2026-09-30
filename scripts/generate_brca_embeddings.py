@@ -9,7 +9,8 @@ For each requested model (``evo2`` / ``ntv2`` / ``dnabert2``) this:
    sequence, then **concatenates** them: ``[mean(ref) ‖ mean(var)]``. With evo2-7b
    (``blocks.26.mlp.l3``, 4096-d residual stream) that is a 8192-long vector;
    ntv2-500m → 2048; dnabert2 → 1536.
-3. Writes one TabBench-Bio "local" dataset file per model with three columns:
+3. Writes Evo2 as compressed Parquet with numeric ``embedding_<i>`` columns,
+   ``group_id``, and ``y``. Other models retain the legacy CSV with three columns:
    ``embedding`` (the vector as a comma-separated float string), ``group_id``
    (a stable reference-sequence hash used for grouped splitting), and ``y``
    (``func.class``: FUNC / LOF / INT — multiclass).
@@ -51,7 +52,7 @@ TARGET_COL = "func.class"
 
 #: Output filename per model (relative to --out-dir).
 OUT_FILENAME = {
-    "evo2": "brca_evo2_vep.csv",
+    "evo2": "brca_evo2_vep.parquet",
     "ntv2": "brca_ntv2_vep.csv",
     "dnabert2": "brca_dnabert2_vep.csv",
 }
@@ -258,9 +259,17 @@ def _write_dataset(
     # Format each row as a comma-separated float string (TabBench-Bio local embedding_column format).
     strings = [",".join(f"{v:.6f}" for v in row) for row in concat]
     out_path.parent.mkdir(parents=True, exist_ok=True)
-    pd.DataFrame({"embedding": strings, "group_id": group_ids, "y": y.to_numpy()}).to_csv(
-        out_path, index=False
-    )
+    if out_path.suffix == ".parquet":
+        # Preserve the exact float32 values loaded from the original six-decimal CSV.
+        values = np.vstack([np.fromstring(row, sep=",", dtype=np.float32) for row in strings])
+        frame = pd.DataFrame(values, columns=[f"embedding_{i}" for i in range(values.shape[1])])
+        frame["group_id"] = group_ids
+        frame["y"] = y.to_numpy()
+        frame.to_parquet(out_path, index=False, compression="zstd")
+    else:
+        pd.DataFrame({"embedding": strings, "group_id": group_ids, "y": y.to_numpy()}).to_csv(
+            out_path, index=False
+        )
     LOG.info("  wrote %d rows x %d-d embedding -> %s", concat.shape[0], concat.shape[1], out_path)
 
 
@@ -276,7 +285,7 @@ def main() -> None:
     parser.add_argument(
         "--out-dir",
         default="src/tabbench_bio/bio/data/local",
-        help="Directory to write the per-model dataset CSVs into.",
+        help="Directory to write the per-model dataset tables into.",
     )
     parser.add_argument(
         "--models",
