@@ -681,12 +681,12 @@ def compute_predictions(
         safe to write). Processes on one host serialize transactions into one writer bundle;
         bundles from different hosts are consolidated later.
     """
-    _gpu_power_handle(os.getpid())
     config = copy.deepcopy(config)
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
 
+    _gpu_power_handle(os.getpid())
     mem_backend = "psutil" if _HAS_PSUTIL else "tracemalloc"
     output_dir = config["output_dir"]
     repository = ResultRepository(output_dir, config)
