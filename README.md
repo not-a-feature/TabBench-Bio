@@ -209,6 +209,15 @@ records shared split settings; each directory has its own `dataset_spec.json`.
 Raw cache files are replaced atomically. Increment `LOADER_CACHE_VERSION` in
 `bio/fingerprint.py` when loader changes alter matrices, labels or biological groups.
 
+### Check a checkout
+
+Run `tabbench-bio doctor --cache-dir .cache` to check registered adapter files,
+environment profiles, skill licences/copies, and existing
+raw and processed dataset caches. Add `--site-dir website` to verify generated skill
+assets. Add `--model RF` (repeatable) to test adapter importability in that model's
+installed environment; without it, only adapter file presence is checked. The
+command does not download data, fit models, or repair caches. Failures exit nonzero.
+
 Legacy caches can be adopted explicitly after verifying that their source and task match the
 current registry, without downloading live sources again:
 
