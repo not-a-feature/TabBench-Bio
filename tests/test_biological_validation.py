@@ -36,6 +36,17 @@ def model_module(monkeypatch):
     return module
 
 
+@pytest.mark.parametrize("failure", [KeyError("unknown model"), ImportError("broken adapter")])
+def test_registry_errors_stop_model_construction(model_module, monkeypatch, failure):
+    model_module.__spec__.loader.exec_module(model_module)
+    registry_module = ModuleType("autogluon.tabular.registry")
+    registry_module.ag_model_registry = MagicMock()
+    registry_module.ag_model_registry.key_to_cls.side_effect = failure
+    monkeypatch.setitem(sys.modules, "autogluon.tabular.registry", registry_module)
+    with pytest.raises(type(failure), match=str(failure).strip("'")):
+        model_module.AutoGluonModel(["UNKNOWN"])
+
+
 @pytest.mark.parametrize("native", [False, True])
 def test_groups_reach_native_validation_but_are_ignored_features(model_module, tmp_path, native):
     frame = pd.DataFrame({"f": range(40), "target": [0, 1] * 20}, index=range(100, 140))
