@@ -57,7 +57,7 @@ def test_brca_embeddings_require_group_identifiers():
         assert specs[name].group_column == "group_id"
 
 
-def test_protein_embeddings_are_enabled_grouped_and_not_rehosted():
+def test_protein_embeddings_are_enabled_grouped_and_pinned_for_download():
     specs = load_specs()
     expected = {
         "local-DeepLoc2-Fungi-ESM2": ("binary", "homology_partition"),
@@ -70,7 +70,9 @@ def test_protein_embeddings_are_enabled_grouped_and_not_rehosted():
         assert spec.problem_type == problem_type
         assert spec.group_column == group_column
         assert spec.embedding_column is None
-        assert not spec.redistributable
+        assert spec.redistributable
+        assert spec.download_url.endswith("/" + spec.fetch_id)
+        assert len(spec.download_sha256) == 64
 
 
 def test_new_embedding_arcene_and_methylation_panels_are_curated():
