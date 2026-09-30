@@ -1,4 +1,4 @@
-"""Compatibility view of the custom adapters in the model registry."""
+"""Deprecated compatibility view; use model_registry.MODEL_REGISTRY instead."""
 
 from tabbench_bio.model_registry import MODEL_REGISTRY
 

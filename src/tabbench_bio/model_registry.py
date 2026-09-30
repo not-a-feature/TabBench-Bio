@@ -13,6 +13,7 @@ class ModelSpec:
     max_features: int | None = None
     supported_tasks: tuple[str, ...] = ("classification", "regression")
     max_classes: int | None = None
+    training_data_overlap: bool = False
     aliases: tuple[str, ...] = ()
     hyperparameters: tuple[tuple[str, object], ...] = ()
 
@@ -51,6 +52,7 @@ MODEL_REGISTRY = {
         category="Tabular Foundation",
         device="gpu",
         environment="limix2",
+        max_classes=10,
         adapter="tabbench_bio.models.limix_2:LimiX2Model",
     ),
     "REALTABPFN-V2": ModelSpec(
@@ -100,7 +102,11 @@ MODEL_REGISTRY = {
         max_features=2000,
     ),
     "TABDPT": ModelSpec(
-        display="TabDPT", category="Tabular Foundation", device="gpu", max_features=2500
+        display="TabDPT",
+        category="Tabular Foundation",
+        device="gpu",
+        max_features=2500,
+        training_data_overlap=True,
     ),
     "TABICL": ModelSpec(
         display="TabICL", category="Tabular Foundation", device="gpu", max_features=2000
