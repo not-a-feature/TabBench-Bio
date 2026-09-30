@@ -16,10 +16,30 @@ if TYPE_CHECKING:
 
 # Increment when loader behavior changes the assembled matrix, labels or groups.
 LOADER_CACHE_VERSION = 1
+DATA_FIELDS = {
+    "source",
+    "fetch_id",
+    "target",
+    "problem_type",
+    "data_file",
+    "embedding_column",
+    "group_column",
+    "source_max_features",
+    "download_url",
+    "download_sha256",
+    "train_prevalence_filter",
+}
 
 
 def spec_fingerprint(spec: BioDatasetSpec) -> str:
-    payload = {"spec": asdict(spec), "loader_version": LOADER_CACHE_VERSION}
+    payload = {
+        "spec": {
+            key: value
+            for key, value in asdict(spec).items()
+            if key in DATA_FIELDS and value is not None
+        },
+        "loader_version": LOADER_CACHE_VERSION,
+    }
     if spec.source == "metagenomics":
         payload["cohort_version"] = COHORT_VERSION
     if spec.source == "mgnify":
@@ -31,4 +51,6 @@ def spec_fingerprint(spec: BioDatasetSpec) -> str:
 def validate_cached_spec(raw: BioRawDataset, spec: BioDatasetSpec) -> None:
     assert raw.bio_id == spec.bio_id and (
         "spec_sha256" in raw.metadata and raw.metadata["spec_sha256"] == spec_fingerprint(spec)
-    ), f"{spec.bio_id}: stale dataset cache; refetch with force_refetch=True before using it"
+    ), (
+        f"{spec.bio_id}: stale dataset cache; refetch with force_refetch=True, or explicitly adopt an unversioned cache with cache-adopt"
+    )
