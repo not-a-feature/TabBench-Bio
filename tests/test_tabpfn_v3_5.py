@@ -129,7 +129,11 @@ def test_device_changes_reach_the_backend(many_class):
 
 def test_v35_roster_and_reference_config_agree():
     root = Path(__file__).resolve().parents[1]
-    roster = json.loads((root / "configs/models/all.json").read_text())
+    from tabbench_bio.model_registry import model_entry
+
+    roster = [
+        model_entry(entry) for entry in json.loads((root / "configs/models/all.json").read_text())
+    ]
     model = next(row for row in roster if row["key"] == "TABPFN-V3.5")
     reference = json.loads((root / "configs/grid_tabpfn_v3_5.json").read_text())
     assert model == {"key": "TABPFN-V3.5", "device": "gpu", "environment": "tabpfn35"}

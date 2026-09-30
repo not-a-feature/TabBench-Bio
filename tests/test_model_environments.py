@@ -9,6 +9,7 @@ import pytest
 
 from tabbench_bio import model_run
 from tabbench_bio.cli import main
+from tabbench_bio.model_registry import model_entry
 from tabbench_bio.models.custom import CUSTOM_MODELS
 
 
@@ -85,5 +86,5 @@ def test_probe_uses_selected_environment_and_preserves_gpu_allocation(tmp_path, 
 def test_registered_models_have_profiles():
     root = Path(__file__).resolve().parents[1]
     roster = json.loads((root / "configs/models/all.json").read_text())
-    for entry in [*roster, *CUSTOM_MODELS.values()]:
+    for entry in [*(model_entry(row) for row in roster), *CUSTOM_MODELS.values()]:
         assert (root / "environments" / f"{entry['environment']}.txt").is_file()
