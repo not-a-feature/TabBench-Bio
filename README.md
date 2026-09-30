@@ -207,3 +207,16 @@ stops loading. Review the registry change, then explicitly refresh that dataset 
 keys include the same fingerprints; their `split_params.json` records the inputs.
 Raw cache files are replaced atomically. Increment `LOADER_CACHE_VERSION` in
 `bio/fingerprint.py` when loader changes alter matrices, labels or biological groups.
+
+Legacy caches can be adopted explicitly after verifying that their source and task match the
+current registry, without downloading live sources again:
+
+```bash
+tabbench-bio cache-adopt --cache-dir .cache --dataset OpenML-1138 --reason "Verified against the original registry" --manifest results/run/split_manifest.json
+```
+
+The optional manifest verifies frozen target fingerprints before any cache is changed.
+Adoption records the reason and timestamp in cache metadata and refuses already-versioned
+or obsolete grouped caches. It cannot establish feature provenance; verify that separately.
+Raw fingerprints cover data-affecting fields, not descriptions or licences. Processed split
+paths include the individual dataset fingerprint, so filtered runs reuse full-run splits.

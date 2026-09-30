@@ -52,7 +52,6 @@ from tqdm import tqdm
 
 from tabbench_bio.bio import (
     DEFAULT_MAX_FEATURES,
-    bio_dataset_names,
     fingerprint,
     get_spec,
     is_bio_dataset,
@@ -61,7 +60,7 @@ from tabbench_bio.bio import (
 from tabbench_bio.bio import (
     reload as reload_bio_registry,
 )
-from tabbench_bio.bio.loaders.metagenomics import MIN_PREVALENCE
+from tabbench_bio.bio.datasets import resolve_dataset_names
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.io_utils import atomic_to_pickle, atomic_write_json
 from tabbench_bio.split_manifest import apply_frozen_split, load_manifest, split_versions
@@ -222,16 +221,6 @@ class TabBenchBio:
         # comparable across sizes (a learning curve). None = use all training rows.
         self.train_subsample = train_subsample
 
-        requested_names = (
-            bio_dataset_names("binary") + bio_dataset_names("multiclass")
-            if dataset_names_classification is None
-            else list(dataset_names_classification)
-        ) + (
-            bio_dataset_names("regression")
-            if dataset_names_regression is None
-            else list(dataset_names_regression)
-        )
-
         # The processed-split cache must be keyed on *every* parameter that changes the
         # produced splits, not just the seed — otherwise changing e.g. max_classes
         # silently reuses stale splits (see docs/integrity_review.md Finding 3).
@@ -241,11 +230,6 @@ class TabBenchBio:
         split_params = {
             "prepared_data_version": _PREPARED_DATA_VERSION,
             "split_versions": split_versions(),
-            "dataset_specs": {
-                name: fingerprint.spec_fingerprint(get_spec(name))
-                for name in requested_names
-                if is_bio_dataset(name)
-            },
             "test_size": test_size,
             "min_samples_per_class": min_samples_per_class,
             "max_classes": max_classes,
@@ -269,17 +253,12 @@ class TabBenchBio:
         else:
             atomic_write_json(split_params_path, split_params)
 
-        if dataset_names_classification is None:
-            self.dataset_names_classification = bio_dataset_names("binary") + bio_dataset_names(
-                "multiclass"
-            )
-        else:
-            self.dataset_names_classification = list(dataset_names_classification)
-
-        if dataset_names_regression is None:
-            self.dataset_names_regression = bio_dataset_names("regression")
-        else:
-            self.dataset_names_regression = list(dataset_names_regression)
+        self.dataset_names_classification = resolve_dataset_names(
+            dataset_names_classification, "classification"
+        )
+        self.dataset_names_regression = resolve_dataset_names(
+            dataset_names_regression, "regression"
+        )
 
         # Explicit grid lists and prepared caches must respect the current registry too.
         for names in (self.dataset_names_classification, self.dataset_names_regression):
@@ -396,8 +375,12 @@ class TabBenchBio:
     # ------------------------------------------------------------------
 
     def _get_cache_paths(self, key: str) -> tuple[str, str]:
-        train = f"{self.cache_dir_processed}/{key}_train.pkl"
-        test = f"{self.cache_dir_processed}/{key}_test.pkl"
+        name, _ = self.split_key(key)
+        directory = Path(self.cache_dir_processed)
+        if is_bio_dataset(name):
+            directory /= f"{name}_{fingerprint.spec_fingerprint(get_spec(name))}"
+        train = str(directory / f"{key}_train.pkl")
+        test = str(directory / f"{key}_test.pkl")
         return train, test
 
     def _has_dataset_in_cache(self, key: str) -> bool:
@@ -406,6 +389,14 @@ class TabBenchBio:
 
     def _save_dataset(self, key: str, train: DataFrame, test: DataFrame):
         train_path, test_path = self._get_cache_paths(key)
+        name, _ = self.split_key(key)
+        if is_bio_dataset(name):
+            spec_path = Path(train_path).parent / "dataset_spec.json"
+            payload = {"bio_id": name, "spec_sha256": fingerprint.spec_fingerprint(get_spec(name))}
+            if spec_path.exists():
+                assert json.loads(spec_path.read_text(encoding="utf-8")) == payload, spec_path
+            else:
+                atomic_write_json(spec_path, payload)
         atomic_to_pickle(train, train_path)
         atomic_to_pickle(test, test_path)
 
@@ -711,10 +702,14 @@ class TabBenchBio:
         X_test = test.drop(columns=[label_col])
         n_start = X_train.shape[1]
 
-        if self.split_key(key)[0] == "gut-cirrhosis":
+        dataset_name = self.split_key(key)[0]
+        prevalence = (
+            get_spec(dataset_name).train_prevalence_filter if is_bio_dataset(dataset_name) else None
+        )
+        if prevalence is not None:
             # Estimate prevalence after training subsampling, before the feature cap.
-            cols = X_train.columns[X_train.ne(0).mean() >= MIN_PREVALENCE]
-            assert len(cols), f"{key}: no markers meet training prevalence >= {MIN_PREVALENCE}"
+            cols = X_train.columns[(X_train.notna() & X_train.ne(0)).mean() >= prevalence]
+            assert len(cols), f"{key}: no markers meet training prevalence >= {prevalence}"
             X_train, X_test = X_train[cols], X_test[cols]
 
         # 1. Drop features mostly missing in the *training* partition.
