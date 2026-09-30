@@ -1,0 +1,5 @@
+# Kumo Tabular Medium; the PyPI package is currently a placeholder.
+-r ../requirements-autogluon-fork.txt
+-e .[bio,autogluon]
+structured-data-models @ git+https://github.com/NVIDIA/structured-data-models.git@5d663369ff8ead4a78c910dbb8483d558e46627b
+torch==2.13.0
