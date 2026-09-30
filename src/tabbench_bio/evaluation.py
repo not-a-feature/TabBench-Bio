@@ -69,13 +69,7 @@ def _compute_metrics_from_store(config, repository: ResultRepository) -> None:
             )
             probability = probability.sort_index()
             assert np.array_equal(data_test.index, probability.index), attempt.key
-            wanted = [str(value) for value in np.unique(data_test["target"])]
-            probability.columns = [str(column) for column in probability.columns]
-            y_proba = (
-                probability.reindex(columns=wanted).to_numpy()
-                if set(wanted).issubset(probability.columns)
-                else probability.to_numpy()
-            )
+            y_proba = probability
         row = {
             "seed": attempt.seed,
             "key": attempt.dataset,
