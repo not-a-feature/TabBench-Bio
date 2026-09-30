@@ -4,6 +4,7 @@ from pathlib import Path
 from scripts import generate_social_preview
 from tabbench_bio import dashboard as build_site
 from tabbench_bio.config import parse_models
+from tabbench_bio.model_registry import MODEL_REGISTRY
 
 
 def test_existing_model_roster_contains_annotation():
@@ -13,7 +14,8 @@ def test_existing_model_roster_contains_annotation():
         )
     )
     tabdpt = next(model for model in models if model["key"] == "TABDPT")
-    assert tabdpt["training_data_overlap"] is True
+    assert "training_data_overlap" not in tabdpt
+    assert MODEL_REGISTRY["TABDPT"].training_data_overlap is True
     registry = build_site.load_model_registry()
     assert build_site.model_meta("TABDPT", registry)["training_data_overlap"] is True
     assert ("TABDPT", "gpu") in parse_models(models)

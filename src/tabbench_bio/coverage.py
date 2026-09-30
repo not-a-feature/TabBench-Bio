@@ -41,6 +41,7 @@ DESIGN_SKIPS = frozenset(
         "empty_split_after_filtering",
         "constant_target",
         "classification_only",
+        "class_limit",
         "duplicate_cell",
         "benchmark_exclusion",
     }
