@@ -42,7 +42,7 @@ def test_fallback_rejects_different_inherited_nan_policies():
     _assert_compatible_configs(target, source, "RF-TUNED")
 
 
-@pytest.mark.parametrize("parent,count", [("RF", 9), ("XT", 14), ("XGB", 21), ("LR", 7)])
+@pytest.mark.parametrize("parent,count", [("RF", 8), ("XT", 13), ("XGB", 20), ("LR", 6)])
 def test_shipped_grids_load_for_both_tasks(tmp_path, debug_config, parent, count):
     roster = Path(__file__).parents[1] / f"configs/models/{parent.lower()}_tuned.json"
     key = f"{parent}-TUNED"
@@ -56,12 +56,12 @@ def test_shipped_grids_load_for_both_tasks(tmp_path, debug_config, parent, count
     assert loaded["model_tuning"] == {key: spec}
     for task in ("classification", "regression"):
         grid = candidates(spec, task)
-        assert grid[0] == {} and len(grid) == count
+        assert {} not in grid and len(grid) == count
 
 
-def test_grid_contains_default_and_stable_candidates():
+def test_grid_omits_default_and_has_stable_candidates():
     grid = candidates(SPEC, "classification")
-    assert grid[0] == {} and len(grid) == 9
+    assert {} not in grid and len(grid) == 8
     assert grid == candidates(SPEC, "regression")
     task_spec = {
         **SPEC,
@@ -80,18 +80,18 @@ def test_mlp_grid_uses_registered_parent_and_supported_architecture_parameters()
     assert spec["base_model"] == "NN_TORCH" and roster[0]["device"] == "gpu"
     for task in ("classification", "regression"):
         grid = candidates(spec, task)
-        assert grid[0] == {} and len(grid) == 17
-        assert {c["num_layers"] for c in grid[1:]} == {2, 4}
-        assert {c["hidden_size"] for c in grid[1:]} == {64, 128}
-        assert {c["learning_rate"] for c in grid[1:]} == {0.0003, 0.001}
-        assert {c["dropout_prob"] for c in grid[1:]} == {0.0, 0.2}
+        assert {} not in grid and len(grid) == 16
+        assert {c["num_layers"] for c in grid} == {2, 4}
+        assert {c["hidden_size"] for c in grid} == {64, 128}
+        assert {c["learning_rate"] for c in grid} == {0.0003, 0.001}
+        assert {c["dropout_prob"] for c in grid} == {0.0, 0.2}
 
 
-@pytest.mark.parametrize("grid", [[{"max_depth": [2]}], [{}, {}], [{}, {"ag_args": [{}]}]])
+@pytest.mark.parametrize("grid", [[], [{}, {}], [{"max_depth": []}], [{"ag_args": [{}]}]])
 def test_invalid_grids_are_rejected(grid):
     entry = copy.deepcopy(ROSTER[0])
     entry["tuning"]["grid"] = grid
-    with pytest.raises(AssertionError):
+    with pytest.raises((AssertionError, ValueError)):
         tuning_specs([entry])
 
 

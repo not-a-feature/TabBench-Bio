@@ -585,3 +585,14 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
   #performance-panel .panel-head { grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 12px; }
   #performance-panel h3 { white-space: nowrap; }
 }
+
+.model-card-tuning { margin: 12px 24px 0; font-size: 0.76rem; color: var(--muted); }
+.model-card-tuning[hidden] { display: none; }
+.model-card-tuning summary { cursor: pointer; font-weight: 700; color: var(--ink); }
+.model-card-tuning p { margin: 8px 0; }
+.model-card-tuning table { width: 100%; border-collapse: collapse; text-align: left; }
+.model-card-tuning caption { text-align: left; font-weight: 700; color: var(--ink); padding: 8px 0; }
+.model-card-tuning th, .model-card-tuning td { padding: 8px; border-bottom: 1px solid var(--line); vertical-align: top; }
+.model-card-tuning th:first-child, .model-card-tuning td:first-child { width: 90px; }
+.model-grid-param { display: block; overflow-wrap: anywhere; }
+@media (max-width: 700px) { .model-card-tuning { margin-inline: 18px; } }

@@ -447,6 +447,45 @@ function modelCardColor(delta) {
   return `color-mix(in oklab, var(${endpoint}) ${amount}%, var(--surface-strong))`;
 }
 
+function renderModelTuning(model) {
+  const notice = byId("model-card-disclaimer");
+  const panel = byId("model-card-tuning");
+  panel.hidden = !model.tuned_from || !model.tuning?.grid;
+  panel.innerHTML = "";
+  if (!model.tuned_from) {
+    notice.innerHTML = "<strong>Default parameters.</strong> This model uses its prespecified benchmark-default configuration without per-dataset tuning. This card describes that configuration, not the best achievable tuned model.";
+    return;
+  }
+  const tuning = model.tuning;
+  if (!tuning?.grid) {
+    notice.innerHTML = "<strong>Tuned configuration.</strong> The search grid is not available in this result export.";
+    return;
+  }
+  const budget = tuning.budget_seconds
+    ? ` under a ${tuning.budget_seconds / 3600 === 1 ? "one-hour" : `${tuning.budget_seconds / 60}-minute`} budget`
+    : "";
+  notice.innerHTML = `<strong>Tuned configuration.</strong> A small predefined grid${escapeHtml(budget)}. Candidates are selected on a ${100 * tuning.validation_fraction}% training-only holdout; the winner is refitted on the full training fold. Up to ${100 * tuning.search_fraction}% of the budget is used for search, with the remainder reserved for refitting.`;
+  const excludesDefaults = tuning.excluded_candidates?.some((candidate) => Object.keys(candidate).length === 0);
+  if (excludesDefaults) notice.innerHTML += " Outcomes that selected benchmark defaults have been removed; these results are a filtered subset of the original run, not a new tuning run.";
+  const taskGrids = Object.hasOwn(tuning.grid, "classification")
+    ? Object.entries(tuning.grid)
+    : [["Search grid", tuning.grid]];
+  const count = (block) => Object.values(block).reduce((total, values) => total * values.length, 1);
+  const tables = taskGrids.map(([label, grid]) => {
+    const blocks = (Array.isArray(grid) ? grid : [grid])
+      .filter((block) => !excludesDefaults || Object.keys(block).length > 0);
+    const total = blocks.reduce((sum, block) => sum + count(block), 0);
+    const rows = blocks.map((block) => {
+      const parameters = Object.entries(block).map(([key, values]) =>
+        `<span class="model-grid-param"><code>${escapeHtml(key)}</code>: ${values.map((value) => `<code>${escapeHtml(JSON.stringify(value))}</code>`).join(", ")}</span>`
+      ).join("") || "Benchmark defaults (no overrides)";
+      return `<tr><td>${count(block)}</td><td>${parameters}</td></tr>`;
+    }).join("");
+    return `<table><caption>${escapeHtml(label)} · ${total} ${excludesDefaults ? "retained " : ""}candidates</caption><thead><tr><th scope="col">Candidates</th><th scope="col">Parameter values</th></tr></thead><tbody>${rows}</tbody></table>`;
+  }).join("");
+  panel.innerHTML = `<summary>Grid parameters</summary><p>Each row adds a separate set of candidates. Values within a row are crossed; unspecified parameters keep their benchmark defaults. The budget may end before every candidate is tried.</p>${tables}`;
+}
+
 function renderModelCard() {
   const modelId = byId("model-card-model").value;
   const comparatorId = byId("model-card-comparator").value;
@@ -471,6 +510,7 @@ function renderModelCard() {
     .filter((row) => row.model_id === modelId && domains.includes(row.domain))
     .map((row) => [`${row.domain}|${row.cell}`, row]));
 
+  renderModelTuning(model);
   byId("model-card-name").textContent = modelLabel(model);
   byId("model-card-caption").textContent = `Macro-F1 Elo relative to ${comparator.display}. Columns are training-sample caps; rows are dataset modalities. Small labels show the number of binding targets.`;
   byId("model-card-scale-label").textContent = `Elo difference vs. ${comparator.display}`;
@@ -1243,7 +1283,10 @@ function renderRawFiles() {
   byId("raw-files").innerHTML = DATA.raw_exports.map((file) => {
     const unit = file.format === "sqlite3" ? "attempts" : "records";
     const detail = `${number(file.records)} ${unit} · ${bytes(file.bytes)}`;
-    if (file.available === false) {
+    const releasesUrl = `${DATA.meta.github_url.replace(/\/$/, "")}/releases/`;
+    const path = file.path || (file.format === "sqlite3" ? releasesUrl : "");
+    const isReleasesPage = path.replace(/\/$/, "") === releasesUrl.replace(/\/$/, "");
+    if (file.available === false && !isReleasesPage) {
       return `
         <div class="data-file data-file-pending">
           <span><strong>${escapeHtml(file.name)}</strong><span>${detail} · release upload pending</span></span>
@@ -1251,9 +1294,9 @@ function renderRawFiles() {
         </div>`;
     }
     return `
-      <a class="data-file" href="${escapeHtml(file.path)}" download>
+      <a class="data-file" href="${escapeHtml(path)}"${isReleasesPage ? "" : " download"}>
         <span><strong>${escapeHtml(file.name)}</strong><span>${detail}</span></span>
-        <b aria-hidden="true">↓</b>
+        <b aria-hidden="true">${isReleasesPage ? "↗" : "↓"}</b>
       </a>`;
   }).join("");
 }

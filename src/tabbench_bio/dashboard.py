@@ -97,6 +97,7 @@ def load_model_registry(configs=()) -> dict[str, dict]:
                 f"Conflicting registry model: {key}"
             )
             registry[key] = entry
+    frozen_tuning = {}
     for config in configs:
         if "model_tuning" not in config:
             continue
@@ -107,6 +108,19 @@ def load_model_registry(configs=()) -> dict[str, dict]:
                 )
             else:
                 registry[key] = {"key": key, "base_model": spec["base_model"]}
+            tuning = {name: value for name, value in spec.items() if name != "base_model"}
+            if "autogluon_time_limit" in config:
+                tuning["budget_seconds"] = config["autogluon_time_limit"]
+            if (
+                "excluded_tuning_candidates" in config
+                and key in config["excluded_tuning_candidates"]
+            ):
+                tuning["excluded_candidates"] = config["excluded_tuning_candidates"][key]
+            assert key not in frozen_tuning or frozen_tuning[key] == tuning, (
+                f"Conflicting frozen tuning configuration: {key}"
+            )
+            frozen_tuning[key] = tuning
+            registry[key]["tuning"] = tuning
     return registry
 
 
@@ -122,6 +136,7 @@ def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
         "id": model_id,
         "display": f"{display} (tuned)" if parent else display,
         "tuned_from": parent,
+        "tuning": entry["tuning"] if "tuning" in entry else None,
         "category": category,
         "color": CATEGORY_COLORS[category] if category in CATEGORY_COLORS else "#64748b",
         "regular_max_features": (
@@ -898,13 +913,13 @@ def build_website(
         "raw_exports": [
             {
                 "name": "Results SQLite",
-                "path": results_url,
+                "path": results_url or "https://github.com/not-a-feature/TabBench-Bio/releases/",
                 "records": attempt_count,
                 "bytes": database.stat().st_size,
                 "sha256": sha256_file(database),
                 "source": database.name,
                 "format": "sqlite3",
-                "available": bool(results_url),
+                "available": True,
                 "upload_filename": database.name,
             }
         ],

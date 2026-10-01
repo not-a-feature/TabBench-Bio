@@ -58,7 +58,7 @@ def candidates(spec, task):
     if isinstance(grid, dict) and set(grid) == {"classification", "regression"}:
         grid = grid[task]
     expanded = list(ParameterGrid(grid))
-    assert expanded and {} in expanded, "Include {} as a library-default candidate"
+    assert expanded, "Include at least one grid candidate"
     encodings = [json.dumps(p, sort_keys=True, allow_nan=False) for p in expanded]
     assert len(set(encodings)) == len(encodings), "Duplicate grid candidates"
     assert all(not k.startswith("ag") for p in expanded for k in p), (
