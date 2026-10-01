@@ -583,8 +583,8 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 }
 
 @media (min-width: 1100px) {
-  #performance-panel .panel-head { grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 8px; }
-  #performance-panel h3 { white-space: nowrap; }
+  :is(#performance-panel, #prediction-cost-panel, #fitting-cost-panel) .panel-head { grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 8px; }
+  :is(#performance-panel, #prediction-cost-panel, #fitting-cost-panel) h3 { white-space: nowrap; }
 }
 
 .model-card-tuning { margin: 12px 24px 0; font-size: 0.76rem; color: var(--muted); }
