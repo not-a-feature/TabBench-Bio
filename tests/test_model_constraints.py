@@ -1,4 +1,4 @@
-from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
+from tabbench_bio.model_registry import REGULAR_MAX_FEATURES
 
 
 def test_regular_feature_limits_match_the_benchmarked_adapters():

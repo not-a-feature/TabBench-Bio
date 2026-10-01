@@ -144,13 +144,10 @@ class TabBenchBio:
         :class:`~sklearn.model_selection.StratifiedKFold`, regression uses
         :class:`~sklearn.model_selection.KFold` (or
         :class:`~sklearn.model_selection.GroupKFold` when the loader supplies groups).
-        ``random_state`` is then interpreted as the global split index ``g`` and the
-        run yields fold ``g % k`` of the shuffle for repeat ``g // k`` — so across the
-        ``k`` splits of a repeat every sample is tested exactly once and the across-split
-        dispersion is a genuine CV error bar, not the optimistic spread of overlapping
-        holdouts. ``test_size`` is ignored when set (the test fraction is ``1/k``). The
-        run's total split count is ``k * n_repetitions`` (``n_repetitions`` = CV repeats;
-        see :func:`~tabbench_bio.seeds.get_seeds`). ``None`` (default) keeps the holdout.
+        ``random_state`` is then the fold index ``0 <= g < k`` of one fixed partition, so
+        across the ``k`` splits every sample is tested exactly once. ``test_size`` is
+        ignored when set (the test fraction is ``1/k``); see
+        :func:`~tabbench_bio.seeds.get_seeds`. ``None`` (default) keeps the holdout.
     bio_max_features : int | None
         Feature cap for HDLSS datasets: wide matrices are truncated to a uniform random
         subset of columns (train-only, seeded by the split index) to bound compute time.
@@ -213,8 +210,8 @@ class TabBenchBio:
         self.random_state = random_state
         self.min_samples_per_class = min_samples_per_class
         self.max_classes = max_classes
-        # (Repeated) k-fold CV toggle. When set, random_state carries the global split
-        # index and _split returns one CV fold; None keeps the repeated random holdout.
+        # k-fold CV toggle. When set, random_state is the fold index and _split returns
+        # that fold; None keeps the repeated random holdout.
         self.cv_folds = cv_folds
         self.split_manifest = None
         # HDLSS sample-size axis: cap the number of TRAINING rows (stratified), applied
@@ -607,14 +604,13 @@ class TabBenchBio:
     ) -> tuple[DataFrame, DataFrame]:
         """Return one fold of a k-fold split (stratified for classification).
 
-        ``random_state`` carries the global split index ``g``; ``repeat = g // k`` seeds
-        the shuffle and ``fold = g % k`` selects the held-out fold. Within a repeat the
-        ``k`` folds are complementary partitions, so every sample is tested exactly once
-        and the across-fold dispersion is a real CV error bar (not the optimistic spread
-        of overlapping holdouts).
+        ``random_state`` selects the held-out fold of one fixed partition, shuffled with
+        seed 0. The ``k`` folds are complementary, so every sample is tested exactly once.
+        Grouped regression uses the deterministic :class:`GroupKFold` assignment.
         """
         k = self.cv_folds
-        repeat, fold = divmod(self.random_state, k)
+        fold = self.random_state
+        assert 0 <= fold < k, f"CV fold index {fold} outside 0..{k - 1}"
         label_col = data_df.columns[-1]
 
         if explicit_groups is not None:
@@ -635,7 +631,7 @@ class TabBenchBio:
                         f"{dataset_name}: smallest class spans only "
                         f"{int(per_class_groups.min())} biological groups < cv_folds={k}."
                     )
-                splitter = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=repeat)
+                splitter = StratifiedGroupKFold(n_splits=k, shuffle=True, random_state=0)
                 splits = list(splitter.split(data_df, y, groups=explicit_groups))
             else:
                 splits = list(GroupKFold(n_splits=k).split(data_df, groups=explicit_groups))
@@ -646,10 +642,10 @@ class TabBenchBio:
                 f"{dataset_name}: smallest class has {min_count} sample(s) < cv_folds={k}; "
                 f"raise min_samples_per_class to >= cv_folds or lower cv_folds."
             )
-            splitter = StratifiedKFold(n_splits=k, shuffle=True, random_state=repeat)
+            splitter = StratifiedKFold(n_splits=k, shuffle=True, random_state=0)
             splits = list(splitter.split(data_df, y))
         else:
-            splitter = KFold(n_splits=k, shuffle=True, random_state=repeat)
+            splitter = KFold(n_splits=k, shuffle=True, random_state=0)
             splits = list(splitter.split(data_df))
 
         train_idx, test_idx = splits[fold]
@@ -804,18 +800,6 @@ class TabBenchBio:
             len(counts) - self.max_classes,
             before - len(data_df),
         )
-        return data_df
-
-    def _drop_classes(self, data_df: DataFrame, key: str, classes: list) -> DataFrame | None:
-        if not classes:
-            return data_df
-        dataset_name, _ = self.split_key(key)
-        if dataset_name not in self.dataset_names_classification:
-            return data_df
-        label_col = data_df.columns[-1]
-        data_df = data_df[~data_df[label_col].isin(classes)]
-        if data_df[label_col].nunique() < 2:
-            return None
         return data_df
 
     # ------------------------------------------------------------------
