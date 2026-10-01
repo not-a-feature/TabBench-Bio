@@ -168,9 +168,19 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
             relative = asset.relative_to(skill)
             assert (output / "skills" / skill.name / relative).read_bytes() == asset.read_bytes()
     for asset in (dashboard.PACKAGE_ROOT / "web").rglob("*"):
-        if asset.is_file() and asset.name not in {"llms.txt", "robots.txt", "sitemap.xml"}:
+        if asset.is_file() and asset.name not in {
+            "llms.txt",
+            "robots.txt",
+            "sitemap.xml",
+            "index.html",
+            "og.png",
+        }:
             relative = asset.relative_to(dashboard.PACKAGE_ROOT / "web")
             assert (output / relative).read_bytes() == asset.read_bytes(), relative
+    social_image = (output / "assets/og.png").read_bytes()
+    social_version = hashlib.sha256(social_image).hexdigest()[:16]
+    assert social_image != (dashboard.PACKAGE_ROOT / "web/assets/og.png").read_bytes()
+    assert (output / "index.html").read_text().count(f"assets/og.png?v={social_version}") == 2
     guide = (output / "llms.txt").read_text(encoding="utf-8")
     for section in (
         "Current reference results",
@@ -195,7 +205,9 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     )
     assert (tmp_path / "site.cache/fold_metrics.sqlite").is_file()
     assert not list(output.rglob("*.sqlite"))
+    (output / "assets/og.png").write_bytes(b"stale social card")
     dashboard.build_website(database, output, n_boot=8)
+    assert (output / "assets/og.png").read_bytes() == social_image
 
     # Installed wheels must generate the same skill without a source checkout.
     installed = tmp_path / "installed/tabbench_bio/skills" / skill.name

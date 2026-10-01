@@ -28,6 +28,7 @@ from tabbench_bio.model_registry import (
     REGULAR_MAX_FEATURES,
 )
 from tabbench_bio.seeds import get_seeds
+from tabbench_bio.social_preview import write_social_preview
 from tabbench_bio.web_metadata import write_agent_metadata
 
 PACKAGE_ROOT = Path(__file__).parent
@@ -939,5 +940,6 @@ def build_website(
     write_json(dashboard_path, dashboard)
     write_dataset_explorer(output, dashboard, summary, frames["strict"]["regression"])
     write_agent_metadata(output, dashboard)
+    write_social_preview(output)
     print(f"Website: {output / 'index.html'}", flush=True)
     return dashboard, frames["strict"]
