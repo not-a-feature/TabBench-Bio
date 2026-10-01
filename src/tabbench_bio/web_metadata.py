@@ -69,16 +69,11 @@ def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
     if not paper_url.startswith(("https://", "http://")):
         paper_url = f"{project_url}/{paper_url.lstrip('/')}"
     sqlite_export = next(row for row in dashboard["raw_exports"] if row["format"] == "sqlite3")
+    sqlite_url = sqlite_export["path"] or "https://github.com/not-a-feature/TabBench-Bio/releases/"
     sqlite_line = (
-        f"- [Canonical results SQLite]({sqlite_export['path']}): "
+        f"- [Canonical results SQLite]({sqlite_url}): "
         f"{int(sqlite_export['records']):,} attempts, "
         f"SHA-256 `{sqlite_export['sha256']}`"
-        if sqlite_export["available"]
-        else (
-            "- Results SQLite: download link not configured; "
-            f"{int(sqlite_export['bytes']) / 1_000_000:.1f} MB, "
-            f"SHA-256 `{sqlite_export['sha256']}`"
-        )
     )
     return f"""# TabBench-Bio
 

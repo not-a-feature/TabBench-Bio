@@ -11,7 +11,6 @@
       "seed": 42,
       "search_fraction": 0.8,
       "grid": [
-        {},
         {"num_layers": [2, 4], "hidden_size": [64, 128], "learning_rate": [0.0003, 0.001], "dropout_prob": [0.0, 0.2]}
       ]
     }

@@ -11,7 +11,6 @@
       "seed": 42,
       "search_fraction": 0.8,
       "grid": [
-        {},
         {
           "C": [
             0.01,

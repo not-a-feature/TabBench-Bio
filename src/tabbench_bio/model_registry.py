@@ -41,7 +41,7 @@ MODEL_REGISTRY = {
         adapter="tabbench_bio.models.causilo:CausiloModel",
     ),
     "KUMO-TABULAR-MEDIUM": ModelSpec(
-        display="Kumo Tabular Medium",
+        display="Kumo Tabular (M)",
         category="Tabular Foundation",
         device="gpu",
         environment="kumo",
