@@ -1,8 +1,8 @@
 import json
 from pathlib import Path
 
-from scripts import generate_social_preview
 from tabbench_bio import dashboard as build_site
+from tabbench_bio import social_preview as generate_social_preview
 from tabbench_bio.config import parse_models
 from tabbench_bio.model_registry import MODEL_REGISTRY
 

@@ -1,5 +1,7 @@
 """Generate the complete public agent guide and search metadata from current results."""
 
+import json
+import re
 import shutil
 from collections import Counter
 from importlib.resources import files
@@ -180,6 +182,33 @@ def _copy_resource_tree(source, destination: Path) -> None:
 
 
 def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
+    index = site_dir / "index.html"
+    html = index.read_text(encoding="utf-8")
+    sqlite_export = next(row for row in dashboard["raw_exports"] if row["format"] == "sqlite3")
+    sqlite_url = sqlite_export["path"] or "https://github.com/not-a-feature/TabBench-Bio/releases/"
+    html, count = re.subn(
+        r'<link rel="alternate" type="application/vnd.sqlite3"[^>]*>',
+        f'<link rel="alternate" type="application/vnd.sqlite3" href="{escape(sqlite_url, {chr(34): "&quot;"})}" title="TabBench-Bio results">',
+        html,
+    )
+    assert count == 1, "Expected one SQLite alternate link"
+    structured = re.search(r'(<script type="application/ld\+json">)(.*?)(</script>)', html, re.S)
+    assert structured is not None, "Missing dataset metadata"
+    metadata = json.loads(structured[2])
+    download = next(
+        item
+        for item in metadata["distribution"]
+        if item["encodingFormat"] == "application/vnd.sqlite3"
+    )
+    download.update(name="Results SQLite", contentUrl=sqlite_url, sha256=sqlite_export["sha256"])
+    html = (
+        html[: structured.start(2)]
+        + "\n"
+        + json.dumps(metadata, indent=2)
+        + "\n  "
+        + html[structured.end(2) :]
+    )
+    index.write_text(html, encoding="utf-8")
     skill = PACKAGE_ROOT.parents[1] / "skills" / SKILL_NAME
     if not skill.is_dir():
         skill = files("tabbench_bio").joinpath("skills", SKILL_NAME)
