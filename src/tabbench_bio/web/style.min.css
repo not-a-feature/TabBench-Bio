@@ -551,7 +551,7 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 .collapse-chevron { font-size: 1.4rem; line-height: 1; }
 .panel-toggle[aria-expanded="true"] .collapse-chevron { display: none; }
 .panel-toggle[aria-expanded="true"] { justify-content: center; width: 40px; height: 40px; padding: 0; color: var(--muted); font-size: 1.6rem; font-weight: 400; }
-.panel-collapse .panel-head { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(0, 3fr) auto; gap: 18px; }
+.panel-collapse .panel-head { display: grid; grid-template-columns: minmax(170px, 1fr) minmax(0, 3fr) auto; gap: 18px 8px; }
 .panel-collapse .panel-head > .panel-toggle { grid-column: 3; align-self: end; }
 .panel-collapse .panel-title-toggle { align-self: center; }
 .panel-collapse:not(.is-expanded) .panel-title-toggle { grid-column: 1 / 3; }
@@ -571,18 +571,19 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 .panel-collapse .panel-head > .panel-toggle { grid-column: 2; grid-row: 1; align-self: start; min-height: 44px; min-width: 44px; }
 .panel-collapse .panel-head > .controls { grid-column: 1 / -1; grid-row: 2; }
 }
-#feature-budget-panel .panel-head { column-gap: 12px; padding-right: 16px; }
+#feature-budget-panel .panel-head { column-gap: 8px; padding-right: 16px; }
 .panel-grid .panel-collapse .panel-head { grid-template-columns: minmax(0, 1fr) auto; }
 .panel-grid .panel-collapse .panel-head > .panel-title-toggle { grid-column: 1; grid-row: 1; }
 .panel-grid .panel-collapse .panel-head > .panel-toggle { grid-column: 2; grid-row: 1; align-self: start; }
 .panel-grid .panel-collapse .panel-head > .controls { grid-column: 1 / -1; grid-row: 2; }
 
 @media (min-width: 721px) {
+  .controls select[id$="-cap"] { width: 100px; min-width: 100px; }
   #feature-budget-panel .panel-head { grid-template-columns: minmax(0, 1fr) auto auto; }
 }
 
 @media (min-width: 1100px) {
-  #performance-panel .panel-head { grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 12px; }
+  #performance-panel .panel-head { grid-template-columns: max-content minmax(0, 1fr) auto; column-gap: 8px; }
   #performance-panel h3 { white-space: nowrap; }
 }
 
