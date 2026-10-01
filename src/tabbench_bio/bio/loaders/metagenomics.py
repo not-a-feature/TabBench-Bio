@@ -29,7 +29,6 @@ if TYPE_CHECKING:
 MARKER_URL = (
     "https://raw.githubusercontent.com/segatalab/metaml/master/data/marker_presence.txt.bz2"
 )
-HEALTHY = frozenset({"n", "nd", "n_relative"})  # disease codes counted as healthy
 COHORT = "Quin_gut_liver_cirrhosis"  # original spelling in MetAML
 COHORT_VERSION = "cirrhosis-matched-stool-v1"
 

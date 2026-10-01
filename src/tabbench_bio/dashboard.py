@@ -21,8 +21,12 @@ from tabbench_bio.bio.loaders.tdc import DATAVERSE_URL, ENDPOINTS
 from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read_inputs
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
 from tabbench_bio.io_utils import atomic_write_json, sha256_file
-from tabbench_bio.model_constraints import REGULAR_MAX_FEATURES
-from tabbench_bio.model_registry import MODEL_CATEGORY, MODEL_DISPLAY, MODEL_REGISTRY
+from tabbench_bio.model_registry import (
+    MODEL_CATEGORY,
+    MODEL_DISPLAY,
+    MODEL_REGISTRY,
+    REGULAR_MAX_FEATURES,
+)
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.web_metadata import write_agent_metadata
 

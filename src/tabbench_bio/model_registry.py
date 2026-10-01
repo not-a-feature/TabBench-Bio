@@ -119,6 +119,9 @@ MODEL_REGISTRY = {
 MODEL_ALIASES = {alias: key for key, spec in MODEL_REGISTRY.items() for alias in spec.aliases}
 MODEL_CATEGORY = {key: spec.category for key, spec in MODEL_REGISTRY.items()}
 MODEL_DISPLAY = {key: spec.display for key, spec in MODEL_REGISTRY.items()}
+REGULAR_MAX_FEATURES = {
+    key: spec.max_features for key, spec in MODEL_REGISTRY.items() if spec.max_features is not None
+}
 
 
 def canonical_model_key(key: str) -> str:
