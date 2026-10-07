@@ -1,6 +1,8 @@
 import json
 from pathlib import Path
 
+import pytest
+
 from tabbench_bio import dashboard, site
 from tabbench_bio.config import parse_models
 from tabbench_bio.model_registry import (
@@ -45,7 +47,8 @@ def test_aliases_and_checkpoint_overrides():
     assert spec.adapter == MODEL_REGISTRY["TABPFN-WIDE"].adapter
 
 
-def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config):
+@pytest.mark.parametrize("key", ["LIMIX-2", "GENEICL"])
+def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config, key):
     from unittest.mock import Mock
 
     import pandas as pd
@@ -66,7 +69,7 @@ def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config):
         def __iter__(self):
             yield frame, frame, "toy_0", TaskType.Classification
 
-    debug_config.update(output_dir=str(tmp_path / "run"), models=["LIMIX-2"], train_subsample=None)
+    debug_config.update(output_dir=str(tmp_path / "run"), models=[key], train_subsample=None)
     monkeypatch.setattr(predictions, "configure_benchmark", lambda config: Benchmark())
     monkeypatch.setattr(predictions, "get_seeds", lambda config: [0])
     monkeypatch.setattr(predictions, "_set_global_seeds", lambda seed: None)

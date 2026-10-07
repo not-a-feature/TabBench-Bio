@@ -9,6 +9,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `standard` | Existing model roster except TabPFN 3.5, using the established `full` extra |
 | `tabpfn35` | TabPFN 3.5, using its separate extra |
 | `causilo` | Causilo, with its pinned source revision |
+| `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
 | `kumo` | Kumo Tabular Medium, with pinned SDM source and checkpoint revisions |
 
@@ -48,3 +49,30 @@ eight sequential ensemble members, and uncached attention using training-only pr
 selection is removed; the benchmark's feature cells still apply. Other released
 preprocessing remains unchanged. Code is Apache-2.0; weights are OpenMDW-1.1.
 Run with `tabbench-bio KUMO-TABULAR-MEDIUM` after installing the `kumo` profile.
+
+`GENEICL` uses [GeneICL](https://github.com/BoevaLab/GeneICL)'s default
+`trm_segmented8_s0.pt` checkpoint for classification and regression, with the optional
+24-pass test-time ensemble disabled. The pinned package release also pins the bundled
+weights. The PyPI package avoids upstream benchmark filenames that are invalid on
+Windows. The adapter verifies the seed-0 checkpoint's SHA-256 before loading it.
+Its imputation, standardization and PCA use training rows only; categorical
+columns are ordinal-encoded using training categories, with unseen categories treated
+as missing. Tasks with more than 10 classes are skipped. There is no fixed input
+feature cap because GeneICL reduces features internally with PCA. Survival is outside
+the benchmark's task interface.
+
+GeneICL was pretrained on synthetic bulk transcriptomics and expects log1p-CPM
+expression values. The adapter uses each benchmark dataset's existing values without
+applying a counts transformation, including on other modalities. Interpret those
+results as transfer beyond the model's intended input domain. Code and bundled weights
+are MIT licensed.
+
+Install and run on PowerShell:
+
+```powershell
+uv venv .venvs/geneicl --python 3.12
+uv pip install --python .venvs/geneicl/Scripts/python.exe -r environments/geneicl.txt
+tabbench-bio GENEICL
+```
+
+Use `--full-grid` for all cells, or `--device cpu` for explicit CPU execution.
