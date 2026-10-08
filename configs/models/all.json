@@ -74,6 +74,9 @@
     "key": "TABICL"
   },
   {
+    "key": "GENEICL"
+  },
+  {
     "_doc": "AutoML reference, not a ranked peer: runs AutoGluon's native extreme preset without overriding its portfolio, under the benchmark's one-hour per-unit time limit.",
     "key": "AUTOGLUON",
     "presets": "extreme",

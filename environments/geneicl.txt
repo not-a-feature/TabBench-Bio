@@ -1,0 +1,5 @@
+-r ../requirements-autogluon-fork.txt
+-e .[bio,autogluon]
+# The release includes all three checkpoints; GENEICL uses trm_segmented8_s0.pt.
+geneicl==1.0.0
+torch==2.13.0
