@@ -27,9 +27,9 @@ class GeneICLModel(AbstractModel):
                 raise ValueError(
                     "GeneICL supports 2-10 classes; it does not merge or drop classes."
                 )
-            assert np.array_equal(
-                classes, np.arange(self.num_classes)
-            ), "GeneICL requires AutoGluon's consecutive class labels."
+            assert np.array_equal(classes, np.arange(self.num_classes)), (
+                "GeneICL requires AutoGluon's consecutive class labels."
+            )
         assert sha256_file(CKPT) == CHECKPOINT_SHA256, "Unexpected GeneICL seed-0 checkpoint."
         torch.set_num_threads(num_cpus)
         self._encoder = ColumnTransformer(
@@ -51,9 +51,9 @@ class GeneICLModel(AbstractModel):
         )
         self.model.fit(train, y)
         if not regression:
-            assert np.array_equal(
-                self.model.classes_, np.arange(self.num_classes)
-            ), "GeneICL probabilities must follow AutoGluon's class order."
+            assert np.array_equal(self.model.classes_, np.arange(self.num_classes)), (
+                "GeneICL probabilities must follow AutoGluon's class order."
+            )
 
     def _predict_proba(self, X, **kwargs):
         regression = self.problem_type == "regression"
