@@ -1405,7 +1405,6 @@ function initializeModelVisibility() {
     SHOW_ALL_MODELS = !SHOW_ALL_MODELS;
     toggle.setAttribute("aria-pressed", String(SHOW_ALL_MODELS));
     toggle.classList.toggle("button-primary", SHOW_ALL_MODELS);
-    localStorage.setItem("tabbench-show-all-models", String(SHOW_ALL_MODELS));
     EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
     const page = document.body.dataset.page;
     if (page === "home") {
@@ -1425,7 +1424,6 @@ async function main() {
   const response = await fetch(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json", { cache: "no-cache" });
   if (!response.ok) throw new Error(`Could not load benchmark data (HTTP ${response.status})`);
   DATA = await response.json();
-  SHOW_ALL_MODELS = localStorage.getItem("tabbench-show-all-models") === "true";
   EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
   initializeModelVisibility();
   if (page === "home") {
