@@ -40,6 +40,14 @@ MODEL_REGISTRY = {
         environment="causilo",
         adapter="tabbench_bio.models.causilo:CausiloModel",
     ),
+    "GENEICL": ModelSpec(
+        display="GeneICL",
+        category="Tabular Foundation",
+        device="gpu",
+        environment="geneicl",
+        adapter="tabbench_bio.models.geneicl:GeneICLModel",
+        max_classes=10,
+    ),
     "KUMO-TABULAR-MEDIUM": ModelSpec(
         display="Kumo Tabular (M)",
         category="Tabular Foundation",
