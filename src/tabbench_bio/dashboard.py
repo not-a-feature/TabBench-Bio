@@ -898,7 +898,7 @@ def build_website(
             "domain": "tabbench-bio.eu",
             "contact_url": "https://github.com/not-a-feature/TabBench-Bio/issues",
             "affiliation": "Methods in Medical Informatics, University of Tübingen",
-            "plot_excluded_models": ["DUMMY"],
+            "plot_excluded_models": [key for key, spec in MODEL_REGISTRY.items() if spec.hidden],
             "primary_analysis_view": "strict_nominal_cell",
             "adaptive_analysis_role": "sensitivity_only",
             "paper_analysis_view": "strict",

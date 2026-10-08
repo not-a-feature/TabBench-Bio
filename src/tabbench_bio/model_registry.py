@@ -13,19 +13,20 @@ class ModelSpec:
     max_features: int | None = None
     supported_tasks: tuple[str, ...] = ("classification", "regression")
     max_classes: int | None = None
+    hidden: bool = False
     training_data_overlap: bool = False
     aliases: tuple[str, ...] = ()
     hyperparameters: tuple[tuple[str, object], ...] = ()
 
 
 MODEL_REGISTRY = {
-    "DUMMY": ModelSpec(display="Constant", category="Baseline", device="cpu"),
+    "DUMMY": ModelSpec(hidden=True, display="Constant", category="Baseline", device="cpu"),
     "KNN": ModelSpec(display="KNN", category="Traditional ML", device="cpu"),
     "LR": ModelSpec(display="Logistic Regression", category="Traditional ML", device="cpu"),
     "RF": ModelSpec(display="Random Forest", category="Tree-based", device="cpu"),
     "XT": ModelSpec(display="Extra Trees", category="Tree-based", device="cpu"),
-    "CAT": ModelSpec(display="CatBoost", category="Gradient Boosting", device="cpu"),
-    "GBM": ModelSpec(display="LightGBM", category="Gradient Boosting", device="cpu"),
+    "CAT": ModelSpec(hidden=True, display="CatBoost", category="Gradient Boosting", device="cpu"),
+    "GBM": ModelSpec(hidden=True, display="LightGBM", category="Gradient Boosting", device="cpu"),
     "XGB": ModelSpec(display="XGBoost", category="Gradient Boosting", device="gpu"),
     "NN_TORCH": ModelSpec(display="MLP", category="Deep Learning", device="gpu"),
     "REALMLP": ModelSpec(display="RealMLP", category="Deep Learning", device="gpu"),
@@ -70,6 +71,7 @@ MODEL_REGISTRY = {
         display="RealTabPFN 2.5", category="Tabular Foundation", device="gpu", max_features=2000
     ),
     "TABPFN-V3": ModelSpec(
+        hidden=True,
         display="TabPFN 3",
         category="Tabular Foundation",
         device="gpu",
@@ -87,6 +89,7 @@ MODEL_REGISTRY = {
         aliases=("TABPFNV35",),
     ),
     "TABPFN-WIDE": ModelSpec(
+        hidden=True,
         display="TabPFN Wide (8k)",
         category="Tabular Foundation",
         device="gpu",
@@ -117,7 +120,11 @@ MODEL_REGISTRY = {
         training_data_overlap=True,
     ),
     "TABICL": ModelSpec(
-        display="TabICL", category="Tabular Foundation", device="gpu", max_features=2000
+        hidden=True,
+        display="TabICL v2",
+        category="Tabular Foundation",
+        device="gpu",
+        max_features=2000,
     ),
     "AUTOGLUON": ModelSpec(display="AutoGluon", category="AutoML", device="gpu"),
     "FASTAI": ModelSpec(display="FastAI", category="Deep Learning", device="gpu"),

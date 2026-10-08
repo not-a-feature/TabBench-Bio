@@ -203,3 +203,26 @@ test('improvements, regressions and ties sort by maximum without changing rating
   assert.equal(JSON.stringify(rows), before);
   assert.deepEqual(Array.from(spec.traces[2].x), [850, 1100, 975]);
 });
+
+
+test('show all reveals negative Elo and untuned model curves', () => {
+  const context = vm.createContext({ document: { body: { classList: { contains: () => false } } } });
+  vm.runInContext(source, context);
+  context.rows = [row('RF', 1000), row('DUMMY', -100)];
+  context.models = Object.fromEntries(context.rows.map(r => [r.model_id, {...r, tuned_from: null}]));
+  const result = vm.runInContext('DATA = {models}; SHOW_ALL_MODELS = true; eloPlotSpec(rows, false, 10000)', context);
+  assert.equal(result.peers.length, 2);
+  assert.equal(result.hiddenNegativeCount, 0);
+  assert.equal(vm.runInContext('preferTunedRows(rows).length', context), 2);
+});
+
+test('rank stability responds to exclusions and handles tied ranks', () => {
+  const context = vm.createContext({});
+  vm.runInContext(source, context);
+  context.rows = [
+    {cell:'a', model_id:'RF', Elo:1}, {cell:'a', model_id:'CAT', Elo:2}, {cell:'a', model_id:'XT', Elo:3},
+    {cell:'b', model_id:'RF', Elo:1}, {cell:'b', model_id:'CAT', Elo:3}, {cell:'b', model_id:'XT', Elo:2},
+  ].map(r => ({...r, domain:'all', metric:'f1_macro'}));
+  assert.equal(vm.runInContext('DATA = {domain_elo: rows}; visibleRankCorrelation("a", "b")', context), 0.5);
+  assert.equal(vm.runInContext('EXCLUDED = new Set(["CAT"]); visibleRankCorrelation("a", "b")', context), 1);
+});
