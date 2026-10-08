@@ -597,3 +597,6 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 .model-card-tuning th:first-child, .model-card-tuning td:first-child { width: 90px; }
 .model-grid-param { display: block; overflow-wrap: anywhere; }
 @media (max-width: 700px) { .model-card-tuning { margin-inline: 18px; } }
+
+.model-visibility-control { align-self: center; white-space: nowrap; }
+.analysis-view-control { max-width: none; }

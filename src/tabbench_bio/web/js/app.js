@@ -2,6 +2,7 @@
 
 let DATA = null;
 let EXCLUDED = new Set();
+let SHOW_ALL_MODELS = false;
 let RANK_REFERENCE_CELL = null;
 let CHARTS_READY = false;
 
@@ -294,7 +295,7 @@ async function addEloGridFigure(folder, figure) {
 function costGridFigures() {
   const groups = new Map();
   DATA.cost_grid
-    .filter((row) => !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON")
+    .filter((row) => !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON"))
     .forEach((row) => {
       const key = `${row.cell}|${row.domain}`;
       if (!groups.has(key)) groups.set(key, []);
@@ -371,7 +372,7 @@ function setOptions(select, options, current, labeler = (value) => value) {
 
 function renderReferencePodium() {
   const leaders = DATA.reference
-    .filter((row) => !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON" && !hasTrainingOverlap(row))
+    .filter((row) => !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON") && !hasTrainingOverlap(row))
     .sort((a, b) => b.Elo - a.Elo)
     .slice(0, 3);
   const setting = `Macro-F1 Elo · ${leaders[0].cell_label} · ${number(leaders[0].n_targets)} targets`;
@@ -585,7 +586,7 @@ function initializeModelCard() {
   const capSelect = byId("model-card-cap");
   const comparatorSelect = byId("model-card-comparator");
   const modelIds = Object.keys(DATA.models)
-    .filter((modelId) => !EXCLUDED.has(modelId) && modelId !== "AUTOGLUON")
+    .filter((modelId) => !EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON"))
     .sort((left, right) => DATA.models[left].display.localeCompare(DATA.models[right].display));
   const defaultModel = DATA.reference
     .filter((row) => modelIds.includes(row.model_id))
@@ -593,17 +594,17 @@ function initializeModelCard() {
   const caps = [...new Set(DATA.cell_options.map((cell) => cell.feature_cap))]
     .sort((left, right) => budgetSortValue(left) - budgetSortValue(right));
   const reference = DATA.cell_options.find((cell) => cell.id === DATA.meta.reference_cell);
-  setOptions(modelSelect, modelIds, defaultModel, (modelId) => DATA.models[modelId].display);
-  setOptions(comparatorSelect, modelIds, "RF", (modelId) => DATA.models[modelId].display);
+  setOptions(modelSelect, modelIds, modelIds.includes(modelSelect.value) ? modelSelect.value : defaultModel, (modelId) => DATA.models[modelId].display);
+  setOptions(comparatorSelect, modelIds, comparatorSelect.value || "RF", (modelId) => DATA.models[modelId].display);
   setOptions(capSelect, caps, reference.feature_cap, capLabel);
   const ticks = [-1000, -300, 0, 300, 1000];
   byId("model-card-scale-ticks").innerHTML = ticks.map((value) => {
     const label = value === -1000 ? "≤−1,000" : value === 1000 ? "≥+1,000" : value > 0 ? `+${value}` : String(value).replace("-", "−");
     return `<span style="left:${50 + 50 * modelCardScale(value)}%">${label}</span>`;
   }).join("");
-  comparatorSelect.addEventListener("change", renderModelCard);
-  modelSelect.addEventListener("change", renderModelCard);
-  capSelect.addEventListener("change", renderModelCard);
+  comparatorSelect.onchange = renderModelCard;
+  modelSelect.onchange = renderModelCard;
+  capSelect.onchange = renderModelCard;
   renderModelCard();
 }
 
@@ -663,7 +664,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
   const byModel = new Map(rows.map((row) => [row.model_id, row]));
   const paired = rows.filter((row) => byModel.has(DATA.models[row.model_id].tuned_from));
   const pairedIds = new Set(paired.flatMap((row) => [row.model_id, DATA.models[row.model_id].tuned_from]));
-  const visible = rows.filter((row) => row.Elo >= 0 || pairedIds.has(row.model_id));
+  const visible = rows.filter((row) => SHOW_ALL_MODELS || row.Elo >= 0 || pairedIds.has(row.model_id));
   const autogluon = visible.find((row) => row.model_id === "AUTOGLUON");
   const tunedByParent = new Map(paired.map((row) => [DATA.models[row.model_id].tuned_from, row]));
   const rankingElo = (row) => Math.max(row.Elo, (tunedByParent.get(row.model_id) || row).Elo);
@@ -874,7 +875,7 @@ function budgetRank(value) {
 
 function initializeBudget(prefix) {
   const view = BUDGET_VIEWS[prefix];
-  const rows = DATA.domain_elo.filter((row) => row.metric === "f1_macro" && !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON");
+  const rows = DATA.domain_elo.filter((row) => row.metric === "f1_macro" && !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON"));
   setOptions(byId(`${prefix}-domain`), DATA.domains, "all", domainLabel);
   const controls = [...new Set(DATA.cell_options.map((cell) => budgetValue(view.controlOf(cell))))]
     .sort((a, b) => budgetRank(a) - budgetRank(b));
@@ -883,7 +884,7 @@ function initializeBudget(prefix) {
   const families = [...new Set(rows.map((row) => DATA.models[row.model_id].category))].sort();
   const groups = ["top", "all", ...families];
   const topLabel = view.leaders === "reference" ? `Top 6 at ${view.referenceBudget} samples` : "Top 6 by mean Elo";
-  setOptions(byId(`${prefix}-group`), groups, "top",
+  setOptions(byId(`${prefix}-group`), groups, SHOW_ALL_MODELS ? "all" : "top",
     (group) => group === "top" ? topLabel : group === "all" ? "All models" : group);
 
   [`${prefix}-domain`, view.controlId, `${prefix}-group`, `${prefix}-ci`].forEach((id) => byId(id).addEventListener("change", () => renderBudget(prefix)));
@@ -891,6 +892,7 @@ function initializeBudget(prefix) {
 }
 
 function preferTunedRows(rows) {
+  if (SHOW_ALL_MODELS) return rows;
   const parents = new Set(rows.map((row) => DATA.models[row.model_id].tuned_from).filter(Boolean));
   return rows.filter((row) => !parents.has(row.model_id));
 }
@@ -908,7 +910,7 @@ function renderBudget(prefix) {
   const cellIds = new Set(cells.map((cell) => cell.id));
   const budgetByCell = Object.fromEntries(cells.map((cell) => [cell.id, budgetValue(view.axisOf(cell))]));
   let rows = DATA.domain_elo.filter((row) =>
-    row.metric === "f1_macro" && row.domain === domain && cellIds.has(row.cell) && !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON"
+    row.metric === "f1_macro" && row.domain === domain && cellIds.has(row.cell) && !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON")
   );
   rows = preferTunedRows(rows);
   if (!rows.length) return;
@@ -1157,7 +1159,7 @@ function renderCost(prefix) {
   const option = DATA.cell_options.find((cell) => sameBudget(cell.feature_cap, cap) && sameBudget(cell.n_train, samples));
   if (!option) return;
   const rows = DATA.cost_grid.filter((row) =>
-    row.cell === option.id && row.domain === domain && !EXCLUDED.has(row.model_id) && row.model_id !== "AUTOGLUON"
+    row.cell === option.id && row.domain === domain && !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON")
   );
   if (!rows.length) return;
   const chart = byId(timing.chart);
@@ -1184,14 +1186,28 @@ function initializeRank() {
   renderRank();
 }
 
+function visibleRankCorrelation(leftCell, rightCell) {
+  const rows = DATA.domain_elo.filter(row => row.domain === "all" && row.metric === "f1_macro" && !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON"));
+  const left = new Map(rows.filter(row => row.cell === leftCell).map(row => [row.model_id, row.Elo]));
+  const right = new Map(rows.filter(row => row.cell === rightCell).map(row => [row.model_id, row.Elo]));
+  const ids = [...left.keys()].filter(id => right.has(id));
+  if (ids.length < 2) return null;
+  const ranks = values => values.map(value => 1 + values.filter(other => other < value).length + (values.filter(other => other === value).length - 1) / 2);
+  const a = ranks(ids.map(id => left.get(id))), b = ranks(ids.map(id => right.get(id)));
+  const mean = (ids.length + 1) / 2;
+  const covariance = a.reduce((sum, value, i) => sum + (value - mean) * (b[i] - mean), 0);
+  const variance = values => values.reduce((sum, value) => sum + (value - mean) ** 2, 0);
+  const denominator = Math.sqrt(variance(a) * variance(b));
+  return denominator ? covariance / denominator : null;
+}
+
 function renderRank() {
   const mobile = isMobileViewport();
-  const { cells, matrix } = DATA.rank_correlations;
+  const { cells } = DATA.rank_correlations;
   const indexByCell = new Map(cells.map((cell, index) => [cell, index]));
   const selectedCell = indexByCell.has(RANK_REFERENCE_CELL)
     ? RANK_REFERENCE_CELL
     : DATA.meta.reference_cell;
-  const selectedIndex = indexByCell.get(selectedCell);
   const selectedOption = DATA.cell_options.find((cell) => cell.id === selectedCell);
   const featureCaps = [...new Set(DATA.cell_options.map((cell) => cell.feature_cap))]
     .sort((a, b) => budgetSortValue(a) - budgetSortValue(b));
@@ -1203,14 +1219,14 @@ function renderRank() {
   const targets = featureCaps.map((cap) => sampleBudgets.map((samples) => cellAt(cap, samples)));
   const values = targets.map((row) => row.map((target) => {
     const targetIndex = target ? indexByCell.get(target.id) : undefined;
-    return targetIndex === undefined ? null : Number(matrix[selectedIndex][targetIndex]);
+    return targetIndex === undefined ? null : visibleRankCorrelation(selectedCell, target.id);
   }));
   const customdata = targets.map((row) => row.map((target) => [target?.id || "", target?.label || ""]));
   const xLabels = sampleBudgets.map(sampleLabel);
   const yLabels = featureCaps.map(capLabel);
   const trace = {
     type: "heatmap", z: values, x: xLabels, y: yLabels, customdata,
-    zmin: 0, zmax: 1,
+    zmin: -1, zmax: 1,
     colorscale: [[0, "#33205e"], [0.35, "#3d6b79"], [0.7, "#69ad87"], [1, "#e6ef83"]],
     colorbar: { thickness: 10, len: 0.75, title: { text: "Spearman ρ", side: "right" } },
     hovertemplate: `<b>%{customdata[1]}</b><br>vs ${escapeHtml(cellShortLabel(selectedCell))}<br>Spearman ρ=%{z:.2f}<extra></extra>`,
@@ -1380,6 +1396,27 @@ function showLoadError(error) {
   console.error(error);
 }
 
+function initializeModelVisibility() {
+  const toggle = byId("show-all-models");
+  if (!toggle) return;
+  toggle.checked = SHOW_ALL_MODELS;
+  toggle.addEventListener("change", () => {
+    SHOW_ALL_MODELS = toggle.checked;
+    localStorage.setItem("tabbench-show-all-models", String(SHOW_ALL_MODELS));
+    EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
+    const page = document.body.dataset.page;
+    if (page === "home") {
+      for (const prefix of ["perf", "feat"]) byId(`${prefix}-group`).value = SHOW_ALL_MODELS ? "all" : "top";
+      renderReferencePodium();
+      renderCharts();
+    } else if (page === "models") initializeModelCard();
+    else if (page === "dataset") {
+      byId("detail-models").value = SHOW_ALL_MODELS ? "all" : "top";
+      renderDatasetCharts();
+    }
+  });
+}
+
 async function main() {
   initializeTheme();
   const page = document.body.dataset.page;
@@ -1387,7 +1424,9 @@ async function main() {
   const response = await fetch(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json", { cache: "no-cache" });
   if (!response.ok) throw new Error(`Could not load benchmark data (HTTP ${response.status})`);
   DATA = await response.json();
-  EXCLUDED = new Set(DATA.meta.plot_excluded_models);
+  SHOW_ALL_MODELS = localStorage.getItem("tabbench-show-all-models") === "true";
+  EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
+  initializeModelVisibility();
   if (page === "home") {
     initializeMeta();
     initializeElo();

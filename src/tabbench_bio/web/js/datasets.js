@@ -153,7 +153,7 @@ async function initializeDatasetDetail() {
   setOptions(byId("detail-cap"), [...new Set(datasetCells().map(cell => cell.feature_cap))].sort((a, b) => budgetSortValue(a) - budgetSortValue(b)), params.has("p") ? params.get("p") : reference.feature_cap, capLabel);
   setOptions(byId("detail-samples"), datasetCells().filter(cell => sameBudget(cell.feature_cap, byId("detail-cap").value)).map(cell => cell.n_train).sort((a, b) => budgetSortValue(a) - budgetSortValue(b)), params.has("n") ? params.get("n") : reference.n_train, sampleLabel);
   const families = [...new Set(Object.values(DATA.models).filter(model => !EXCLUDED.has(model.id) && model.category !== "AutoML").map(model => model.category))].sort();
-  setOptions(byId("detail-models"), ["top", "all", ...families], "top", value => value === "top" ? "Top 5 + Random Forest" : value === "all" ? "All models" : value);
+  setOptions(byId("detail-models"), ["top", "all", ...families], SHOW_ALL_MODELS ? "all" : "top", value => value === "top" ? "Top 5 + Random Forest" : value === "all" ? "All models" : value);
   await loadExternalScript("assets/plotly-cartesian.min.js", "Plotly");
   byId("detail-cap").addEventListener("change", () => { updateDatasetSampleOptions(); renderDatasetCharts(); });
   ["detail-metric", "detail-samples", "detail-models"].forEach(id => byId(id).addEventListener("change", renderDatasetCharts));
