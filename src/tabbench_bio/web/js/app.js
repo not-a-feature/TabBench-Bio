@@ -884,7 +884,7 @@ function initializeBudget(prefix) {
   const families = [...new Set(rows.map((row) => DATA.models[row.model_id].category))].sort();
   const groups = ["top", "all", ...families];
   const topLabel = view.leaders === "reference" ? `Top 6 at ${view.referenceBudget} samples` : "Top 6 by mean Elo";
-  setOptions(byId(`${prefix}-group`), groups, SHOW_ALL_MODELS ? "all" : "top",
+  setOptions(byId(`${prefix}-group`), groups, "top",
     (group) => group === "top" ? topLabel : group === "all" ? "All models" : group);
 
   [`${prefix}-domain`, view.controlId, `${prefix}-group`, `${prefix}-ci`].forEach((id) => byId(id).addEventListener("change", () => renderBudget(prefix)));
@@ -1399,19 +1399,20 @@ function showLoadError(error) {
 function initializeModelVisibility() {
   const toggle = byId("show-all-models");
   if (!toggle) return;
-  toggle.checked = SHOW_ALL_MODELS;
-  toggle.addEventListener("change", () => {
-    SHOW_ALL_MODELS = toggle.checked;
+  toggle.setAttribute("aria-pressed", String(SHOW_ALL_MODELS));
+  toggle.classList.toggle("button-primary", SHOW_ALL_MODELS);
+  toggle.addEventListener("click", () => {
+    SHOW_ALL_MODELS = !SHOW_ALL_MODELS;
+    toggle.setAttribute("aria-pressed", String(SHOW_ALL_MODELS));
+    toggle.classList.toggle("button-primary", SHOW_ALL_MODELS);
     localStorage.setItem("tabbench-show-all-models", String(SHOW_ALL_MODELS));
     EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
     const page = document.body.dataset.page;
     if (page === "home") {
-      for (const prefix of ["perf", "feat"]) byId(`${prefix}-group`).value = SHOW_ALL_MODELS ? "all" : "top";
       renderReferencePodium();
       renderCharts();
     } else if (page === "models") initializeModelCard();
     else if (page === "dataset") {
-      byId("detail-models").value = SHOW_ALL_MODELS ? "all" : "top";
       renderDatasetCharts();
     }
   });
