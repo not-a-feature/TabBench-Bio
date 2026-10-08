@@ -72,7 +72,7 @@
   <link rel="stylesheet" href="style.min.css?v=20261001-panel-heading-width">
   <script defer src="assets/plotly-cartesian.min.js"></script>
   <script defer src="js/analytics.js?v=20260908-optout"></script>
-  <script defer src="js/app.js?v=20261008-model-visibility"></script>
+  <script defer src="js/app.js?v=20261008-model-visibility-2"></script>
 </head>
 <body data-page="home">
   <header class="site-header">
@@ -137,7 +137,7 @@
             <button id="view-strict" class="button button-primary" type="button" aria-pressed="true">Strict (primary)</button>
             <button id="view-adaptive" class="button" type="button" aria-pressed="false">Adaptive (sensitivity)</button>
             <button id="view-conditional" class="button" type="button" aria-pressed="false">Failures omitted (sensitivity)</button>
-            <label class="checkbox-row model-visibility-control"><input id="show-all-models" type="checkbox">Show all models</label>
+            <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show all models</button>
           </div>
           <p id="analysis-view-note" class="analysis-view-note" aria-live="polite"><span id="analysis-view-note-strict" class="is-active" aria-hidden="false">Primary analysis: each score comes from the requested feature- and sample-cap cell; no smaller cell is substituted. Failures are scored at chance.</span><span id="analysis-view-note-adaptive" aria-hidden="true">Sensitivity analysis: after a memory failure, a verified result from a smaller sample cap may be carried forward. It is not performance at the requested larger cell.</span><span id="analysis-view-note-conditional" aria-hidden="true">Sensitivity analysis: a failed run is omitted instead of scored at chance, which removes that model from the target. Models are then ranked on different target pools, so this view is an optimistic bound rather than a like-for-like comparison.</span></p>
         </div>
