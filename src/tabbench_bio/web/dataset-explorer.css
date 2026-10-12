@@ -22,6 +22,8 @@
 .dataset-context .tag { font-size: 0.8rem; }
 .dataset-context .source-link { text-transform: none; font-size: 0.875rem; }
 .dataset-operating-controls { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) auto; gap: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); align-items: end; margin-bottom: 24px; }
+.dataset-operating-controls .model-visibility-control { align-self: end; }
+.dataset-operating-controls select { min-height: 44px; }
 .dataset-operating-controls p { color: var(--muted); font-size: 0.8rem; margin: 0 0 6px; line-height: 1.6; }
 .dataset-plots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
 .dataset-chart-heading { padding: 22px 22px 0; }
