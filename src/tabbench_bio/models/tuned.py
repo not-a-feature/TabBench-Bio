@@ -8,6 +8,7 @@ from importlib.metadata import version
 
 import pandas as pd
 import torch
+from autogluon.core.utils.exceptions import TimeLimitExceeded
 from autogluon.features.generators import AutoMLPipelineFeatureGenerator
 from autogluon.tabular import TabularPredictor
 
@@ -44,7 +45,7 @@ class TunedModel(AutoGluonModel):
             "metric": self.metric,
             "score_direction": "higher_is_better (AutoGluon negates losses)",
             "tie_break": "first candidate in declared grid order",
-            "candidate_error_policy": "fail_unit",
+            "candidate_error_policy": "fail_unit_except_search_timeout",
             "status": "not_started",
             "budget_seconds": self.time_limit,
             "search_fraction": tuning["search_fraction"],
@@ -159,6 +160,7 @@ class TunedModel(AutoGluonModel):
                     num_gpus=num_gpus,
                     ag_args_fit={"ag.max_features": None, "ag.max_memory_usage_ratio": 100.0},
                     raise_on_no_models_fitted=True,
+                    raise_on_model_failure=True,
                 )
                 board = self.predictor.leaderboard(silent=True)
                 assert len(board) == 1, "Each candidate must fit exactly one model"
@@ -170,6 +172,11 @@ class TunedModel(AutoGluonModel):
                     fit_time_s=float(board.iloc[0]["fit_time"]),
                 )
                 scores.append((score, -index))
+            except TimeLimitExceeded as error:
+                candidate.update(status="time_limit", error=str(error))
+                if not scores:
+                    raise
+                break
             finally:
                 candidate["wall_time_s"] = time.monotonic() - candidate_started
                 if candidate["status"] == "running":

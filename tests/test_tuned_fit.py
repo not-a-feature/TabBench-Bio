@@ -211,3 +211,54 @@ def test_pipeline_persists_audit_and_keeps_variant_separate(
         assert attempt.record["n_models_trained"] >= 3
         predictions.compute_predictions(debug_config)
         assert len(ResultRepository.from_root(cell.parent).attempts()) == 2
+
+
+@pytest.mark.parametrize("first_candidate", [False, True])
+@pytest.mark.parametrize("failure", ["search_timeout", "fit_error", "unit_timeout"])
+def test_candidate_failure_propagation(tmp_path, monkeypatch, first_candidate, failure):
+    from autogluon.core.utils.exceptions import TimeLimitExceeded
+    from autogluon.tabular.models.rf.rf_model import RFModel
+
+    monkeypatch.setenv("TABBENCH_MODEL_CPUS", "2")
+    monkeypatch.setattr("torch.cuda.device_count", lambda: 0)
+    spec = {**SPEC, "grid": [{"n_estimators": [5, 6, 7]}]}
+    model = make_model(tmp_path, TaskType.Classification, spec)
+    frame = pd.DataFrame({"a": range(100), "target": [0, 1] * 50})
+    original_fit = RFModel._fit
+    calls = []
+    error_type = {
+        "search_timeout": TimeLimitExceeded,
+        "fit_error": ValueError,
+        "unit_timeout": predictions.UnitTimeoutError,
+    }[failure]
+    error = error_type("injected candidate failure")
+    failed_index = 0 if first_candidate else 1
+
+    def fit(estimator, *args, **kwargs):
+        calls.append(estimator.params["n_estimators"])
+        if len(calls) == failed_index + 1:
+            raise error
+        return original_fit(estimator, *args, **kwargs)
+
+    monkeypatch.setattr(RFModel, "_fit", fit)
+    recover = failure == "search_timeout" and not first_candidate
+    if recover:
+        model.fit(frame)
+        assert model.tuning_record["selected_candidate"] == 0
+        assert model.tuning_record["status"] == "completed"
+        assert model.predictor.model_best in model.predictor.model_refit_map().values()
+        assert np.isfinite(model.predict(frame.drop(columns="target"))).all()
+        assert 7 not in calls  # Search stops; the untouched candidate is never fitted.
+    else:
+        with pytest.raises(error_type) as caught:
+            model.fit(frame)
+        assert caught.value is error
+        assert model.tuning_record["status"] == "failed"
+        assert model.tuning_record["selected_candidate"] is None
+    audit = model.tuning_record
+    assert audit["candidates_completed"] == failed_index
+    assert audit["search_truncated"]
+    expected_status = "time_limit" if failure == "search_timeout" else "failed"
+    assert audit["candidates"][failed_index]["status"] == expected_status
+    assert model.time_limit == 180
+    assert not list(Path(model.autogluon_path).glob("candidate-*"))
