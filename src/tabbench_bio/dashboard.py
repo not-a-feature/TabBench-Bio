@@ -911,6 +911,20 @@ def build_website(
             "bootstrap_rounds": n_boot,
         },
         "progress": progress,
+        "failure_summary": (
+            status.assign(
+                modality=status["dataset"].map(
+                    {row["dataset_id"]: row["modality"] for row in datasets}
+                )
+            )
+            .groupby(["model", "cell", "modality", "status"])
+            .size()
+            .unstack(fill_value=0)
+            .reindex(columns=["pass", "fail", "skip"], fill_value=0)
+            .rename_axis(["model_id", "cell", "modality"])
+            .reset_index()
+            .to_dict("records")
+        ),
         "models": models,
         "datasets": datasets,
         **views["strict"],

@@ -10,7 +10,7 @@
   <link rel="icon" href="assets/favicon.svg?v=20260821-4" type="image/svg+xml">
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.min.css?v=20261001-compact-controls">
+  <link rel="stylesheet" href="style.min.css?v=20261014-shared-model-controls">
 </head>
 <body data-page="models">
   <header class="site-header">
@@ -21,6 +21,10 @@
   <main id="top">
     <section class="page-hero shell"><div class="section-heading"><div><p class="eyebrow">Model cards</p><h1>Strengths and weaknesses across budgets.</h1></div><p>Compare models across dataset modalities and training budgets using strict, fold-level Macro-F1 Elo.</p></div></section>
     <section class="section section-muted"><div class="shell">
+      <div class="controls model-selection-controls" role="group" aria-label="Model selection for both cards">
+            <label>Model<select id="model-card-model" aria-label="Model card model"></select></label>
+            <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show all models</button>
+      </div>
       <article class="panel panel-main model-card" aria-labelledby="model-card-title">
         <div class="panel-head model-card-head">
           <div>
@@ -29,8 +33,6 @@
             <div class="model-card-title-meta"><span id="model-card-family">—</span><span id="model-card-limit">—</span></div>
           </div>
           <div class="controls">
-            <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show all models</button>
-            <label>Model<select id="model-card-model" aria-label="Model card model"></select></label>
             <label>Compare with<select id="model-card-comparator" aria-label="Model card comparison model"></select></label>
             <label>Feature cap<select id="model-card-cap" aria-label="Model card feature cap"></select></label>
           </div>
@@ -54,6 +56,19 @@
             </div>
             <p id="model-card-summary" aria-live="polite"></p>
           </div>
+        </div>
+      </article>
+      <article class="panel panel-main panel-collapse is-expanded" id="failure-panel">
+        <div class="panel-head compact">
+          <div><p class="panel-kicker">Reliability</p><h3>Failure rate map</h3></div>
+          <div class="controls">
+            <label>Dataset modality<select id="failure-domain" aria-label="Failure dataset modality"></select></label>
+          </div>
+          <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="failure-content" aria-label="Close Failure rate map"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
+        </div>
+        <div id="failure-content" class="panel-chart-content">
+          <div id="failure-chart" class="plot" role="region" aria-label="Failure rate by training samples and feature count"></div>
+          <p class="chart-note">Failed fits / (successful + failed fits) for the selected model and modality. Design skips and excluded default-selected outcomes are omitted. Blank cells have no attempted fits. Hover for counts. The colour scale stays fixed at 0–100%; this chart is independent of the performance sensitivity view.</p>
         </div>
       </article>
     </div></section>

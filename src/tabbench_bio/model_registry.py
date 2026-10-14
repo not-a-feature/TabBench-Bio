@@ -21,7 +21,7 @@ class ModelSpec:
 
 MODEL_REGISTRY = {
     "DUMMY": ModelSpec(hidden=True, display="Constant", category="Baseline", device="cpu"),
-    "KNN": ModelSpec(display="KNN", category="Traditional ML", device="cpu"),
+    "KNN": ModelSpec(hidden=True, display="KNN", category="Traditional ML", device="cpu"),
     "LR": ModelSpec(display="Logistic Regression", category="Traditional ML", device="cpu"),
     "RF": ModelSpec(display="Random Forest", category="Tree-based", device="cpu"),
     "XT": ModelSpec(display="Extra Trees", category="Tree-based", device="cpu"),

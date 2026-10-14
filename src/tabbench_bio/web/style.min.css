@@ -600,3 +600,6 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 
 .model-visibility-control { align-self: center; white-space: nowrap; }
 .analysis-view-control { max-width: none; }
+
+.model-selection-controls { justify-content: flex-start; }
+.model-selection-controls .model-visibility-control { align-self: flex-end; height: 38px; min-height: 38px; padding-block: 0; }
