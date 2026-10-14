@@ -27,7 +27,6 @@ SITEMAP_PATHS = (
 def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
     project_url = project_url.rstrip("/")
     meta = dashboard["meta"]
-    progress = dashboard["progress"]
     datasets = dashboard["datasets"]
     task_counts = Counter(str(row["task"]).lower() for row in datasets)
     modality_counts = Counter(str(row["modality"]) for row in datasets)
@@ -66,7 +65,6 @@ def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
             + disclaimers
             + "\n\nThese models remain in the benchmark results but are excluded from the Reference leaders podium and social card.\n\n"
         )
-    status = progress["status"]
     paper_url = str(meta["paper_url"])
     if not paper_url.startswith(("https://", "http://")):
         paper_url = f"{project_url}/{paper_url.lstrip('/')}"
@@ -91,7 +89,6 @@ Use the pages below for context and the canonical SQLite database for exact, str
 - {int(meta["configured_model_count"]):,} configured model configurations; {len(dashboard["models"]):,} currently represented in aggregate results.
 - {len(dashboard["cell_options"]):,} feature-by-sample operating points currently have aggregate metrics.
 - {int(meta["evaluation_points_per_model"]):,} configured dataset-cell-fold evaluation points per model.
-- Run monitoring has recorded {int(progress["recorded"]):,} of {int(progress["expected"]):,} planned units ({100 * float(progress["fraction"]):.1f}%): {int(status["pass"]):,} pass, {int(status["skip"]):,} design skip, and {int(status["fail"]):,} fail.
 
 ## Current reference results
 

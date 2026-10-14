@@ -409,20 +409,6 @@ function initializeMeta() {
   byId("footer-affiliation").firstChild.textContent = `${meta.affiliation} `;
   renderReferencePodium();
 
-  byId("snapshot-date").textContent = new Date(meta.snapshot_utc).toLocaleDateString("en-GB", {
-    day: "numeric", month: "short", year: "numeric", timeZone: "UTC",
-  });
-  byId("progress-percent").textContent = percent(progress.fraction);
-  const progressTrack = byId("progress-track");
-  progressTrack.setAttribute("aria-valuenow", (100 * progress.fraction).toFixed(1));
-  progressTrack.setAttribute("aria-valuetext", `${percent(progress.fraction)} of planned units recorded`);
-  byId("pass-count").textContent = number(progress.status.pass);
-  byId("skip-count").textContent = number(progress.status.skip);
-  byId("fail-count").textContent = number(progress.status.fail);
-  byId("progress-pass").style.width = percent(progress.status.pass / progress.expected);
-  byId("progress-skip").style.width = percent(progress.status.skip / progress.expected);
-  byId("progress-fail").style.width = percent(progress.status.fail / progress.expected);
-  byId("cell-count").textContent = `${DATA.cell_options.length} cells are shown from recorded metrics; ${progress.cells_status_complete} are status-complete in this snapshot.`;
   const recordedFoldCounts = DATA.datasets.flatMap((dataset) =>
     dataset.performance.models.map((model) => model.folds)
   );
@@ -511,6 +497,7 @@ function renderModelCard() {
     .filter((row) => row.model_id === modelId && domains.includes(row.domain))
     .map((row) => [`${row.domain}|${row.cell}`, row]));
 
+  if (byId("failure-domain").options.length) renderFailures();
   renderModelTuning(model);
   byId("model-card-name").textContent = modelLabel(model);
   byId("model-card-caption").textContent = `Macro-F1 Elo relative to ${comparator.display}. Columns are training-sample caps; rows are dataset modalities. Small labels show the number of binding targets.`;
@@ -1295,6 +1282,59 @@ function renderComposition() {
   Plotly.react(byId("composition-chart"), traces, layout, PLOT_CONFIG);
 }
 
+function initializeFailures() {
+  const domains = ["all", ...new Set(DATA.failure_summary.map(row => row.modality))];
+  setOptions(byId("failure-domain"), domains, "all", domainLabel);
+  byId("failure-domain").addEventListener("change", renderFailures);
+  const toggle = document.querySelector("#failure-panel .panel-toggle");
+  toggle.addEventListener("click", () => {
+    const expanded = toggle.getAttribute("aria-expanded") !== "true";
+    toggle.setAttribute("aria-expanded", String(expanded));
+    toggle.setAttribute("aria-label", `${expanded ? "Close" : "Expand"} Failure rate map`);
+    toggle.querySelector(".panel-toggle-label").textContent = expanded ? "×" : "Expand";
+    byId("failure-panel").classList.toggle("is-expanded", expanded);
+    byId("failure-content").hidden = !expanded;
+    document.querySelector("#failure-panel .controls").hidden = !expanded;
+    if (expanded) renderFailures();
+  });
+  window.addEventListener("resize", renderFailures);
+  renderFailures();
+}
+
+function renderFailures() {
+  const domain = byId("failure-domain").value;
+  const modelId = byId("model-card-model").value;
+  const caps = [...new Set(DATA.cell_options.map(cell => budgetValue(cell.feature_cap)))].sort((a, b) => budgetRank(a) - budgetRank(b));
+  const samples = [...new Set(DATA.cell_options.map(cell => budgetValue(cell.n_train)))].sort((a, b) => budgetRank(a) - budgetRank(b));
+  const counts = new Map();
+  DATA.failure_summary.filter(row => row.model_id === modelId && (domain === "all" || row.modality === domain)).forEach(row => {
+    const key = `${row.model_id}|${row.cell}`;
+    const sum = counts.get(key) || { pass: 0, fail: 0, skip: 0 };
+    ["pass", "fail", "skip"].forEach(status => { sum[status] += row[status]; });
+    counts.set(key, sum);
+  });
+  const values = samples.map(sample => caps.map(cap => {
+    const cell = DATA.cell_options.find(cell => sameBudget(cell.n_train, sample) && sameBudget(cell.feature_cap, cap));
+    return counts.get(`${modelId}|${cell?.id}`) || { pass: 0, fail: 0, skip: 0 };
+  }));
+  const mobile = isMobileViewport();
+  Plotly.react(byId("failure-chart"), [{
+    type: "heatmap", x: caps.map(capLabel),
+    y: samples.map(sampleLabel),
+    z: values.map(row => row.map(value => value.pass + value.fail ? value.fail / (value.pass + value.fail) : null)),
+    customdata: values.map(row => row.map(value => [value.fail, value.pass + value.fail, value.skip])),
+    zmin: 0, zmax: 1, colorscale: [[0, "#f3eee3"], [0.25, "#e5b86a"], [0.5, "#cf792c"], [1, "#8b251d"]],
+    xgap: 2, ygap: 2, hoverongaps: false,
+    colorbar: { title: { text: "Failure rate" }, tickformat: ".0%", thickness: 14 },
+    hovertemplate: `<b>${escapeHtml(DATA.models[modelId].display)}</b><br>Training samples: %{y}<br>Feature cap: %{x}<br>Failure rate: %{z:.1%}<br>%{customdata[0]:,} failed / %{customdata[1]:,} attempted fits<br>%{customdata[2]:,} design skips omitted<extra></extra>`,
+  }], baseLayout({
+    height: 460,
+    margin: { l: mobile ? 70 : 90, r: mobile ? 65 : 100, t: 20, b: 65 },
+    xaxis: axes({ title: "Feature cap", type: "category", categoryorder: "array", categoryarray: caps.map(capLabel), showgrid: false }),
+    yaxis: axes({ title: "Training samples", type: "category", categoryorder: "array", categoryarray: samples.map(sampleLabel), autorange: "reversed", showgrid: false, automargin: true }),
+  }), PLOT_CONFIG);
+}
+
 function renderRawFiles() {
   byId("raw-files").innerHTML = DATA.raw_exports.map((file) => {
     const unit = file.format === "sqlite3" ? "attempts" : "records";
@@ -1386,6 +1426,7 @@ function initializeTheme() {
     updateThemeButton();
     if (CHARTS_READY && document.body.dataset.page === "home") renderCharts();
     if (document.body.dataset.page === "dataset") renderDatasetCharts();
+    if (document.body.dataset.page === "models" && DATA) renderFailures();
   });
 }
 
@@ -1464,7 +1505,9 @@ async function main() {
     });
   } else if (page === "models") {
     Object.assign(DATA, DATA.analysis_views.strict);
+    await loadExternalScript("assets/plotly-cartesian.min.js", "Plotly");
     initializeModelCard();
+    initializeFailures();
   } else if (page === "datasets") {
     initializeDatasetExplorer();
   } else if (page === "dataset") {

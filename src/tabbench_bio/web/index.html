@@ -244,23 +244,21 @@
       </article>
 
       <div class="panel-grid">
-        <article class="panel panel-collapse is-expanded" id="rank-panel">
+        <article class="panel" id="rank-panel">
           <div class="panel-head compact">
-            <div class="panel-title-toggle"><div><p class="panel-kicker">Stability</p><h3>Rank stability across operating points</h3></div></div>
+            <div class="panel-title-toggle"><div><p class="panel-kicker">Stability</p><h3>Rank stability map</h3></div></div>
             <div class="controls">
               <label>Reference cell<select id="rank-reference" aria-label="Rank stability reference cell"></select></label>
             </div>
-          <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="rank-content" aria-label="Close Rank stability across operating points"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
           <div id="rank-content" class="panel-chart-content">
           <div id="rank-chart" class="plot plot-small" role="region" aria-label="Rank stability relative to the selected cell"></div>
           <p id="rank-note" class="chart-note"></p>
         </div>
       </article>
-        <article class="panel panel-collapse is-expanded" id="composition-panel">
+        <article class="panel" id="composition-panel">
           <div class="panel-head compact">
             <div class="panel-title-toggle"><div><p class="panel-kicker">Coverage</p><h3>Datasets by modality</h3></div></div>
-          <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="composition-content" aria-label="Close Datasets by modality"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
           <div id="composition-content" class="panel-chart-content">
           <div id="composition-chart" class="plot plot-small" role="region" aria-label="Dataset composition by modality and task"></div>
@@ -270,32 +268,9 @@
 
 
 
-      <aside class="run-strip" aria-labelledby="run-title">
-        <div class="run-strip-heading">
-          <span id="run-title">Living run</span>
-          <span class="status-dot"><i aria-hidden="true"></i> <span id="snapshot-date">Loading snapshot…</span></span>
-        </div>
-        <div class="run-strip-progress">
-          <div class="run-percent"><strong id="progress-percent">—</strong><span>recorded units</span></div>
-          <div class="run-bar">
-            <div id="progress-track" class="progress-track" role="progressbar" aria-label="Benchmark completion" aria-valuemin="0" aria-valuemax="100" aria-valuenow="0">
-              <span id="progress-pass" class="progress-pass"></span>
-              <span id="progress-skip" class="progress-skip"></span>
-              <span id="progress-fail" class="progress-fail"></span>
-            </div>
-            <div class="progress-labels">
-              <span><i class="key pass"></i><b id="pass-count">—</b> pass</span>
-              <span><i class="key skip"></i><b id="skip-count">—</b> design skip</span>
-              <span><i class="key fail"></i><b id="fail-count">—</b> fail</span>
-            </div>
-          </div>
-        </div>
-        <p id="cell-count">Loading completed cells…</p>
-      </aside>
+
 
       <aside class="metric-note method-note" aria-label="Failure and sensitivity policy">
-        <p><strong>Snapshot scope.</strong> The live counter covers the configured benchmark run; performance
-        charts remain pinned to the last status-complete aggregation until the cells finish.</p>
         <p><strong>Tuning protocol.</strong> Tuned models use a small predefined grid under a one-hour budget.
         Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold.</p>
         <p><strong>System configuration.</strong> NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.</p>
