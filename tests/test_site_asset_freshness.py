@@ -130,7 +130,22 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     output = tmp_path / "site"
     payload, strict = dashboard.build_website(database, output, n_boot=8)
     parsed = json.loads((output / "data/dashboard.json").read_text())
-    assert parsed["schema_version"] == 9
+    assert parsed["schema_version"] == 11
+    assert set(parsed["analysis_views"]) == {"strict"}
+    assert set(parsed["analysis_view_files"]) == {"adaptive", "conditional"}
+    for name, relative in parsed["analysis_view_files"].items():
+        parsed["analysis_views"][name] = json.loads((output / relative).read_text())
+    assert not set(parsed).intersection(parsed["analysis_views"]["strict"])
+    for name, view in parsed["analysis_views"].items():
+        assert view == json.loads(
+            json.dumps(
+                dashboard.clean_json(
+                    dashboard.compact_dashboard_values(
+                        payload["analysis_views"][name], models=payload["models"]
+                    )
+                )
+            )
+        )
     assert set(parsed["analysis_views"]) == {"strict", "adaptive", "conditional"}
     assert parsed["models"]["NEW"]["category"] == "Custom"
     assert parsed["meta"]["reference_cell"] == "cap_100_n20"
@@ -282,3 +297,26 @@ def test_incomplete_database_without_rf_builds_an_empty_ranking(tmp_path, task):
     assert result["reference"] == []
     assert result["cost_grid"] == []
     assert result["progress"]["fraction"] == 0.5
+
+
+def test_dashboard_display_precision_preserves_protocol_and_small_timings():
+    source = {
+        "model_id": "RF",
+        "Elo": 1000,
+        "n_targets": 43,
+        "f1_macro": 0.123456789,
+        "inference_time_s": 0.000000123456789,
+        "tuning": {"grid": [{"learning_rate": 0.000123456789}]},
+        "models": {"RF": {"tuning": {"grid": [{"learning_rate": 0.000123456789}]}}},
+        "domain_elo_cache": {"algorithm_sha256": "0123456789"},
+    }
+    compact = dashboard.compact_dashboard_values(source)
+    assert compact["f1_macro"] == 0.123457
+    assert compact["inference_time_s"] == 0.000000123457
+    assert compact["Elo"] == source["Elo"]
+    assert compact["n_targets"] == source["n_targets"]
+    assert compact["models"] == source["models"]
+    assert compact["domain_elo_cache"] == source["domain_elo_cache"]
+    assert not compact.keys() & source["models"]["RF"].keys()
+    assert "tuning" not in compact
+    assert "tuning" in source

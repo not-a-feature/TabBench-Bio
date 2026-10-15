@@ -58,11 +58,15 @@ def _atomic_path(path: str | os.PathLike[str]):
         temporary.unlink(missing_ok=True)
 
 
-def atomic_write_json(path: str | os.PathLike[str], payload: object, *, indent: int = 2) -> None:
+def atomic_write_json(
+    path: str | os.PathLike[str], payload: object, *, indent: int | None = 2
+) -> None:
     """Write JSON beside its destination and atomically replace on success."""
     with _atomic_path(path) as temporary:
-        with temporary.open("w", encoding="utf-8") as handle:
-            json.dump(payload, handle, indent=indent)
+        with temporary.open("w", encoding="utf-8", newline="\n") as handle:
+            json.dump(
+                payload, handle, indent=indent, separators=(",", ":") if indent is None else None
+            )
             handle.write("\n")
 
 

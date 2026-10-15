@@ -70,9 +70,8 @@
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20261001-panel-heading-width">
-  <script defer src="assets/plotly-cartesian.min.js"></script>
   <script defer src="js/analytics.js?v=20260908-optout"></script>
-  <script defer src="js/app.js?v=20261008-model-visibility-3"></script>
+  <script defer src="js/app.js?v=20261015-lazy-views"></script>
 </head>
 <body data-page="home">
   <header class="site-header">
@@ -141,7 +140,7 @@
           </div>
           <p id="analysis-view-note" class="analysis-view-note" aria-live="polite"><span id="analysis-view-note-strict" class="is-active" aria-hidden="false">Primary analysis: each score comes from the requested feature- and sample-cap cell; no smaller cell is substituted. Failures are scored at chance.</span><span id="analysis-view-note-adaptive" aria-hidden="true">Sensitivity analysis: after a memory failure, a verified result from a smaller sample cap may be carried forward. It is not performance at the requested larger cell.</span><span id="analysis-view-note-conditional" aria-hidden="true">Sensitivity analysis: a failed run is omitted instead of scored at chance, which removes that model from the target. Models are then ranked on different target pools, so this view is an optimistic bound rather than a like-for-like comparison.</span></p>
         </div>
-        <button id="download-all-figures" class="button figure-download-button" type="button" disabled>Download all figures <span aria-hidden="true">↓</span></button>
+        <button id="download-all-figures" title="Download current chart selections, including collapsed plots, for all three analysis modes with default and all models (PNG and SVG)." class="button figure-download-button" type="button" disabled>Download all figures <span aria-hidden="true">↓</span></button>
       </div>
       <article class="panel panel-main" id="elo-panel">
         <div class="panel-head">

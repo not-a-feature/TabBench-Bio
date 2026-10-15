@@ -254,96 +254,44 @@ async function runFigureJobs(jobs, onProgress) {
   if (failure) throw failure.reason;
 }
 
-function filenameSlug(value) {
-  return String(value).toLowerCase().replaceAll(/[^a-z0-9]+/g, "-").replaceAll(/^-|-$/g, "");
-}
-
-function eloGridFigures() {
-  const groups = new Map();
-  DATA.domain_elo
-    .filter((row) => !EXCLUDED.has(row.model_id))
-    .forEach((row) => {
-      const key = `${row.metric}|${row.cell}|${row.domain}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(row);
-    });
-  const metricOrder = new Map(DATA.elo_metrics.map((value, index) => [value, index]));
-  const cellOrder = new Map(DATA.cell_options.map((value, index) => [value.id, index]));
-  const domainOrder = new Map(DATA.domains.map((value, index) => [value, index]));
-  return [...groups.entries()]
-    .map(([key, rows]) => {
-      const [metric, cell, domain] = key.split("|");
-      return {
-        metric,
-        cell,
-        domain,
-        rows: rows.sort((a, b) => a.Elo - b.Elo),
-        featureCap: DATA.cell_options.find((option) => option.id === cell).feature_cap,
-        filename: `elo_${filenameSlug(metric)}_${filenameSlug(cell)}_${filenameSlug(domain)}`,
-      };
-    })
-    .sort((a, b) => metricOrder.get(a.metric) - metricOrder.get(b.metric)
-      || cellOrder.get(a.cell) - cellOrder.get(b.cell)
-      || domainOrder.get(a.domain) - domainOrder.get(b.domain));
-}
-
-async function addEloGridFigure(folder, figure) {
-  const spec = eloPlotSpec(figure.rows, false, figure.featureCap);
-  await addFigure(folder, `grid/elo-cells/${figure.filename}`, { data: spec.traces, layout: spec.layout }, spec.layout.height);
-}
-
-function costGridFigures() {
-  const groups = new Map();
-  DATA.cost_grid
-    .filter((row) => !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON"))
-    .forEach((row) => {
-      const key = `${row.cell}|${row.domain}`;
-      if (!groups.has(key)) groups.set(key, []);
-      groups.get(key).push(row);
-    });
-  const metricOrder = new Map(DATA.elo_metrics.map((value, index) => [value, index]));
-  const cellOrder = new Map(DATA.cell_options.map((value, index) => [value.id, index]));
-  const domainOrder = new Map(DATA.domains.map((value, index) => [value, index]));
-  return [...groups.entries()].flatMap(([key, rows]) => {
-    const [cell, domain] = key.split("|");
-    return DATA.elo_metrics.map((metric) => ({
-      metric,
-      cell,
-      domain,
-      rows,
-      filename: `pareto_${filenameSlug(metric)}_${filenameSlug(cell)}_${filenameSlug(domain)}`,
-    }));
-  }).sort((a, b) => metricOrder.get(a.metric) - metricOrder.get(b.metric)
-    || cellOrder.get(a.cell) - cellOrder.get(b.cell)
-    || domainOrder.get(a.domain) - domainOrder.get(b.domain));
-}
-
-async function addCostGridFigure(folder, figure) {
-  const spec = costPlotSpec(figure.rows, figure.metric, COST_VIEWS.cost, false);
-  await addFigure(folder, `grid/pareto-cells/${figure.filename}`, { data: spec.traces, layout: spec.layout }, spec.layout.height);
-}
-
 async function downloadAllFigures(button) {
+  ++ANALYSIS_REQUEST; // Keep a pending view switch from changing data during export.
   const originalLabel = button.textContent;
-  button.disabled = true;
+  const originalView = availableAnalysisViews().find(name => byId(`view-${name}`).getAttribute("aria-pressed") === "true");
+  const originalShowAll = SHOW_ALL_MODELS;
+  const controls = [...document.querySelectorAll("button, select, input")].map(control => [control, control.disabled]);
+  controls.forEach(([control]) => { control.disabled = true; });
   try {
     button.textContent = "Loading export tools…";
     await loadExternalScript("assets/jszip.min.js", "JSZip");
     const zip = new JSZip();
     const folder = zip.folder("tabbench-bio-figures");
-    const eloFigures = eloGridFigures();
-    const costFigures = costGridFigures();
-    const total = FIGURE_EXPORTS.length + eloFigures.length + costFigures.length;
-    // Copy the six selected views before asynchronous export work starts.
-    const jobs = FIGURE_EXPORTS.map((figure) => {
+    const jobs = [];
+    const snapshotFigure = (figure, path) => {
       const plot = byId(figure.id);
+      if (!plot.data) return;
       const snapshot = { data: structuredClone(plot.data), layout: structuredClone(plot.layout) };
-      return () => addFigure(folder, figure.filename, snapshot, figure.height);
-    });
-    jobs.push(...eloFigures.map((figure) => () => addEloGridFigure(folder, figure)));
-    jobs.push(...costFigures.map((figure) => () => addCostGridFigure(folder, figure)));
-    await runFigureJobs(jobs, (completed) => {
-      button.textContent = `Preparing figures… ${completed}/${total}`;
+      jobs.push(() => addFigure(folder, `${path}${figure.filename}`, snapshot, snapshot.layout.height || figure.height));
+    };
+    // Modality composition does not depend on analysis mode or model visibility.
+    snapshotFigure(FIGURE_EXPORTS.find(figure => figure.id === "composition-chart"), "");
+    await Promise.all(availableAnalysisViews().map(loadAnalysisView));
+    for (const view of availableAnalysisViews()) {
+      Object.assign(DATA, DATA.analysis_views[view]);
+      for (const showAll of [false, true]) {
+        SHOW_ALL_MODELS = showAll;
+        EXCLUDED = new Set(showAll ? [] : DATA.meta.plot_excluded_models);
+        await renderCharts(true);
+        const path = `${view}/${showAll ? "all-models" : "default-models"}/`;
+        FIGURE_EXPORTS.filter(figure => figure.id !== "composition-chart").forEach(figure => snapshotFigure(figure, path));
+      }
+    }
+    SHOW_ALL_MODELS = originalShowAll;
+    EXCLUDED = new Set(originalShowAll ? [] : DATA.meta.plot_excluded_models);
+    Object.assign(DATA, DATA.analysis_views[originalView]);
+    await renderCharts();
+    await runFigureJobs(jobs, completed => {
+      button.textContent = `Preparing figures… ${completed}/${jobs.length}`;
     });
     button.textContent = "Packaging figures…";
     const blob = await zip.generateAsync({ type: "blob" });
@@ -354,7 +302,11 @@ async function downloadAllFigures(button) {
     link.click();
     setTimeout(() => URL.revokeObjectURL(url), 1000);
   } finally {
-    button.disabled = false;
+    SHOW_ALL_MODELS = originalShowAll;
+    EXCLUDED = new Set(originalShowAll ? [] : DATA.meta.plot_excluded_models);
+    Object.assign(DATA, DATA.analysis_views[originalView]);
+    await renderCharts();
+    controls.forEach(([control, disabled]) => { control.disabled = disabled; });
     button.textContent = originalLabel;
   }
 }
@@ -575,7 +527,8 @@ function initializeModelCard() {
   const modelIds = Object.keys(DATA.models)
     .filter((modelId) => !EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON"))
     .sort((left, right) => DATA.models[left].display.localeCompare(DATA.models[right].display));
-  const defaultModel = DATA.reference
+  const requestedModel = new URLSearchParams(location.search).get("model");
+  const defaultModel = modelIds.includes(requestedModel) ? requestedModel : DATA.reference
     .filter((row) => modelIds.includes(row.model_id))
     .sort((left, right) => right.Elo - left.Elo)[0].model_id;
   const caps = [...new Set(DATA.cell_options.map((cell) => cell.feature_cap))]
@@ -663,6 +616,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
     orientation: "h",
     width: 0.72,
     showlegend: false,
+    ids: peers.map(row => row.model_id),
     x: peers.map((row) => row.Elo),
     y: peers.map(modelLabel),
     marker: {
@@ -700,6 +654,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
     // Explicit bases preserve signed changes: the segment ends at tuned Elo, never their sum.
     traces.push({
       type: "bar", orientation: "h", name: "Tuning change", width: 0.72,
+      ids: paired.map(row => row.model_id),
       base: parents.map((row) => row.Elo),
       x: paired.map((row, i) => row.Elo - parents[i].Elo), y: labels,
       marker: {
@@ -707,9 +662,10 @@ function eloPlotSpec(rows, mobile, featureCap) {
         line: { color: css("--ink"), width: 0.7 },
         pattern: { shape: ".", size: 5, solidity: 0.25, bgcolor: paired.map(() => css("--surface")) },
       },
-      customdata: details, hoverinfo: "skip", showlegend: false,
+      customdata: details, hoverinfo: "none", showlegend: false,
     }, {
       type: "scatter", mode: "markers", name: "Tuned Elo", showlegend: false,
+      ids: paired.map(row => row.model_id),
       x: paired.map((row) => row.Elo), y: labels,
       marker: { symbol: "diamond", size: 7, color: css("--ink") },
       error_x: {
@@ -802,12 +758,14 @@ function renderElo() {
   }
   const spec = eloPlotSpec(rows, mobile, option.feature_cap);
   renderFamilyLegend([...spec.peers, ...spec.paired], spec.paired.length > 0);
-  if (Array.isArray(chart.data)) {
-    Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG);
-  } else {
-    chart.replaceChildren();
-    Plotly.newPlot(chart, spec.traces, spec.layout, PLOT_CONFIG);
-  }
+  const rendered = Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
+    chart.removeAllListeners("plotly_click");
+    chart.on("plotly_click", event => {
+      const point = event.points[0];
+      const modelId = point.data.ids?.[point.pointNumber];
+      if (modelId && DATA.models[modelId]) location.href = `models.html?model=${encodeURIComponent(modelId)}`;
+    });
+  });
   const referenceNote = spec.autogluon ? " · solid line: AutoGluon 1 h reference" : "";
   const hiddenNote = spec.hiddenNegativeCount
     ? ` · ${spec.hiddenNegativeCount} negative-Elo model${spec.hiddenNegativeCount === 1 ? "" : "s"} hidden`
@@ -816,6 +774,7 @@ function renderElo() {
     ? " Solid bars show untuned Elo; dotted segments show the tuning change, ending at the tuned diamond. Decreases point left and are amber. Rows are ordered by the higher of untuned and tuned Elo; both original ratings remain unchanged. For paired models, only the tuned rating has an interval. Tuning uses a small predefined grid under a one-hour budget."
     : "";
   byId("elo-note").textContent = `${ELO_METRICS[metric]} · ${option.label} · ${domainDescription(domain)} · ${spec.peers.length ? spec.peers[0].n_targets : 0} binding targets · untuned Random Forest is anchored at 1,000${hiddenNote} · error bars are target-bootstrap 95% intervals${referenceNote}. Displayed intervals are clipped at zero; hover shows the original bounds.${tuningNote}`;
+  return rendered;
 }
 
 const BUDGET_VIEWS = {
@@ -884,7 +843,8 @@ function preferTunedRows(rows) {
   return rows.filter((row) => !parents.has(row.model_id));
 }
 
-function renderBudget(prefix) {
+function renderBudget(prefix, force = false) {
+  if (!force && byId(BUDGET_VIEWS[prefix].chart).closest(".panel-collapse")?.querySelector(".panel-toggle").getAttribute("aria-expanded") === "false") return;
   const view = BUDGET_VIEWS[prefix];
   const mobile = isMobileViewport();
   const domain = byId(`${prefix}-domain`).value;
@@ -989,7 +949,7 @@ function renderBudget(prefix) {
     yaxis: axes({ title: "Bradley–Terry Elo (Random Forest = 1,000)", range: yRange }),
     legend: { orientation: "h", x: 0, y: mobile ? -0.3 : -0.2, font: { size: mobile ? 11 : 12, color: css("--muted") } },
   });
-  Plotly.react(byId(view.chart), traces, layout, PLOT_CONFIG);
+  const rendered = Plotly.react(byId(view.chart), traces, layout, PLOT_CONFIG);
   const intervalNote = showCI ? "target-bootstrap 95% intervals clipped at zero; original bounds available on hover" : "95% intervals available on hover";
   const limitNote = beyondLimit.length
     ? ` · open markers: beyond the regular feature limit of ${beyondLimit.join(", ")}`
@@ -1001,6 +961,7 @@ function renderBudget(prefix) {
     ? " Targets can differ across budgets; the paper uses a fixed shared target pool."
     : "";
   byId(view.note).textContent = `${domainDescription(domain)} · ${view.describe(control)} · Elo at each available ${view.budgetNote}${selectionNote}${limitNote} · ${intervalNote}. Tuned versions replace their untuned counterparts where available.${poolNote}`;
+  return rendered;
 }
 
 function initializeCost() {
@@ -1079,7 +1040,7 @@ function costLabelAnnotations(rows, metric, timeColumn, mobile, width, height, x
       ax: best.x - point.x, ay: best.y - point.y, axref: "pixel", ayref: "pixel",
       xanchor: "center", yanchor: "middle", borderpad: 2,
       bgcolor: css("--surface"), font: { size: fontSize, color: css("--ink") },
-      captureevents: false,
+      captureevents: true,
     };
   });
 }
@@ -1102,6 +1063,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
     type: "scatter",
     mode: "lines+markers",
     name: "Pareto frontier",
+    ids: frontier.map(row => row.model_id),
     x: frontier.map((row) => row[timing.column]),
     y: frontier.map((row) => row[metric]),
     line: { color: css("--ink"), width: 2, dash: "dot" },
@@ -1136,7 +1098,8 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
   return { traces: [frontierTrace, ...categoryTraces], layout };
 }
 
-function renderCost(prefix) {
+function renderCost(prefix, force = false) {
+  if (!force && byId(COST_VIEWS[prefix].chart).closest(".panel-collapse")?.querySelector(".panel-toggle").getAttribute("aria-expanded") === "false") return;
   const mobile = isMobileViewport();
   const timing = COST_VIEWS[prefix];
   const metric = byId(`${prefix}-metric`).value;
@@ -1151,7 +1114,18 @@ function renderCost(prefix) {
   if (!rows.length) return;
   const chart = byId(timing.chart);
   const spec = costPlotSpec(rows, metric, timing, mobile, chart.clientWidth || chart.closest(".panel").clientWidth);
-  Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
+  return Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
+    chart.removeAllListeners("plotly_click");
+    chart.on("plotly_click", event => {
+      const point = event.points[0];
+      const modelId = point.data.ids?.[point.pointNumber];
+      if (modelId && DATA.models[modelId]) location.href = `models.html?model=${encodeURIComponent(modelId)}`;
+    });
+    chart.removeAllListeners("plotly_clickannotation");
+    chart.on("plotly_clickannotation", event => {
+      const modelId = event.annotation.name;
+      if (DATA.models[modelId]) location.href = `models.html?model=${encodeURIComponent(modelId)}`;
+    });
     chart.removeAllListeners("plotly_restyle");
     chart.on("plotly_restyle", () => {
       const visible = new Set(chart.data.filter((trace) => trace.visible !== "legendonly" && trace.visible !== false).flatMap((trace) => trace.ids || []));
@@ -1236,7 +1210,7 @@ function renderRank() {
     }),
   });
   const chart = byId("rank-chart");
-  Plotly.react(chart, [trace, selectedMarker], layout, PLOT_CONFIG).then(() => {
+  const rendered = Plotly.react(chart, [trace, selectedMarker], layout, PLOT_CONFIG).then(() => {
     if (chart.dataset.rankClickBound === "true") return;
     chart.on("plotly_click", (event) => {
       const targetCell = event.points?.[0]?.customdata?.[0];
@@ -1248,6 +1222,7 @@ function renderRank() {
     chart.dataset.rankClickBound = "true";
   });
   byId("rank-note").textContent = `Compared with ${cellShortLabel(selectedCell)}. Click a square or choose another reference cell; exact values are available on hover.`;
+  return rendered;
 }
 
 function renderComposition() {
@@ -1276,10 +1251,22 @@ function renderComposition() {
     barmode: "stack",
     bargap: 0.3,
     xaxis: axes({ title: "Datasets", dtick: 2 }),
-    yaxis: axes({ showgrid: false }),
+    yaxis: axes({ showgrid: false, tickmode: "array", tickvals: modalities, ticktext: modalities.map(modality => `<a style="color: ${css("--ink")}" href="datasets.html?modality=${encodeURIComponent(modality)}">${escapeHtml(modality)}</a>`) }),
     legend: { orientation: "h", x: 0, y: mobile ? -0.24 : -0.2, font: { size: 11, color: css("--muted") } },
   });
-  Plotly.react(byId("composition-chart"), traces, layout, PLOT_CONFIG);
+  const chart = byId("composition-chart");
+  Plotly.react(chart, traces, layout, PLOT_CONFIG).then(() => {
+    chart.querySelectorAll(".ytick a").forEach(link => {
+      link.style.fill = css("--ink");
+      link.setAttribute("target", "_self");
+      link.setAttribute("role", "link");
+      link.setAttribute("tabindex", "0");
+    });
+    chart.removeAllListeners("plotly_click");
+    chart.on("plotly_click", event => {
+      location.href = `datasets.html?modality=${encodeURIComponent(event.points[0].y)}`;
+    });
+  });
 }
 
 function initializeFailures() {
@@ -1356,24 +1343,56 @@ function renderRawFiles() {
   }).join("");
 }
 
-function renderCharts() {
-  renderElo();
-  renderBudget("perf");
-  renderBudget("feat");
-  renderCost("cost");
-  renderCost("prediction-cost");
-  renderRank();
-  renderComposition();
+function renderCharts(force = false) {
+  return Promise.all([
+    renderElo(), renderBudget("perf", force), renderBudget("feat", force),
+    renderCost("cost", force), renderCost("prediction-cost", force), renderRank(),
+  ]);
 }
 
 const ANALYSIS_VIEWS = ["strict", "adaptive", "conditional"];
 
 function availableAnalysisViews() {
-  return ANALYSIS_VIEWS.filter((name) => DATA.analysis_views[name]);
+  return ANALYSIS_VIEWS.filter(name => DATA.analysis_views[name] || DATA.analysis_view_files?.[name]);
 }
 
-function selectAnalysisView(view) {
-  const selected = DATA.analysis_views[view];
+const ANALYSIS_LOADS = new Map();
+let ANALYSIS_REQUEST = 0;
+
+function restoreModelMetadata(value) {
+  if (!value || typeof value !== "object") return;
+  Object.values(value).forEach(restoreModelMetadata);
+  if (value.model_id && DATA.models[value.model_id]) Object.assign(value, DATA.models[value.model_id]);
+}
+
+async function loadAnalysisView(view) {
+  if (DATA.analysis_views[view]) return DATA.analysis_views[view];
+  if (!ANALYSIS_LOADS.has(view)) {
+    const pending = (async () => {
+      const response = await fetch(DATA.analysis_view_files[view]);
+      if (!response.ok) throw new Error(`Could not load ${view} results (HTTP ${response.status})`);
+      const selected = await response.json();
+      restoreModelMetadata(selected);
+      DATA.analysis_views[view] = selected;
+      return selected;
+    })();
+    ANALYSIS_LOADS.set(view, pending);
+    pending.catch(() => ANALYSIS_LOADS.delete(view));
+  }
+  return ANALYSIS_LOADS.get(view);
+}
+
+async function selectAnalysisView(view) {
+  const request = ++ANALYSIS_REQUEST;
+  const button = byId(`view-${view}`);
+  button.setAttribute("aria-busy", "true");
+  let selected;
+  try {
+    selected = await loadAnalysisView(view);
+  } finally {
+    button.removeAttribute("aria-busy");
+  }
+  if (request !== ANALYSIS_REQUEST) return;
   if (!selected) throw new Error(`Unknown analysis view: ${view}`);
   Object.entries(selected).forEach(([field, value]) => { DATA[field] = value; });
   availableAnalysisViews().forEach((name) => {
@@ -1393,16 +1412,16 @@ function selectAnalysisView(view) {
 function initializeAnalysisView() {
   ANALYSIS_VIEWS.forEach((name) => {
     const button = byId(`view-${name}`);
-    if (!DATA.analysis_views[name]) {
+    if (!availableAnalysisViews().includes(name)) {
       // A published dashboard may predate a view; .button sets an explicit display, so
       // the hidden attribute alone would not remove the control.
       button.hidden = true;
       button.style.display = "none";
       return;
     }
-    button.addEventListener("click", () => selectAnalysisView(name));
+    button.addEventListener("click", () => selectAnalysisView(name).catch(showLoadError));
   });
-  selectAnalysisView("strict");
+  return selectAnalysisView("strict");
 }
 
 function updateThemeButton() {
@@ -1423,7 +1442,7 @@ function initializeTheme() {
     document.body.classList.toggle("dark-theme");
     localStorage.setItem("tabbench-bio-theme", document.body.classList.contains("dark-theme") ? "dark" : "light");
     updateThemeButton();
-    if (CHARTS_READY && document.body.dataset.page === "home") renderCharts();
+    if (CHARTS_READY && document.body.dataset.page === "home") { renderCharts(); renderComposition(); }
     if (document.body.dataset.page === "dataset") renderDatasetCharts();
     if (document.body.dataset.page === "models" && DATA) renderFailures();
   });
@@ -1461,12 +1480,21 @@ async function main() {
   initializeTheme();
   const page = document.body.dataset.page;
   if (page === "changelog" || page === "imprint" || page === "citation") return;
+  const charting = page === "home" ? loadExternalScript("assets/plotly-cartesian.min.js", "Plotly") : Promise.resolve();
   const response = await fetch(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json", { cache: "no-cache" });
   if (!response.ok) throw new Error(`Could not load benchmark data (HTTP ${response.status})`);
   DATA = await response.json();
+  restoreModelMetadata(DATA);
   EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
+  const linkedModel = new URLSearchParams(location.search).get("model");
+  if (page === "models" && DATA.models[linkedModel] && (EXCLUDED.has(linkedModel) || linkedModel === "AUTOGLUON")) {
+    SHOW_ALL_MODELS = true;
+    EXCLUDED = new Set();
+  }
   initializeModelVisibility();
   if (page === "home") {
+    await charting;
+    Object.assign(DATA, DATA.analysis_views.strict);
     initializeMeta();
     initializeElo();
     initializeBudget("perf");
@@ -1474,10 +1502,10 @@ async function main() {
     initializeCost();
     initializeRank();
     renderComposition();
-    initializeAnalysisView();
+    await initializeAnalysisView();
     const downloadButton = byId("download-all-figures");
     downloadButton.disabled = false;
-    downloadButton.addEventListener("click", () => downloadAllFigures(downloadButton));
+    downloadButton.addEventListener("click", () => downloadAllFigures(downloadButton).catch(showLoadError));
     CHARTS_READY = true;
     let costResizeTimer;
     window.addEventListener("resize", () => {
@@ -1498,6 +1526,8 @@ async function main() {
         if (expanded) {
           if (panel.id === "fitting-cost-panel") renderCost("cost");
           else if (panel.id === "prediction-cost-panel") renderCost("prediction-cost");
+          else if (panel.id === "feature-budget-panel") renderBudget("feat");
+          else if (panel.id === "performance-panel") renderBudget("perf");
           else Plotly.Plots.resize(panel.querySelector(".plot"));
         }
       });
