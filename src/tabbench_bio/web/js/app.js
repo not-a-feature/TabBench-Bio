@@ -1286,17 +1286,6 @@ function initializeFailures() {
   const domains = ["all", ...new Set(DATA.failure_summary.map(row => row.modality))];
   setOptions(byId("failure-domain"), domains, "all", domainLabel);
   byId("failure-domain").addEventListener("change", renderFailures);
-  const toggle = document.querySelector("#failure-panel .panel-toggle");
-  toggle.addEventListener("click", () => {
-    const expanded = toggle.getAttribute("aria-expanded") !== "true";
-    toggle.setAttribute("aria-expanded", String(expanded));
-    toggle.setAttribute("aria-label", `${expanded ? "Close" : "Expand"} Failure rate map`);
-    toggle.querySelector(".panel-toggle-label").textContent = expanded ? "×" : "Expand";
-    byId("failure-panel").classList.toggle("is-expanded", expanded);
-    byId("failure-content").hidden = !expanded;
-    document.querySelector("#failure-panel .controls").hidden = !expanded;
-    if (expanded) renderFailures();
-  });
   window.addEventListener("resize", renderFailures);
   renderFailures();
 }
@@ -1319,19 +1308,29 @@ function renderFailures() {
   }));
   const mobile = isMobileViewport();
   Plotly.react(byId("failure-chart"), [{
-    type: "heatmap", x: caps.map(capLabel),
-    y: samples.map(sampleLabel),
+    type: "heatmap", x: caps.map((_, index) => index),
+    y: samples.map((_, index) => index),
     z: values.map(row => row.map(value => value.pass + value.fail ? value.fail / (value.pass + value.fail) : null)),
-    customdata: values.map(row => row.map(value => [value.fail, value.pass + value.fail, value.skip])),
-    zmin: 0, zmax: 1, colorscale: [[0, "#f3eee3"], [0.25, "#e5b86a"], [0.5, "#cf792c"], [1, "#8b251d"]],
-    xgap: 2, ygap: 2, hoverongaps: false,
-    colorbar: { title: { text: "Failure rate" }, tickformat: ".0%", thickness: 14 },
-    hovertemplate: `<b>${escapeHtml(DATA.models[modelId].display)}</b><br>Training samples: %{y}<br>Feature cap: %{x}<br>Failure rate: %{z:.1%}<br>%{customdata[0]:,} failed / %{customdata[1]:,} attempted fits<br>%{customdata[2]:,} design skips omitted<extra></extra>`,
+    customdata: values.map((row, y) => row.map((value, x) => [value.fail, value.pass + value.fail, value.skip, sampleLabel(samples[y]), capLabel(caps[x])])),
+    zmin: 0, zmax: 0.2, colorscale: [[0, "#f3eee3"], [0.25, "#e5b86a"], [0.5, "#cf792c"], [1, "#8b251d"]],
+    xgap: 4, ygap: 4, hoverongaps: false,
+    colorbar: { title: { text: "Failure rate" }, tickvals: [0, 0.05, 0.1, 0.15, 0.2], ticktext: ["0%", "5%", "10%", "15%", "≥20%"], thickness: 14, outlinewidth: 0 },
+    hovertemplate: `<b>${escapeHtml(DATA.models[modelId].display)}</b><br>Training samples: %{customdata[3]}<br>Feature cap: %{customdata[4]}<br>Failure rate: %{z:.1%}<br>%{customdata[0]:,} failed / %{customdata[1]:,} attempted fits<br>%{customdata[2]:,} design skips omitted<extra></extra>`,
   }], baseLayout({
     height: 460,
+    annotations: values.flatMap((row, y) => row.map((value, x) => {
+      const total = value.pass + value.fail;
+      const rate = total ? value.fail / total : null;
+      return {
+        x, y, xref: "x", yref: "y",
+        text: rate === null ? "—" : `${(100 * rate).toFixed(rate === 0 ? 0 : 1)}%`,
+        showarrow: false,
+        font: { size: mobile ? 12 : 14, color: rate === null ? css("--muted") : rate >= 0.12 ? "#ffffff" : "#33251a" },
+      };
+    })),
     margin: { l: mobile ? 70 : 90, r: mobile ? 65 : 100, t: 20, b: 65 },
-    xaxis: axes({ title: "Feature cap", type: "category", categoryorder: "array", categoryarray: caps.map(capLabel), showgrid: false }),
-    yaxis: axes({ title: "Training samples", type: "category", categoryorder: "array", categoryarray: samples.map(sampleLabel), autorange: "reversed", showgrid: false, automargin: true }),
+    xaxis: axes({ title: "Feature cap", type: "linear", tickmode: "array", tickvals: caps.map((_, index) => index), ticktext: caps.map(capLabel), range: [-0.5, caps.length - 0.5], autorange: false, showgrid: false, zeroline: false }),
+    yaxis: axes({ title: "Training samples", type: "linear", tickmode: "array", tickvals: samples.map((_, index) => index), ticktext: samples.map(sampleLabel), range: [samples.length - 0.5, -0.5], autorange: false, showgrid: false, zeroline: false, automargin: true }),
   }), PLOT_CONFIG);
 }
 

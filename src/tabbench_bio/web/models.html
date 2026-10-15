@@ -58,17 +58,16 @@
           </div>
         </div>
       </article>
-      <article class="panel panel-main panel-collapse is-expanded" id="failure-panel">
+      <article class="panel panel-main" id="failure-panel">
         <div class="panel-head compact">
           <div><p class="panel-kicker">Reliability</p><h3>Failure rate map</h3></div>
           <div class="controls">
             <label>Dataset modality<select id="failure-domain" aria-label="Failure dataset modality"></select></label>
           </div>
-          <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="failure-content" aria-label="Close Failure rate map"><span class="panel-toggle-label">×</span><span class="collapse-chevron" aria-hidden="true">›</span></button>
         </div>
         <div id="failure-content" class="panel-chart-content">
           <div id="failure-chart" class="plot" role="region" aria-label="Failure rate by training samples and feature count"></div>
-          <p class="chart-note">Failed fits / (successful + failed fits) for the selected model and modality. Design skips and excluded default-selected outcomes are omitted. Blank cells have no attempted fits. Hover for counts. The colour scale stays fixed at 0–100%; this chart is independent of the performance sensitivity view.</p>
+          <p class="chart-note">Failed fits / (successful + failed fits) for the selected model and modality. Design skips and excluded default-selected outcomes are omitted. A dash means no attempted fits; 0% means all attempted fits succeeded. Hover for counts. Colours span 0–20%, with rates above 20% using the darkest shade; cell labels and hover retain the actual rate. This chart is independent of the performance sensitivity view.</p>
         </div>
       </article>
     </div></section>
@@ -76,6 +75,6 @@
   <footer><div class="shell footer-inner"><div class="footer-identity"><a class="university-logo" href="https://uni-tuebingen.de/" target="_blank" rel="noreferrer" aria-label="University of Tübingen"><img src="assets/university-of-tuebingen.svg" alt="University of Tübingen" loading="lazy" decoding="async"></a><div class="footer-copy"><strong>TabBench-Bio</strong><a href="https://uni-tuebingen.de/fakultaeten/mathematisch-naturwissenschaftliche-fakultaet/fachbereiche/informatik/lehrstuehle/methods-in-medical-informatics/" target="_blank" rel="noreferrer">Methods in Medical Informatics, University of Tübingen <span aria-hidden="true">↗</span></a><span>Maintained by <a href="https://juleskreuer.eu/" target="_blank" rel="noreferrer">Jules Kreuer <span aria-hidden="true">↗</span></a></span></div></div><div class="footer-links"><a href="imprint.html">Imprint &amp; Privacy</a></div></div></footer>
   <div id="load-error" class="load-error" hidden></div>
   <script src="js/analytics.js?v=20260908-optout"></script>
-  <script src="js/app.js?v=20261008-model-visibility-3"></script>
+  <script src="js/app.js?v=20261015-heatmap-grid"></script>
 </body>
 </html>
