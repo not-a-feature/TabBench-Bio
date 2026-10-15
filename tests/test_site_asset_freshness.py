@@ -173,6 +173,14 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         assert scores["dataset_id"] == dataset["dataset_id"]
         assert scores["scores"]
     assert not list(output.rglob("*.tex"))
+    home = (output / "index.html").read_text(encoding="utf-8")
+    assert f'<strong id="dataset-count">{len(payload["datasets"]):,}</strong>' in home
+    assert (
+        f'<strong id="model-count">{payload["meta"]["configured_model_count"]:,}</strong>' in home
+    )
+    assert "podium-place-1" in home
+    web_metadata.write_home_summary(output, parsed)
+    assert (output / "index.html").read_text(encoding="utf-8") == home
     assert (output / "models.html").is_file()
     assert (output / "assets/plotly-cartesian.min.js").is_file()
     skill = Path(__file__).resolve().parents[1] / "skills" / web_metadata.SKILL_NAME
