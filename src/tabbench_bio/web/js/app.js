@@ -323,7 +323,7 @@ function setOptions(select, options, current, labeler = (value) => value) {
 }
 
 function renderReferencePodium() {
-  const leaders = DATA.reference
+  const leaders = DATA.analysis_views.strict.reference
     .filter((row) => !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON") && !hasTrainingOverlap(row))
     .sort((a, b) => b.Elo - a.Elo)
     .slice(0, 3);
@@ -359,7 +359,7 @@ function initializeMeta() {
     paperLink.rel = "noreferrer";
   }
   byId("footer-affiliation").firstChild.textContent = `${meta.affiliation} `;
-  renderReferencePodium();
+  if (!byId("podium-list").children.length) renderReferencePodium();
 
   const recordedFoldCounts = DATA.datasets.flatMap((dataset) =>
     dataset.performance.models.map((model) => model.folds)
@@ -1404,7 +1404,6 @@ async function selectAnalysisView(view) {
     note.classList.toggle("is-active", active);
     note.setAttribute("aria-hidden", String(!active));
   });
-  renderReferencePodium();
   if (byId("model-card-model")) renderModelCard();
   if (CHARTS_READY) renderCharts();
 }
@@ -1421,7 +1420,7 @@ function initializeAnalysisView() {
     }
     button.addEventListener("click", () => selectAnalysisView(name).catch(showLoadError));
   });
-  return selectAnalysisView("strict");
+  // Initial Strict content is already rendered by the generator and main().
 }
 
 function updateThemeButton() {

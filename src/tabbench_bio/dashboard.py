@@ -29,7 +29,7 @@ from tabbench_bio.model_registry import (
 )
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.social_preview import write_social_preview
-from tabbench_bio.web_metadata import write_agent_metadata
+from tabbench_bio.web_metadata import write_agent_metadata, write_home_summary
 
 PACKAGE_ROOT = Path(__file__).parent
 DOMAIN_ELO_IMPLEMENTATION_FILES = (
@@ -1015,6 +1015,7 @@ def build_website(
     dashboard["raw_exports"].insert(0, entry)
     write_dashboard_payload(dashboard_path, dashboard)
     write_dataset_explorer(output, dashboard, summary, frames["strict"]["regression"])
+    write_home_summary(output, dashboard)
     write_agent_metadata(output, dashboard)
     write_social_preview(output)
     print(f"Website: {output / 'index.html'}", flush=True)

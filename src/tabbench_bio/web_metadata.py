@@ -178,6 +178,63 @@ def _copy_resource_tree(source, destination: Path) -> None:
             target.write_bytes(child.read_bytes())
 
 
+def write_home_summary(site_dir: Path, dashboard: dict) -> None:
+    """Render the default Strict podium and counts before browser scripts run."""
+    models = dashboard["models"]
+    excluded = set(dashboard["meta"]["plot_excluded_models"]) | {"AUTOGLUON"}
+    leaders = sorted(
+        (
+            row
+            for row in dashboard["analysis_views"]["strict"]["reference"]
+            if row["model_id"] not in excluded
+            and not models[row["model_id"]]["training_data_overlap"]
+        ),
+        key=lambda row: row["Elo"],
+        reverse=True,
+    )[:3]
+    items = []
+    for rank, row in enumerate(leaders, 1):
+        model = models[row["model_id"]]
+        items.append(
+            f'<li class="podium-place podium-place-{rank}">'
+            '<span class="podium-contender"><span class="podium-model">'
+            f"<strong>{escape(model['display'])}</strong><span>{escape(model['category'])}</span></span>"
+            f'<span class="podium-score"><strong>{row["Elo"]:,}</strong>'
+            f"<span>CI {row['Elo_lo']:,}–{row['Elo_hi']:,}</span></span></span>"
+            f'<span class="podium-step" aria-label="Rank {rank}">{rank}</span></li>'
+        )
+    note = ""
+    if leaders:
+        first = leaders[0]
+        setting = f"Macro-F1 Elo · {first['cell_label']} · {first['n_targets']:,} targets"
+        overlap = any(row["Elo_hi"] >= first["Elo_lo"] for row in leaders[1:])
+        suffix = (
+            "95% intervals overlap, so the ordering is descriptive."
+            if overlap
+            else "rankings can change with the data budget."
+        )
+        note = escape(f"Top-rated at the reference setting ({setting}); {suffix}")
+    replacements = {
+        "podium-list": ("ol", "".join(items)),
+        "podium-note": ("p", note),
+        "dataset-count": ("strong", f"{len(dashboard['datasets']):,}"),
+        "model-count": ("strong", f"{dashboard['meta']['configured_model_count']:,}"),
+        "evaluation-points-per-model": (
+            "strong",
+            f"{dashboard['meta']['evaluation_points_per_model']:,}",
+        ),
+    }
+    path = site_dir / "index.html"
+    html = path.read_text(encoding="utf-8")
+    for element_id, (tag, content) in replacements.items():
+        pattern = rf'(<{tag}\b[^>]*\bid="{element_id}"[^>]*>).*?(</{tag}>)'
+        html, count = re.subn(
+            pattern, lambda match: match[1] + content + match[2], html, flags=re.S
+        )
+        assert count == 1, (element_id, count)
+    path.write_text(html, encoding="utf-8")
+
+
 def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     index = site_dir / "index.html"
     html = index.read_text(encoding="utf-8")
