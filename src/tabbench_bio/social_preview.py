@@ -149,10 +149,12 @@ def draw_podium(
 def generate_social_preview(dashboard_path: Path, output: Path) -> None:
     """Render the reference-leader card from one generated site dashboard."""
     dashboard = json.loads(dashboard_path.read_text(encoding="utf-8"))
+    if "analysis_views" in dashboard:
+        dashboard.update(dashboard["analysis_views"]["strict"])
     excluded = set(dashboard["meta"]["plot_excluded_models"])
     leaders = sorted(
         (
-            row
+            {**row, **dashboard["models"][row["model_id"]]}
             for row in dashboard["reference"]
             if row["model_id"] not in excluded
             and row["model_id"] != "AUTOGLUON"

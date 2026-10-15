@@ -79,7 +79,7 @@ def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
 
 > TabBench-Bio is a living benchmark for tabular learning in high-dimensional biomedical regimes. It compares classical models, neural networks, AutoML, and tabular foundation models across controlled feature and sample budgets.
 
-Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard and leaderboard top-level rankings follow this Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. The Failures-omitted view drops failed runs instead of scoring them at chance, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports use Strict results.
+Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard JSON includes analysis_views.strict (primary). Its analysis_view_files map links separate Adaptive and Failures-omitted JSON files, loaded on demand. Leaderboard JSON top-level rankings follow the Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. The Failures-omitted view drops failed runs instead of scoring them at chance, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports use Strict results.
 
 ## Results
 
@@ -125,7 +125,7 @@ Download the Markdown file directly; no repository clone is needed.
 
 ## Machine-readable data
 
-- [Dashboard JSON]({project_url}/data/dashboard.json): modality-specific rankings, costs, coverage, analysis views and model flags.
+- [Dashboard JSON]({project_url}/data/dashboard.json): modality-specific rankings, costs, coverage, analysis views and model flags. Display measurements use six significant digits; model metadata (including tuning grids) is stored once in models, keyed by model_id. Elo ratings, counts and protocol parameters remain exact.
 - [Leaderboard JSON]({project_url}/data/leaderboard.json): aggregate rankings.
 - [Dataset index JSON]({project_url}/data/datasets/index.json): task-specific metrics and links to per-dataset scores.
 

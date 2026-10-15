@@ -77,7 +77,7 @@ CELL_RE = re.compile(r"^cap_(full|\d+)(?:_n(\d+))?$")
 
 
 def write_json(path: Path, payload: object) -> None:
-    atomic_write_json(path, clean_json(payload))
+    atomic_write_json(path, clean_json(payload), indent=None)
 
 
 def clean_json(value):
@@ -86,6 +86,63 @@ def clean_json(value):
     if isinstance(value, (list, tuple)):
         return [clean_json(item) for item in value]
     return None if pd.isna(value) else value
+
+
+DISPLAY_FLOAT_FIELDS = {
+    "f1_macro",
+    "balanced_accuracy",
+    "matthews_corrcoef",
+    "roc_auc",
+    "rmse",
+    "r2",
+    "mae",
+    "fraction",
+    "matrix",
+    "train_time_s",
+    "inference_time_s",
+    "total_time_s",
+}
+
+
+def compact_dashboard_values(value, field="", models=None):
+    """Round display measurements and store model metadata only in the registry."""
+    if models is None:
+        models = value["models"] if isinstance(value, dict) and "models" in value else {}
+    if isinstance(value, dict):
+        metadata = models[value["model_id"]] if "model_id" in value else {}
+        for key in value.keys() & metadata.keys():
+            assert value[key] == metadata[key], (value["model_id"], key)
+        return {
+            key: compact_dashboard_values(item, key, models)
+            for key, item in value.items()
+            if key not in metadata
+        }
+    if isinstance(value, (list, tuple)):
+        return [compact_dashboard_values(item, field, models) for item in value]
+    if isinstance(value, float) and field in DISPLAY_FLOAT_FIELDS and pd.notna(value):
+        return float(format(value, ".6g"))
+    return value
+
+
+def write_dashboard_payload(path: Path, dashboard: dict) -> None:
+    """Publish primary data plus content-addressed sensitivity files."""
+    payload = compact_dashboard_values(
+        {
+            key: value
+            for key, value in dashboard.items()
+            if key not in dashboard["analysis_views"]["strict"]
+        }
+    )
+    payload["analysis_view_files"] = {}
+    for name in ("adaptive", "conditional"):
+        view = payload["analysis_views"].pop(name)
+        digest = hashlib.sha256(
+            json.dumps(view, sort_keys=True, separators=(",", ":")).encode()
+        ).hexdigest()[:16]
+        filename = f"analysis-{name}-{digest}.json"
+        write_json(path.parent / filename, view)
+        payload["analysis_view_files"][name] = f"data/{filename}"
+    write_json(path, payload)
 
 
 def load_model_registry(configs=()) -> dict[str, dict]:
@@ -862,6 +919,11 @@ def build_website(
         previous = json.loads(dashboard_path.read_text(encoding="utf-8"))
         if "analysis_views" in previous:
             prior = tuple(previous["analysis_views"].values())
+            if "analysis_view_files" in previous:
+                prior += tuple(
+                    json.loads((output / relative).read_text(encoding="utf-8"))
+                    for relative in previous["analysis_view_files"].values()
+                )
     views = {}
     for name, metrics in frames.items():
         print(f"Building {name} dashboard ({len(ordered_cells)} cells)", flush=True)
@@ -887,7 +949,7 @@ def build_website(
         frames["strict"]["regression"],
     )
     dashboard = {
-        "schema_version": 9,
+        "schema_version": 11,
         "meta": {
             "title": "TabBench Bio",
             "tagline": "A living benchmark for tabular learning in biomedical HDLSS regimes.",
@@ -951,7 +1013,7 @@ def build_website(
         ignore_path.write_text(ignore_rules.rstrip("\n") + "\n/local/\n", encoding="utf-8")
     entry = write_leaderboard_export(dashboard, output / "data" / "leaderboard.json")
     dashboard["raw_exports"].insert(0, entry)
-    write_json(dashboard_path, dashboard)
+    write_dashboard_payload(dashboard_path, dashboard)
     write_dataset_explorer(output, dashboard, summary, frames["strict"]["regression"])
     write_agent_metadata(output, dashboard)
     write_social_preview(output)
