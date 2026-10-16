@@ -28,7 +28,7 @@ Or run the full feature × sample grid sweep and build the site::
 
 import importlib
 
-__version__ = "0.1.0"
+__version__ = "0.3.0"
 __author__ = "Jules Kreuer (Uni Tübingen)"
 
 _public_map = {
