@@ -15,10 +15,10 @@ authors:
     given-names: "Nico"
     orcid: "https://orcid.org/0000-0002-4647-8566"
 title: "TabBench-Bio"
-version: 0.1.0
-date-released: 2026-08-20
+version: 0.3.0
+date-released: 2026-10-14
 url: "https://github.com/not-a-feature/TabBench-Bio"
-license: Apache-2.0
+license: EUPL-1.2
 preferred-citation:
   type: article
   title: "TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables"

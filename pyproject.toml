@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tabbench-bio"
-version = "0.2.1"
+version = "0.3.0"
 description = "A benchmark for machine learning on high-dimensional biological data"
 readme = "README.md"
 license = "EUPL-1.2 AND Apache-2.0"
