@@ -53,8 +53,12 @@ def test_skill_copy_license_drift_is_reported(tmp_path):
     (site / "skill.md").write_text("license: Apache-2.0\n")
     problems = doctor.check_skill(tmp_path, site)
     assert any("Stale skill copy" in issue for issue in problems)
-    assert any("Missing generated skill asset" in issue for issue in problems)
+    assert not any("Missing generated skill asset" in issue for issue in problems)
     assert "Apache" in (site / "skill.md").read_text()
+    (site / "skill.md").write_bytes(canonical.read_bytes())
+    assert doctor.check_skill(tmp_path, site) == []
+    (site / "skill.md").unlink()
+    assert any("Missing generated skill asset" in issue for issue in doctor.check_skill(tmp_path, site))
 
 
 def test_missing_profile_and_adapter_are_reported(tmp_path, monkeypatch):

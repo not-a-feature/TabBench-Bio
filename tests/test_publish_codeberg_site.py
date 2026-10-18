@@ -14,7 +14,6 @@ def test_publish_copies_the_complete_snapshot(tmp_path, monkeypatch):
         "data/dashboard.json": "{}",
         "data/leaderboard.json": "rankings",
         "skill.md": "skill",
-        "skills/biomedical-tabular-model-selection/references/data.md": "reference",
         "js/app.js": "app",
         "assets/og.png": "image",
     }

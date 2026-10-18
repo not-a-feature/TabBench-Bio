@@ -1,108 +1,104 @@
 ---
 name: biomedical-tabular-model-selection
-description: Shortlist machine learning methods for high-dimensional biomedical tabular data using TabBench-Bio. Match modality, sample/feature budgets, metrics and compute constraints; account for uncertainty, failed fits and training-data overlap.
+description: Select and compare methods for high-dimensional biomedical tables using current TabBench-Bio evidence. Match task, modality, data budgets and compute; interpret uncertainty, failed fits and training-data overlap.
 license: EUPL-1.2
 ---
 
-# Biomedical Tabular Model Selection — TabBench-Bio
+# Select models with TabBench-Bio
 
-Use current evidence from https://tabbench-bio.eu to shortlist machine learning methods
-and recommend a local validation plan. Do not hard-code winners, scores or overlap flags.
+Identify the task, modality, labelled training samples, usable features, metric,
+grouping and compute constraints. Ask only for details that change the shortlist;
+otherwise state assumptions. The user need not upload their dataset.
 
-## 1. Match the user's problem
+## Retrieve current evidence
 
-Identify task, modality, labelled training samples, usable features, target metric,
-grouping/imbalance, and compute constraints. Ask only for details that change the
-shortlist; otherwise state assumptions. A task description and counts suffice.
+Start with [llms.txt](https://tabbench-bio.eu/llms.txt) for benchmark context.
+Retrieve complete JSON with an HTTP client when a browser snapshot is incomplete.
+If retrieval fails, report the missing evidence; do not substitute remembered or
+paper results and present them as current.
 
-Start with [llms.txt](https://tabbench-bio.eu/llms.txt). Use
-[data reference](https://tabbench-bio.eu/skills/biomedical-tabular-model-selection/references/data.md)
-for JSON endpoints and joins.
-Record the snapshot date; disclose unavailable evidence rather than inventing it.
+| Export | Purpose |
+| --- | --- |
+| [Dashboard](https://tabbench-bio.eu/data/dashboard.json) | Modality/metric Elo, costs, coverage and model metadata |
+| [Leaderboard](https://tabbench-bio.eu/data/leaderboard.json) | Aggregate Elo; does not replace modality-specific evidence |
+| [Dataset index](https://tabbench-bio.eu/data/datasets/index.json) | Dataset metadata, metric directions and score-file links |
 
-Choose matching `cell_options` and filter `domain_elo` by cell, domain and metric.
-When an exact budget is unavailable, inspect neighbouring grid points and state
-the mismatch. `null` means full/uncapped, never zero. Aggregate reference rankings
-are not modality-specific evidence; use task-specific scores and metric directions
-for regression or individual datasets. Report limited target coverage.
+Use `analysis_views.strict` by default. Read `cell_options`, `domain_elo`,
+`cost_grid` and `model_card_coverage` from that view, not the dashboard's top level.
+Other views may be inline or linked by `analysis_view_files`; resolve linked paths
+against `https://tabbench-bio.eu/`. Join row `model_id` to top-level `models` for
+names, `tuned_from`, `regular_max_features` and overlap flags.
+Record `meta.snapshot_utc` and check the schema before using an export.
 
-### Minimal lookup example
+Match cells by `feature_cap` and `n_train`, not guessed IDs. A null budget means
+full/uncapped, not zero. Filter `domain_elo` by `cell`, `domain` and `metric`.
+If the requested budget or metric is absent, inspect relevant neighbouring cells
+or dataset scores and disclose the mismatch; do not extrapolate a measured score.
 
-This standard-library Python example queries an *example* operating point. Replace
-its budgets, modality and metric with those appropriate to the user's problem.
-It fetches metadata only and does not fit models or download biomedical datasets.
+For regression or individual datasets, follow the index entry's `scores_file`
+relative to `https://tabbench-bio.eu/data/datasets/`. Read `scores[].values` and
+`metrics[].better` (`high` or `low`). These are Strict dataset scores, not per-fold
+observations or paired significance tests. Do not guess hashed filenames.
+For deeper analysis, use the SQLite entry in `raw_exports` after checking its
+`available`, URL, size and checksum.
+
+### Example lookup
+
+Replace these example budgets, modality and metric with the user's setting:
 
 ```python
 import json
 from urllib.request import urlopen
 
-url = "https://tabbench-bio.eu/data/dashboard.json"
-with urlopen(url, timeout=30) as response:
+with urlopen("https://tabbench-bio.eu/data/dashboard.json", timeout=30) as response:
     data = json.load(response)
 view = data["analysis_views"]["strict"]
-cell = next(c for c in data["cell_options"]
+cell = next(c for c in view["cell_options"]
             if c["feature_cap"] == 10000 and c["n_train"] == 100)
 rows = [r for r in view["domain_elo"]
         if r["cell"] == cell["id"] and r["domain"] == "Gene expression"
         and r["metric"] == "f1_macro"]
-print("View: strict", "Snapshot:", data["meta"]["snapshot_utc"], "Cell:", cell["label"])
+assert rows, "No matching published comparison"
+print(data["meta"]["snapshot_utc"], "strict", cell["label"])
 for row in sorted(rows, key=lambda r: r["Elo"], reverse=True):
     model = data["models"][row["model_id"]]
-    if row["model_id"] in data["meta"]["plot_excluded_models"]:
-        continue
     print(model["display"], row["Elo"], row["Elo_lo"], row["Elo_hi"],
           row["n_targets"], "training-data overlap:", model["training_data_overlap"])
 ```
 
-## 2. Compare candidates fairly
+## Interpret comparisons
 
-- The website defaults to **strict** results, matching its default rankings,
-  nominal-budget comparisons and the paper.
-  Always name the view. Adaptive results may reuse a smaller
-  sample budget after training OOM; label them as sensitivity results, not nominal
-  measurements. Never mix views.
-- Compare Elo, 95% intervals and `n_targets` at the same operating point. Elo is not
-  accuracy, and individual intervals do not establish pairwise significance.
-- Identify tuned families using `models[model_id].tuned_from`, which is exported from
-  the JSON model registry. Untuned Random Forest remains the Elo reference at 1,000.
-  A paired bar shows untuned Elo plus the signed tuning change; its diamond is tuned
-  Elo. Only the tuned interval is drawn for a pair; the hidden untuned interval is
-  still available in the data. The interval is not uncertainty on the tuning change.
-  Plotted error bars stop at zero; exports retain the original statistical interval,
-  including a negative lower bound.
-  Budget-response line plots omit an untuned parent when its tuned version is shown;
-  underlying exports retain both versions. Unpaired models remain visible.
-- The completed tuned snapshot uses a small predefined grid under a one-hour budget.
-  Read the frozen run configuration for its actual candidate set. A changed registry
-  does not retroactively change previously measured scores.
-- System configuration: NVIDIA L40S, 48 GB VRAM, 16 CPU cores and 80 GB RAM.
-- Include a competitive simple baseline and a few complementary candidates.
-  Compare `cost_grid` at the same cell/domain; its per-fold timings are not hardware
-  guarantees or per-patient latency.
-- Join `models[model_id]` for current flags. For each `training_data_overlap: true`,
-  disclose: **Part of the benchmark training data was used in the training process
-  of this model.** Prefer unflagged evidence for the main shortlist; discuss flagged
-  models separately when relevant. A false flag does not prove absence of overlap.
-- Check model version, `regular_max_features` and failed-fit coverage. Above-limit
-  results may rely on modified adapters. Distinguish failed fits scored at chance
-  from successful fits; missing results are not zero.
-- Treat AutoGluon as the benchmark's separate one-hour AutoML reference. Respect
-  `plot_excluded_models` when interpreting displayed rankings.
+- Keep cell, domain, metric and analysis view consistent. Strict scores failures
+  at a constant/chance predictor. Adaptive may reuse a smaller training cell after
+  OOM; report it as sensitivity evidence. Conditional (Failures-omitted) drops
+  failures and compares different target pools, giving an optimistic bound.
+- Report Elo, 95% intervals and `n_targets`. Random Forest anchors Elo at 1,000;
+  Elo is not accuracy. Individual intervals do not establish pairwise significance,
+  and a reference-cell leader is not a universal winner.
+- For `training_data_overlap: true`, disclose: "Part of the benchmark training data
+  was used in the training process of this model." Prefer unflagged evidence for
+  the main shortlist; a false flag does not establish absence of overlap.
+- Match costs on `cell`, `domain`, `model_id`. Per-fold timings depend on benchmark
+  hardware and are not per-patient latency. Coverage uses `successful_fits` and
+  `failed_fits`; inspect modality rows if an all-domain row is absent. Missing
+  results are not zero. Check feature limits and whether adapters were modified.
+- Use `tuned_from` for parent/tuned comparisons. Read the frozen result configuration
+  for the actual one-hour tuning grid; current registry edits do not change past
+  experiments. Rating intervals are not intervals on the tuning gain. Treat
+  AutoGluon as a separate one-hour AutoML reference.
+- `meta.plot_excluded_models` controls website display, not candidate validity.
+  Apply it when reproducing the displayed ranking, not as a blanket exclusion.
 
-## 3. Recommend and validate
+## Recommend and validate
 
-Return the task/modality, budgets, metric, analysis view and snapshot date, plus a
-compact table of candidates, scores/uncertainty, cost and rationale. Cite the exact
-artifacts used and separate measurements from inference. If relevant evidence is
-missing, propose a baseline experiment instead of forcing a ranking.
+Suggest a simple baseline and a few complementary candidates. State the snapshot,
+view, cell and metric; compare scores, uncertainty, coverage, cost and overlap when
+available. Cite the exact exports and separate measurements from inference. If
+relevant evidence is missing, propose a baseline experiment instead of a ranking.
 
-Validate candidates on the user's data with common splits and metrics. Fit
-preprocessing and feature selection within training folds; preserve patient,
-batch or temporal grouping and keep final test data separate from tuning.
-Benchmark evidence guides a shortlist, not a universal winner or permission to
-start expensive experiments.
+For local validation, use common splits and metrics, fit preprocessing and feature
+selection inside training folds, preserve patient/batch/time grouping, and keep the
+final test set separate from tuning. A shortlist does not authorize expensive runs.
 
-Cite [CITATION.cff](https://tabbench-bio.eu/CITATION.cff) or
-[CITATION.bib](https://tabbench-bio.eu/CITATION.bib):
-[arXiv:2609.07441](https://arxiv.org/abs/2609.07441),
-[DOI](https://doi.org/10.48550/arXiv.2609.07441).
+Cite [the benchmark paper](https://doi.org/10.48550/arXiv.2609.07441), using
+[CITATION.cff](https://tabbench-bio.eu/CITATION.cff) for citation metadata.
