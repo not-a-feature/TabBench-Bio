@@ -42,17 +42,11 @@ def check_skill(root: Path, site_dir: Path | None = None) -> list[str]:
     if site_dir is not None:
         destinations.append((site_dir, True))
     for destination, required in destinations:
-        for asset in canonical.rglob("*"):
-            if not asset.is_file():
-                continue
-            copies = [destination / "skills" / SKILL_NAME / asset.relative_to(canonical)]
-            if asset == source:
-                copies.append(destination / "skill.md")
-            for copy in copies:
-                if required and not copy.is_file():
-                    problems.append(f"Missing generated skill asset: {copy}")
-                elif copy.is_file() and copy.read_bytes() != asset.read_bytes():
-                    problems.append(f"Stale skill copy: {copy}; rebuild the site")
+        copy = destination / "skill.md"
+        if required and not copy.is_file():
+            problems.append(f"Missing generated skill asset: {copy}")
+        elif copy.is_file() and copy.read_bytes() != source.read_bytes():
+            problems.append(f"Stale skill copy: {copy}; rebuild the site")
     return problems
 
 

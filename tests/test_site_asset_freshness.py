@@ -186,10 +186,7 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     skill = Path(__file__).resolve().parents[1] / "skills" / web_metadata.SKILL_NAME
     assert b"license: EUPL-1.2" in (output / "skill.md").read_bytes()
     assert (output / "skill.md").read_bytes() == (skill / "SKILL.md").read_bytes()
-    for asset in skill.rglob("*"):
-        if asset.is_file():
-            relative = asset.relative_to(skill)
-            assert (output / "skills" / skill.name / relative).read_bytes() == asset.read_bytes()
+    assert not (output / "skills").exists()
     for asset in (dashboard.PACKAGE_ROOT / "web").rglob("*"):
         if asset.is_file() and asset.name not in {
             "llms.txt",
@@ -238,10 +235,8 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     monkeypatch.setattr(web_metadata, "PACKAGE_ROOT", tmp_path / "lib/site-packages/tabbench_bio")
     monkeypatch.setattr(web_metadata, "files", lambda _: tmp_path / "installed/tabbench_bio")
     (output / "skill.md").write_text("stale copy", encoding="utf-8")
-    stale = output / "skills" / skill.name / "removed.md"
-    stale.write_text("old", encoding="utf-8")
     web_metadata.write_agent_metadata(output, payload)
-    assert not stale.exists()
+    assert not (output / "skills").exists()
     assert (output / "skill.md").read_bytes() == (skill / "SKILL.md").read_bytes()
 
 

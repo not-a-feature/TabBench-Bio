@@ -2,7 +2,6 @@
 
 import json
 import re
-import shutil
 from collections import Counter
 from importlib.resources import files
 from pathlib import Path
@@ -168,16 +167,6 @@ def build_sitemap(project_url: str, last_modified: str) -> str:
     )
 
 
-def _copy_resource_tree(source, destination: Path) -> None:
-    destination.mkdir(parents=True)
-    for child in source.iterdir():
-        target = destination / child.name
-        if child.is_dir():
-            _copy_resource_tree(child, target)
-        else:
-            target.write_bytes(child.read_bytes())
-
-
 def write_home_summary(site_dir: Path, dashboard: dict) -> None:
     """Render the default Strict podium and counts before browser scripts run."""
     models = dashboard["models"]
@@ -266,10 +255,6 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     skill = PACKAGE_ROOT.parents[1] / "skills" / SKILL_NAME
     if not skill.is_dir():
         skill = files("tabbench_bio").joinpath("skills", SKILL_NAME)
-    destination = site_dir / "skills" / SKILL_NAME
-    if destination.exists():
-        shutil.rmtree(destination)
-    _copy_resource_tree(skill, destination)
     (site_dir / "skill.md").write_bytes(skill.joinpath("SKILL.md").read_bytes())
     project_url = "https://" + dashboard["meta"]["domain"]
     (site_dir / "llms.txt").write_text(build_llms_text(dashboard, project_url), encoding="utf-8")
