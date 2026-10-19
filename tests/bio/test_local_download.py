@@ -7,6 +7,7 @@ from urllib.error import URLError
 
 import pytest
 
+from tabbench_bio import io_utils
 from tabbench_bio.bio.datasets import BioDatasetSpec
 from tabbench_bio.bio.loaders import get_loader
 from tabbench_bio.bio.loaders import local as loader
@@ -37,7 +38,7 @@ def test_download_then_reuse_without_network(spec, monkeypatch, tmp_path):
         calls.append(url)
         return io.BytesIO(TABLE)
 
-    monkeypatch.setattr(loader, "urlopen", download)
+    monkeypatch.setattr(io_utils, "urlopen", download)
     source = get_loader(spec, cache_dir=str(tmp_path / "cache"))
     first = source.fetch(spec)
     second = source.fetch(spec)
@@ -50,7 +51,7 @@ def test_download_then_reuse_without_network(spec, monkeypatch, tmp_path):
 
 
 def test_checksum_failure_never_publishes_partial_file(spec, monkeypatch, tmp_path):
-    monkeypatch.setattr(loader, "urlopen", lambda *args, **kwargs: io.BytesIO(b"bad content"))
+    monkeypatch.setattr(io_utils, "urlopen", lambda *args, **kwargs: io.BytesIO(b"bad content"))
     source = loader.LocalLoader(cache_dir=tmp_path / "cache")
     with pytest.raises(AssertionError, match="SHA-256 mismatch"):
         source.fetch(spec)
@@ -64,7 +65,7 @@ def test_interrupted_download_cleans_partial_file(spec, monkeypatch, tmp_path):
                 raise OSError("connection interrupted")
             return super().read(10)
 
-    monkeypatch.setattr(loader, "urlopen", lambda *args, **kwargs: Interrupted(TABLE))
+    monkeypatch.setattr(io_utils, "urlopen", lambda *args, **kwargs: Interrupted(TABLE))
     with pytest.raises(OSError, match="connection interrupted"):
         loader.LocalLoader(cache_dir=tmp_path / "cache").fetch(spec)
     assert list((tmp_path / "cache").iterdir()) == []
@@ -74,7 +75,7 @@ def test_unavailable_release_cleans_partial_file(spec, monkeypatch, tmp_path):
     def unavailable(*args, **kwargs):
         raise URLError("release unavailable")
 
-    monkeypatch.setattr(loader, "urlopen", unavailable)
+    monkeypatch.setattr(io_utils, "urlopen", unavailable)
     with pytest.raises(URLError, match="release unavailable"):
         loader.LocalLoader(cache_dir=tmp_path / "cache").fetch(spec)
     assert list((tmp_path / "cache").iterdir()) == []
@@ -91,7 +92,7 @@ def test_corrupt_cached_file_is_not_silently_reused(spec, tmp_path):
 def test_explicit_local_directory_receives_download(spec, monkeypatch, tmp_path):
     local = tmp_path / "custom"
     monkeypatch.setenv("TABBENCH_BIO_LOCAL_DIR", str(local))
-    monkeypatch.setattr(loader, "urlopen", lambda *args, **kwargs: io.BytesIO(TABLE))
+    monkeypatch.setattr(io_utils, "urlopen", lambda *args, **kwargs: io.BytesIO(TABLE))
     loader.LocalLoader(cache_dir=tmp_path / "unused").fetch(spec)
     assert (local / "table.csv").read_bytes() == TABLE
     assert not (tmp_path / "unused").exists()
@@ -101,7 +102,7 @@ def test_existing_local_table_takes_precedence(spec, monkeypatch, tmp_path):
     path = tmp_path / "bundled/table.csv"
     path.parent.mkdir()
     path.write_bytes(TABLE)
-    monkeypatch.setattr(loader, "urlopen", lambda *args, **kwargs: pytest.fail("network used"))
+    monkeypatch.setattr(io_utils, "urlopen", lambda *args, **kwargs: pytest.fail("network used"))
     loader.LocalLoader(cache_dir=tmp_path / "unused").fetch(spec)
     assert not (tmp_path / "unused").exists()
 
