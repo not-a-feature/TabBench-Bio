@@ -66,6 +66,9 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
         cls = ag_model_registry.key_to_cls(key)
         assert isinstance(cls, type), f"Unknown AutoGluon model key: {key}"
         hp[cls] = [{**gpu_arg}]
+        if key == "KNN":
+            # Molecular fingerprints are numeric binary features, tagged bool by AutoGluon.
+            hp[cls][0]["ag.ignored_type_group_special"] = []
     return hp
 
 

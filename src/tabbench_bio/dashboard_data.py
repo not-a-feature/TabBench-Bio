@@ -36,6 +36,7 @@ MODALITIES = {
     "Methylation": "DNA methylation",
     "SNP Genotype": "Genomic prediction",
     "Molecular Fingerprint": "Molecular properties",
+    "Metabolomics": "Other",
     "Mass Spectrometry": "Other",
     "Misc": "Other",
 }

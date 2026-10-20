@@ -19,13 +19,15 @@ import stat
 import tempfile
 import uuid
 import zlib
-from contextlib import closing
+from collections.abc import Iterator
+from contextlib import closing, contextmanager, nullcontext
 from dataclasses import dataclass
 from datetime import UTC, datetime
 from functools import cache
 from pathlib import Path
 
 import pandas as pd
+from filelock import SoftFileLock
 
 from tabbench_bio.config import load_config
 from tabbench_bio.io_utils import sha256_file
@@ -104,24 +106,38 @@ def _bytes_frame(payload: bytes) -> pd.DataFrame:
     return pd.read_csv(io.BytesIO(payload), index_col=0)
 
 
-def _connect(path: Path, *, read_only: bool = False) -> sqlite3.Connection:
+@contextmanager
+def _connect(path: Path, *, read_only: bool = False) -> Iterator[sqlite3.Connection]:
     if read_only:
         assert path.is_file(), path
-        uri_path = path.absolute().as_posix()
-        if uri_path.startswith("//?/UNC/"):
-            uri_path = "//" + uri_path[8:]
-        elif uri_path.startswith("//?/"):
-            uri_path = uri_path[4:]
-        connection = sqlite3.connect(Path(uri_path).as_uri() + "?mode=ro", uri=True, timeout=60)
-        connection.execute("PRAGMA query_only=ON")
     else:
         path.parent.mkdir(parents=True, exist_ok=True)
-        connection = sqlite3.connect(path, timeout=60)
-        connection.execute("PRAGMA journal_mode=DELETE")
-        connection.execute("PRAGMA synchronous=FULL")
-    connection.execute("PRAGMA foreign_keys=ON")
-    connection.execute("PRAGMA busy_timeout=60000")
-    return connection
+    # Some shared filesystems provide only node-local POSIX locks. Protect live
+    # bundles with an atomic filesystem marker; published snapshots need no marker.
+    lock = (
+        SoftFileLock(str(path) + ".lock", timeout=60)
+        if path.parent.name == WRITER_DIRECTORY
+        else nullcontext()
+    )
+    with lock:
+        if read_only:
+            uri_path = path.absolute().as_posix()
+            if uri_path.startswith("//?/UNC/"):
+                uri_path = "//" + uri_path[8:]
+            elif uri_path.startswith("//?/"):
+                uri_path = uri_path[4:]
+            connection = sqlite3.connect(Path(uri_path).as_uri() + "?mode=ro", uri=True, timeout=60)
+        else:
+            connection = sqlite3.connect(path, timeout=60)
+        with closing(connection):
+            if read_only:
+                connection.execute("PRAGMA query_only=ON")
+            else:
+                connection.execute("PRAGMA journal_mode=DELETE")
+                connection.execute("PRAGMA synchronous=FULL")
+            connection.execute("PRAGMA foreign_keys=ON")
+            connection.execute("PRAGMA busy_timeout=60000")
+            yield connection
 
 
 def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_writer: str) -> None:
@@ -193,7 +209,7 @@ def _ensure_writer(path: Path, *, experiment_id: str, bundle_writer: str) -> Non
     path.parent.mkdir(parents=True, exist_ok=True)
     with tempfile.TemporaryDirectory(prefix=".initialise-", dir=path.parent) as directory:
         temporary = Path(directory) / path.name
-        with closing(_connect(temporary)) as connection:
+        with _connect(temporary) as connection:
             connection.execute("BEGIN IMMEDIATE")
             _initialise(connection, experiment_id=experiment_id, bundle_writer=bundle_writer)
             connection.commit()
@@ -315,7 +331,7 @@ class ResultRepository:
         legacy_exists = next(output_path.glob("seed_*/stats/*.json"), None) is not None
         cell_registered = False
         for bundle_path in bundle_paths:
-            with closing(_connect(bundle_path, read_only=True)) as connection:
+            with _connect(bundle_path, read_only=True) as connection:
                 cells_ready = connection.execute(
                     "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = 'cells'"
                 ).fetchone()
@@ -348,7 +364,7 @@ class ResultRepository:
         _ensure_writer(
             self.writer_path, experiment_id=self.experiment_id, bundle_writer=self.writer
         )
-        with closing(_connect(self.writer_path)) as connection:
+        with _connect(self.writer_path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             _initialise(connection, experiment_id=self.experiment_id, bundle_writer=self.writer)
             _register_cell(connection, self.cell, self.cell_config)
@@ -399,7 +415,7 @@ class ResultRepository:
         attempts_by_id: dict[str, StoredAttempt] = {}
         blob_sources: dict[str, Path] = {}
         for path in self.bundle_paths():
-            with closing(_connect(path, read_only=True)) as connection:
+            with _connect(path, read_only=True) as connection:
                 metadata = dict(connection.execute("SELECT key, value FROM metadata"))
                 assert int(metadata["schema_version"]) == SCHEMA_VERSION, path
                 assert metadata["experiment_id"] == self.experiment_id, path
@@ -487,7 +503,7 @@ class ResultRepository:
 
     def _blob(self, digest: str) -> bytes:
         path = self._blob_sources[digest]
-        with closing(_connect(path, read_only=True)) as connection:
+        with _connect(path, read_only=True) as connection:
             row = connection.execute(
                 "SELECT encoding, uncompressed_bytes, payload FROM blobs WHERE sha256 = ?",
                 (digest,),
@@ -576,7 +592,7 @@ class ResultRepository:
             validate_truth(
                 self.split_manifest, seed, payload["dataset"], _sha256(_frame_bytes(ground_truth))
             )
-        with closing(_connect(self.writer_path)) as connection:
+        with _connect(self.writer_path) as connection:
             connection.execute("BEGIN IMMEDIATE")
             _initialise(connection, experiment_id=self.experiment_id, bundle_writer=self.writer)
             _register_cell(connection, self.cell, self.cell_config)
@@ -672,11 +688,11 @@ def snapshot_database(source: str | os.PathLike[str], destination: str | os.Path
     temporary = Path(temporary_name)
     try:
         with (
-            closing(_connect(source_path, read_only=True)) as source_connection,
+            _connect(source_path, read_only=True) as source_connection,
             closing(sqlite3.connect(temporary)) as destination_connection,
         ):
             source_connection.backup(destination_connection)
-        with closing(_connect(temporary, read_only=True)) as connection:
+        with _connect(temporary, read_only=True) as connection:
             assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
         temporary.chmod(stat.S_IMODE(source_path.stat().st_mode) | stat.S_IRGRP)
         os.replace(temporary, destination_path)
@@ -751,18 +767,18 @@ def install_snapshots(
         source = source_dir / entry["file"]
         assert source.stat().st_size == entry["bytes"], source
         assert sha256_file(source) == entry["sha256"], source
-        with closing(_connect(source, read_only=True)) as connection:
+        with _connect(source, read_only=True) as connection:
             assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
             metadata = dict(connection.execute("SELECT key, value FROM metadata"))
             assert metadata["experiment_id"] == root.name
             _validate_frozen_splits(connection, split_manifest)
         destination = root / WRITER_DIRECTORY / source.name
         if destination.is_file():
-            with closing(_connect(destination, read_only=True)) as existing_connection:
+            with _connect(destination, read_only=True) as existing_connection:
                 existing_ids = {
                     row[0] for row in existing_connection.execute("SELECT attempt_id FROM attempts")
                 }
-            with closing(_connect(source, read_only=True)) as incoming_connection:
+            with _connect(source, read_only=True) as incoming_connection:
                 incoming_ids = {
                     row[0] for row in incoming_connection.execute("SELECT attempt_id FROM attempts")
                 }
@@ -819,7 +835,7 @@ def _merge_cell_config(existing: dict, incoming: dict, cell: str) -> dict:
 def _copy_database_rows(
     source: Path, destination: sqlite3.Connection, *, merge_models: bool = False
 ) -> None:
-    with closing(_connect(source, read_only=True)) as connection:
+    with _connect(source, read_only=True) as connection:
         metadata = dict(connection.execute("SELECT key, value FROM metadata"))
         assert int(metadata["schema_version"]) == SCHEMA_VERSION, source
         destination_metadata = dict(destination.execute("SELECT key, value FROM metadata"))
@@ -953,14 +969,14 @@ def merge_results(sources: list[str | os.PathLike[str]], output: str | os.PathLi
     with tempfile.TemporaryDirectory(prefix=".merge-results-", dir=destination.parent) as work:
         temporary = Path(work) / CANONICAL_FILENAME
         provenance = []
-        with closing(_connect(temporary)) as connection:
+        with _connect(temporary) as connection:
             _initialise(
                 connection, experiment_id=destination.parent.name, bundle_writer="canonical"
             )
             connection.commit()
             for source in paths:
                 snapshot = snapshot_database(source, Path(work) / "source.sqlite")
-                with closing(_connect(snapshot, read_only=True)) as reader:
+                with _connect(snapshot, read_only=True) as reader:
                     provenance.append(
                         {
                             "filename": source.name,
@@ -1010,7 +1026,7 @@ def import_legacy_results(
     assert cells, f"No configured result cells found under {root}"
 
     _ensure_writer(destination, experiment_id=root.name, bundle_writer=bundle_writer)
-    with closing(_connect(destination)) as connection:
+    with _connect(destination) as connection:
         connection.execute("BEGIN IMMEDIATE")
         _initialise(connection, experiment_id=root.name, bundle_writer=bundle_writer)
         connection.commit()
