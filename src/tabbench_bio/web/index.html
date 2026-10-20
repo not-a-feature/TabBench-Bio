@@ -138,7 +138,7 @@
             <button id="view-conditional" class="button" type="button" aria-pressed="false">Failures omitted (sensitivity)</button>
             <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show all models</button>
           </div>
-          <p id="analysis-view-note" class="analysis-view-note" aria-live="polite"><span id="analysis-view-note-strict" class="is-active" aria-hidden="false">Primary analysis: each score comes from the requested feature- and sample-cap cell; no smaller cell is substituted. Failures are scored at chance.</span><span id="analysis-view-note-adaptive" aria-hidden="true">Sensitivity analysis: after a memory failure, a verified result from a smaller sample cap may be carried forward. It is not performance at the requested larger cell.</span><span id="analysis-view-note-conditional" aria-hidden="true">Sensitivity analysis: a failed run is omitted instead of scored at chance, which removes that model from the target. Models are then ranked on different target pools, so this view is an optimistic bound rather than a like-for-like comparison.</span></p>
+          <p id="analysis-view-note" class="analysis-view-note" aria-live="polite"><span id="analysis-view-note-strict" class="is-active" aria-hidden="false">Primary analysis: each score comes from the requested feature- and sample-cap cell; no smaller cell is substituted. Tuned failures use the untuned parent; other failures use the constant predictor.</span><span id="analysis-view-note-adaptive" aria-hidden="true">Sensitivity analysis: after a memory failure, a verified result from a smaller sample cap may be carried forward. It is not performance at the requested larger cell.</span><span id="analysis-view-note-conditional" aria-hidden="true">Sensitivity analysis: a failed run is omitted instead of imputed, which removes that model from the target. Models are then ranked on different target pools, so this view is an optimistic bound rather than a like-for-like comparison.</span></p>
         </div>
         <button id="download-all-figures" title="Download current chart selections, including collapsed plots, for all three analysis modes with default and all models (PNG and SVG)." class="button figure-download-button" type="button" disabled>Download all figures <span aria-hidden="true">↓</span></button>
       </div>
@@ -274,8 +274,9 @@
         Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold.</p>
         <p><strong>System configuration.</strong> NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.</p>
         <p><strong>Strict website default.</strong> Performance charts and rankings open in Strict
-        (primary) mode, using results at the requested feature and sample budgets. Failures are scored
-        with the constant predictor. Adaptive remains available as a sensitivity view and may reuse a
+        (primary) mode, using results at the requested feature and sample budgets. Tuned failures use
+        the matching untuned model at the same cell and fold; other failures use the constant predictor.
+        Adaptive remains available as a sensitivity view and may reuse a
         verified smaller sample budget after a memory failure. Dataset-specific exports and the downloadable
         LaTeX leaderboard also use Strict results.</p>
       </aside>

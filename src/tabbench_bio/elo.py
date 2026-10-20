@@ -12,7 +12,7 @@ Forest) sits at exactly 1000, and confidence intervals come from bootstrap resam
 whole targets, carrying their folds with them.
 
 Absent ``(model, target, fold)`` results are not imputed here: a fit that was attempted and
-failed has already been imputed at chance level upstream
+failed has already been imputed at its untuned parent or chance upstream
 (:func:`tabbench_bio.coverage.impute_failures`), and a model without every scheduled fold on
 a target has been removed from that target (:func:`tabbench_bio.coverage.complete_folds`).
 What reaches this module as missing is therefore simply not played.
