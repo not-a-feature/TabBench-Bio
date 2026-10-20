@@ -660,7 +660,11 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY 4.0 via TDC; underlying source terms require verification before re-hosting",
-    "notes": "Validated official Harvard Dataverse file 4259566. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 1954 molecules, 2048 features, 1187 groups; 1 invalid structure and 11 conflicting molecules dropped."
+    "notes": "Validated official Harvard Dataverse file 4259566. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 1954 molecules, 2048 features, 1187 groups; 1 invalid structure and 11 conflicting molecules dropped.",
+    "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259566",
+    "download_sha256": "eb32676c7bf6e2bcd98b7625186bbb2ba4e4644c1d1468dfa18b6be665bd5e98",
+    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259566",
+    "citation": "Martins IF et al. (2012), A Bayesian approach to in silico blood-brain barrier penetration modeling."
   },
   {
     "bio_id": "TDC-AMES",
@@ -673,7 +677,11 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY 4.0 via TDC; underlying source terms require verification before re-hosting",
-    "notes": "Validated official Harvard Dataverse file 4259564. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 7255 molecules, 2048 features, 3008 groups; no invalid or conflicting structures."
+    "notes": "Validated official Harvard Dataverse file 4259564. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 7255 molecules, 2048 features, 3008 groups; no invalid or conflicting structures.",
+    "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259564",
+    "download_sha256": "825c2b4c31c9cec81aa32eb394fd24e6b32ee4959905d4272e56483ecb6f3e16",
+    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259564",
+    "citation": "Hansen K et al. (2009), Benchmark data set for in silico prediction of Ames mutagenicity."
   },
   {
     "bio_id": "TDC-CYP3A4-Veith",
@@ -686,7 +694,11 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY 4.0 via TDC; underlying source terms require verification before re-hosting",
-    "notes": "Validated official Harvard Dataverse file 4259582. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 12300 molecules, 2048 features, 7867 groups; 1 invalid and 1 conflicting molecule dropped."
+    "notes": "Validated official Harvard Dataverse file 4259582. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 12300 molecules, 2048 features, 7867 groups; 1 invalid and 1 conflicting molecule dropped.",
+    "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259582",
+    "download_sha256": "4c85a4cea9ffadd36fdd188f96b866d1d8db5d333a6d423172cf4363a585565a",
+    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259582",
+    "citation": "Veith H et al. (2009), Comprehensive characterization of cytochrome P450 isozyme selectivity."
   },
   {
     "bio_id": "TDC-AqSolDB",
@@ -699,7 +711,11 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY 4.0 via TDC; underlying source terms require verification before re-hosting",
-    "notes": "Validated official Harvard Dataverse file 4259610. Canonical parent structures, median target for exact duplicates, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 9562 molecules, 2048 features, 4620 groups; 2 invalid structures dropped."
+    "notes": "Validated official Harvard Dataverse file 4259610. Canonical parent structures, median target for exact duplicates, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 9562 molecules, 2048 features, 4620 groups; 2 invalid structures dropped.",
+    "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259610",
+    "download_sha256": "0b593f7b55abbe477ba4284aefd7b5450551f4ed21ac4aed80a097931141c9a4",
+    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259610",
+    "citation": "Sorkun MC et al. (2019), AqSolDB, a curated reference set of aqueous solubility."
   },
   {
     "bio_id": "TDC-Lipophilicity-AstraZeneca",
@@ -712,7 +728,11 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY 4.0 via TDC; underlying source terms require verification before re-hosting",
-    "notes": "Validated official Harvard Dataverse file 4259595. Canonical parent structures, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 4200 molecules, 2048 features, 2447 groups; no invalid or duplicate structures."
+    "notes": "Validated official Harvard Dataverse file 4259595. Canonical parent structures, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 4200 molecules, 2048 features, 2447 groups; no invalid or duplicate structures.",
+    "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259595",
+    "download_sha256": "14add1edb356e62f78256ff964c0cbba03c007be3ff48d6d4c18679f307f1d4c",
+    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259595",
+    "citation": "AstraZeneca / MoleculeNet lipophilicity benchmark, distributed by Therapeutics Data Commons."
   },
   {
     "bio_id": "TDC-LD50-Zhu",
@@ -725,7 +745,11 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY 4.0 via TDC; underlying source terms require verification before re-hosting",
-    "notes": "Validated official Harvard Dataverse file 4267146. Canonical parent structures, median target for exact duplicates, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 7341 molecules, 2048 features, 3605 groups; 1 invalid structure dropped."
+    "notes": "Validated official Harvard Dataverse file 4267146. Canonical parent structures, median target for exact duplicates, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 7341 molecules, 2048 features, 3605 groups; 1 invalid structure dropped.",
+    "download_url": "https://dataverse.harvard.edu/api/access/datafile/4267146",
+    "download_sha256": "fdae7cfe7840fcca3341be0126cb6cbf1b16a4fcde42865f98cb9ca607f5ff16",
+    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4267146",
+    "citation": "Zhu H et al. (2009), Quantitative structure-activity relationship modeling of rat acute toxicity."
   },
   {
     "bio_id": "GEO-GSE40279-Methylation-Age",
@@ -796,7 +820,21 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC0-1.0",
-    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Flowering time from SNP genotypes; discovery quality pass: 391 plant lines and 244781 source markers. Plant lines are the independent rows; the benchmark-wide feature cap is applied without target-dependent selection."
+    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Flowering time from SNP genotypes; discovery quality pass: 391 plant lines and 244781 source markers. Plant lines are the independent rows; the benchmark-wide feature cap is applied without target-dependent selection.",
+    "source_url": "https://doi.org/10.5061/dryad.xksn02vb9",
+    "citation": "Azodi CB et al. (2019), Benchmarking Parametric and Machine Learning Models for Genomic Prediction of Complex Traits, G3: Genes|Genomes|Genetics, doi:10.1534/g3.119.400498.",
+    "download_files": {
+      "maize_geno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/maize_geno.csv/content",
+        "checksum": "2e2d6fbcbe478105077ed0063fe2401a",
+        "algorithm": "md5"
+      },
+      "maize_pheno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/maize_pheno.csv/content",
+        "checksum": "1f8eadf2595faec317af5665f8be4afc",
+        "algorithm": "md5"
+      }
+    }
   },
   {
     "bio_id": "gp-rice-FT",
@@ -809,7 +847,21 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC0-1.0",
-    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Flowering time from SNP genotypes; discovery quality pass: 327 plant lines and 57542 source markers. Plant lines are the independent rows; the benchmark-wide feature cap is applied without target-dependent selection."
+    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Flowering time from SNP genotypes; discovery quality pass: 327 plant lines and 57542 source markers. Plant lines are the independent rows; the benchmark-wide feature cap is applied without target-dependent selection.",
+    "source_url": "https://doi.org/10.5061/dryad.xksn02vb9",
+    "citation": "Azodi CB et al. (2019), Benchmarking Parametric and Machine Learning Models for Genomic Prediction of Complex Traits, G3: Genes|Genomes|Genetics, doi:10.1534/g3.119.400498.",
+    "download_files": {
+      "rice_geno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/rice_geno.csv/content",
+        "checksum": "3584b09824b1b4cfa8d44869b91e3fd4",
+        "algorithm": "md5"
+      },
+      "rice_pheno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/rice_pheno.csv/content",
+        "checksum": "f6f14948fc9cbede9d08cc3edb78c2d7",
+        "algorithm": "md5"
+      }
+    }
   },
   {
     "bio_id": "gp-soy-YLD",
@@ -822,7 +874,21 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC0-1.0",
-    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Yield from SNP genotypes; discovery quality pass: 5014 plant lines and 4234 source markers. Plant lines are the independent rows."
+    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Yield from SNP genotypes; discovery quality pass: 5014 plant lines and 4234 source markers. Plant lines are the independent rows.",
+    "source_url": "https://doi.org/10.5061/dryad.xksn02vb9",
+    "citation": "Azodi CB et al. (2019), Benchmarking Parametric and Machine Learning Models for Genomic Prediction of Complex Traits, G3: Genes|Genomes|Genetics, doi:10.1534/g3.119.400498.",
+    "download_files": {
+      "soy_geno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/soy_geno.csv/content",
+        "checksum": "211c2c45f1d38d479471cf803a4dfa3f",
+        "algorithm": "md5"
+      },
+      "soy_pheno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/soy_pheno.csv/content",
+        "checksum": "bdfaa0ceacf42b0197cbb8ee8347f56c",
+        "algorithm": "md5"
+      }
+    }
   },
   {
     "bio_id": "gp-switchgrass-HT",
@@ -835,7 +901,21 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC0-1.0",
-    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Plant height from SNP genotypes; discovery quality pass: 514 plant lines and 217150 source markers. Plant lines are the independent rows; the benchmark-wide feature cap is applied without target-dependent selection."
+    "notes": "Azodi et al. Dryad release (doi:10.5061/dryad.xksn02vb9), pinned via Zenodo record 4980429. Plant height from SNP genotypes; discovery quality pass: 514 plant lines and 217150 source markers. Plant lines are the independent rows; the benchmark-wide feature cap is applied without target-dependent selection.",
+    "source_url": "https://doi.org/10.5061/dryad.xksn02vb9",
+    "citation": "Azodi CB et al. (2019), Benchmarking Parametric and Machine Learning Models for Genomic Prediction of Complex Traits, G3: Genes|Genomes|Genetics, doi:10.1534/g3.119.400498.",
+    "download_files": {
+      "switchgrass_geno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/switchgrass_geno.csv/content",
+        "checksum": "99d6c544cab1d93073c5e86a6855a0f0",
+        "algorithm": "md5"
+      },
+      "switchgrass_pheno.csv": {
+        "url": "https://zenodo.org/api/records/4980429/files/switchgrass_pheno.csv/content",
+        "checksum": "5d2fbd31a9fde9edffec23f1d13f34d7",
+        "algorithm": "md5"
+      }
+    }
   },
   {
     "bio_id": "CHEMBL206",
@@ -862,5 +942,56 @@
     "redistributable": false,
     "license": "CC BY-SA 3.0",
     "notes": "Human single-protein glucocorticoid receptor endpoint, pinned to ChEMBL 37. Exact unflagged pChEMBL measurements are canonicalised to parent structures, exact molecules receive their median target, and molecules become 2048-bit ECFP4 features grouped by Bemis-Murcko scaffold."
+  },
+  {
+    "bio_id": "MoleculeNet-Tox21-SR-MMP",
+    "display_name": "Tox21 Mitochondrial Membrane Potential",
+    "source": "moleculenet",
+    "fetch_id": "SR-MMP",
+    "download_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+    "download_sha256": "45d09792492ce049039dd24aa27b07fc79ce20c573187d4d90bcd178c0c0d360",
+    "source_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+    "citation": "Wu Z et al. (2018), MoleculeNet: a benchmark for molecular machine learning. doi:10.1039/C7SC02664A; Tox21 SR-MMP assay.",
+    "data_type": "Molecular Fingerprint",
+    "target": "SR-MMP",
+    "problem_type": "binary",
+    "enabled": true,
+    "redistributable": false,
+    "license": "Tox21 / MoleculeNet distribution; underlying source terms apply",
+    "notes": "Measured SR-MMP activity. Pinned original Tox21 CSV; missing assay labels excluded, canonical parent structures deduplicated, conflicting parent labels dropped under the existing 1% quality limit. Stateless 2048-bit ECFP4. Scaffolds linked by identical fingerprints form indivisible groups. Shares the Tox21 cohort with NR-AhR; endpoints are not independent cohorts."
+  },
+  {
+    "bio_id": "MoleculeNet-Tox21-NR-AhR",
+    "display_name": "Tox21 Aryl Hydrocarbon Receptor Activity",
+    "source": "moleculenet",
+    "fetch_id": "NR-AhR",
+    "download_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+    "download_sha256": "45d09792492ce049039dd24aa27b07fc79ce20c573187d4d90bcd178c0c0d360",
+    "source_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+    "citation": "Wu Z et al. (2018), MoleculeNet: a benchmark for molecular machine learning. doi:10.1039/C7SC02664A; Tox21 NR-AhR assay.",
+    "data_type": "Molecular Fingerprint",
+    "target": "NR-AhR",
+    "problem_type": "binary",
+    "enabled": true,
+    "redistributable": false,
+    "license": "Tox21 / MoleculeNet distribution; underlying source terms apply",
+    "notes": "Measured NR-AhR activity. Uses the same pinned source and scaffold-plus-identical-input grouping as SR-MMP, with endpoint-specific missing labels and conflicts removed. Shares the Tox21 cohort with SR-MMP; endpoints are not independent cohorts."
+  },
+  {
+    "bio_id": "MW-ST001000-CD-UC",
+    "display_name": "PRISM Stool Metabolomics CD vs UC",
+    "source": "metabolomics",
+    "fetch_id": "ST001000",
+    "download_url": "https://www.metabolomicsworkbench.org/data/downloadfile.php?DF=ST001000_AN001880_res.txt&RA=BD",
+    "download_sha256": "57c011ce06ee462ad3dcc35ff389ff585a28b40122688c48b4c5f1fb0f2dda87",
+    "source_url": "https://www.metabolomicsworkbench.org/data/DRCCMetadata.php?StudyID=ST001000",
+    "citation": "Franzosa EA et al. (2019), Gut microbiome structure and metabolic activity in inflammatory bowel disease. doi:10.1038/s41564-018-0306-4; ST001000 / AN001880.",
+    "data_type": "Metabolomics",
+    "target": "diagnosis",
+    "problem_type": "binary",
+    "enabled": true,
+    "redistributable": true,
+    "license": "CC BY 4.0",
+    "notes": "Primary ST001000 AN001880 C18-negative table: 121 PRISM participants (68 CD, 53 UC), 2121 metabolite features. Target 1=CD, 0=UC. Participant IDs and diagnosis fields excluded from X; log1p only, with source NA retained for training-fitted missingness handling. External 43-person UMCGIBD cohort excluded from benchmark CV. Manual small-cohort inclusion below the separate quality helper's 150-row default. Within-PRISM batch/plate metadata remain unavailable."
   }
 ]

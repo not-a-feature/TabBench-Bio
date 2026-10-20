@@ -28,5 +28,8 @@
   "GEO-GSE42861-Methylation-RA",
   "FusionAI-NTv2-GeneFusion",
   "GEO-GSE50660-Methylation-Smoking",
-  "GEO-GSE147221-Methylation-Schizophrenia"
+  "GEO-GSE147221-Methylation-Schizophrenia",
+  "MoleculeNet-Tox21-SR-MMP",
+  "MoleculeNet-Tox21-NR-AhR",
+  "MW-ST001000-CD-UC"
 ]
