@@ -221,7 +221,11 @@ def read_inputs(
                 )
                 cell_status = status[status["cell"] == cell]
                 scored = (
-                    impute_failures(cell_frame, cell_status)
+                    impute_failures(
+                        cell_frame,
+                        cell_status,
+                        model_tuning=config["model_tuning"] if "model_tuning" in config else {},
+                    )
                     if name != "conditional"
                     else cell_frame
                 )

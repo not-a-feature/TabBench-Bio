@@ -536,7 +536,7 @@ def _time_budget(seconds: int):
     stops at the budget while RealTabPFN-2.5 ran 26x past it, so the leaderboard was ranking
     models that were not given the same budget. SIGALRM enforces it on the units the model
     does not stop itself, and a unit killed this way is recorded ``fail`` / ``time_limit`` —
-    the outcome ``coverage.impute_failures`` scores at chance level.
+    the outcome scored by ``coverage.impute_failures`` using its declared fallback.
     """
     expired = False
     message = f"exceeded the {seconds}s per-unit wall-clock budget"
@@ -1167,16 +1167,15 @@ def compute_predictions(
         failed = [record for record in results if record["status"] == "fail"]
         if failed:
             # A failed unit is a recorded model outcome, not a harness crash: coverage.py
-            # imputes it at chance level so a model cannot improve its standing by crashing
-            # on the targets it finds hard, and complete_folds leaves a model out of a target
+            # imputes it at its untuned parent or chance, and complete_folds excludes a target
             # until all of its folds are recorded. Raising here instead aborted the whole
             # shard, so the cell's metrics never ran and every passing unit in it was
             # discarded — the ledger exists precisely so that is not the response.
             names = ", ".join(f"{r['dataset']}/{r['model']}" for r in failed[:10])
             suffix = " ..." if len(failed) > 10 else ""
             logger.error(
-                "%d model run(s) failed for seed %s: %s%s. Recorded in %s; scored at chance "
-                "by coverage.impute_failures.",
+                "%d model run(s) failed for seed %s: %s%s. Recorded in %s; scoring follows "
+                "coverage.impute_failures.",
                 len(failed),
                 seed,
                 names,
