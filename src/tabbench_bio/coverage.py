@@ -10,11 +10,10 @@ only those CSVs cannot tell the two apart and ends up measuring the harness.
 One convention, applied by every consumer (leaderboard ``Score``, the per-dataset score
 heatmap, and Elo alike):
 
-* ``fail``   — imputed at the run's chance-level baseline (:data:`BASELINE_MODEL`) on that
-  ``(seed, key)``. A model that cannot fit the data delivered chance performance; that is a
-  real outcome, and imputing it stops a model from improving its standing by crashing on
-  the targets it finds hard. Without a baseline result on that fold, the failure stays
-  missing.
+* ``fail``   — a tuned variant uses its declared untuned parent's metrics on the same
+  ``(seed, key)``; other models use the run's chance-level baseline
+  (:data:`BASELINE_MODEL`). Without the required source result on that fold, the failure
+  stays missing. The original attempt remains a failure in coverage counts.
 * ``skip``   — dropped from that model's target pool, and reported as reduced coverage
   (:func:`coverage_counts`). The design excluded the unit, so scoring it as a loss would
   rank the benchmark's own limits rather than the model.
@@ -29,7 +28,7 @@ import pandas as pd
 
 from tabbench_bio.result_store import ResultRepository, result_location
 
-#: Model whose result defines chance level on a target; failures are imputed to it.
+#: Model whose result defines chance level for failures of untuned models.
 BASELINE_MODEL = "DUMMY"
 
 #: ``reason`` codes that mark a unit the benchmark excluded by design rather than a model
@@ -82,32 +81,44 @@ def coverage_counts(status: pd.DataFrame) -> pd.DataFrame:
 
 
 def impute_failures(
-    metrics_df: pd.DataFrame, status: pd.DataFrame, baseline_model: str = BASELINE_MODEL
+    metrics_df: pd.DataFrame,
+    status: pd.DataFrame,
+    baseline_model: str = BASELINE_MODEL,
+    *,
+    model_tuning: dict | None = None,
 ) -> pd.DataFrame:
-    """Append a chance-level row for every failed unit that produced no metrics.
+    """Score failed tuning at its untuned parent and other failures at chance.
 
-    The appended row copies :data:`BASELINE_MODEL`'s metrics on the same ``(seed, key)`` and
-    is flagged ``imputed``, so downstream aggregation scores the failure at chance instead
-    of silently omitting it. Design skips (:data:`DESIGN_SKIPS`) are left absent, as is a
-    failure whose ``(seed, key)`` has no baseline result. Returns *metrics_df* unchanged
-    when there is nothing to impute.
+    ``model_tuning`` comes from the cell's frozen configuration. Each appended row copies
+    the source model's metrics on the same ``(seed, key)`` and is flagged ``imputed``.
+    Design skips and failures without their required source result stay absent. Only
+    existing metrics supply imputations; a parent's failure cannot cascade to its child.
     """
     if metrics_df.empty or status.empty:
         return metrics_df
 
-    tasks = set(zip(metrics_df["seed"], metrics_df["key"]))
+    specifications = model_tuning if model_tuning is not None else {}
     have = set(zip(metrics_df["seed"], metrics_df["key"], metrics_df["model"]))
-    baseline = metrics_df[metrics_df["model"] == baseline_model].set_index(["seed", "key"])
+    sources = (
+        metrics_df[~metrics_df["imputed"].eq(True).fillna(False)]
+        if "imputed" in metrics_df
+        else metrics_df
+    ).set_index(["seed", "key", "model"])
 
     failures = status[status["status"] == "fail"]
     rows = []
     for unit in failures.itertuples(index=False):
-        task = (unit.seed, unit.key)
-        if task not in tasks or task not in baseline.index:
-            continue
         if (unit.seed, unit.key, unit.model) in have:
             continue
-        row = baseline.loc[task].to_dict()
+        source_model = (
+            specifications[unit.model]["base_model"]
+            if unit.model in specifications
+            else baseline_model
+        )
+        source = (unit.seed, unit.key, source_model)
+        if source not in sources.index:
+            continue
+        row = sources.loc[source].to_dict()
         row.update({"seed": unit.seed, "key": unit.key, "model": unit.model, "imputed": True})
         rows.append(row)
 
