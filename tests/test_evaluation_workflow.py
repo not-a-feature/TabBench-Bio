@@ -47,13 +47,16 @@ def test_overall_evaluation_uses_the_estimator_for_each_task(monkeypatch):
 
 
 @pytest.mark.parametrize("published", [False, True])
-def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeypatch, published):
+@pytest.mark.parametrize("datasets", [["OpenML-1083"], ["OpenML-1083", "OpenML-1088"], []])
+def test_evaluation_writes_reports_and_matches_published_folds(
+    tmp_path, monkeypatch, published, datasets
+):
     frames = pd.DataFrame({"x": range(8), "target": [0, 1] * 4})
     cell = "cap_10000_n100"
     settings = config.config_for_cell(
         10000,
         100,
-        datasets=["OpenML-1083"],
+        datasets=["OpenML-1083", "OpenML-1088", "OpenML-1138"],
         datasets_regression=[],
         models=["RF"],
         limits={},
@@ -68,22 +71,24 @@ def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeyp
         min_samples_per_class=2,
     )
     reference = ResultRepository(tmp_path / "reference" / cell, settings)
-    for seed in (0, 1):
-        truth = frames.iloc[seed * 4 : seed * 4 + 4][["target"]]
-        reference.write(
-            {"dataset": "OpenML-1083_0", "model": "RF", "status": "pass", "reason": ""},
-            seed=seed,
-            ground_truth=truth,
-            prediction=truth,
-            probability=pd.DataFrame({0: 1 - truth.target, 1: truth.target}, index=truth.index),
-        )
+    for dataset in settings["datasets_classification"]:
+        for seed in (0, 1):
+            truth = frames.iloc[seed * 4 : seed * 4 + 4][["target"]]
+            reference.write(
+                {"dataset": dataset + "_0", "model": "RF", "status": "pass", "reason": ""},
+                seed=seed,
+                ground_truth=truth,
+                prediction=truth,
+                probability=pd.DataFrame({0: 1 - truth.target, 1: truth.target}, index=truth.index),
+            )
     database = consolidate_results(tmp_path / "reference")
     checksum = hashlib.sha256(database.read_bytes()).hexdigest()
 
     def splits(settings):
         seed = settings["random_state"] % 2
         test = frames.iloc[seed * 4 : seed * 4 + 4]
-        yield frames.drop(test.index), test, "OpenML-1083_0", TaskType.Classification
+        for dataset in settings["dataset_names_classification"]:
+            yield frames.drop(test.index), test, dataset + "_0", TaskType.Classification
 
     monkeypatch.setattr(benchmark, "configure_benchmark", splits)
     model = tmp_path / "custom.py"
@@ -102,8 +107,7 @@ def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeyp
             "Custom <classifier>",
             "--baseline",
             str(database) if published else "none",
-            "--dataset",
-            "OpenML-1083",
+            *[value for dataset in datasets for value in ("--dataset", dataset)],
             "--output",
             str(output),
             "--cache-dir",
@@ -114,7 +118,17 @@ def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeyp
     )
     metrics = pd.read_csv(output / "fold_metrics.csv")
     custom = metrics[metrics.model == "Custom <classifier>"]
-    assert len(custom) == (2 if published else 5)
+    selected = datasets or (
+        settings["datasets_classification"] if published else ["OpenML-1083", "OpenML-1088"]
+    )
+    assert len(custom) == (2 if published else 5) * len(selected)
+    expected_keys = {dataset + "_0" for dataset in selected}
+    assert set(custom.key) == expected_keys
+    exported = pd.read_csv(output / "metrics" / "classification_metrics.csv")
+    assert set(exported.key) == expected_keys
+    assert set(exported[exported.model == "RF"].key) == expected_keys
+    ranking = pd.read_csv(output / "leaderboard.csv")
+    assert set(ranking["# Targets"]) == {len(selected)}
     assert np.allclose(custom.f1_macro, 1 / 3)
     assert "Custom &lt;classifier&gt;" in (output / "report.html").read_text(encoding="utf-8")
     for name in [
