@@ -9,11 +9,11 @@ can merge with the benchmark, use the [model integration guide](INTEGRATION.md).
 
 ## Install and run
 
-Use Python 3.11 or 3.12. Define `create_model(task)` in your model file,
+Use Python 3.13. Define `create_model(task)` in your model file,
 returning a cloneable classifier or regressor; see [my_model.py](my_model.py).
 
 ```sh
-uv venv --python 3.12
+uv venv --python 3.13
 source .venv/bin/activate
 uv pip install "tabbench-bio[bio]"
 tabbench-bio evaluate --model my_model.py --task overall

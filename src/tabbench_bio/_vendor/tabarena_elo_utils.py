@@ -842,8 +842,8 @@ class EloHelper:
         n_tasks = uniq_tasks.shape[0]
 
         # index unordered pairs
-        pair_keys = np.core.defchararray.add(u.astype(str), "||")
-        pair_keys = np.core.defchararray.add(pair_keys, v.astype(str))
+        pair_keys = np.char.add(u.astype(str), "||")
+        pair_keys = np.char.add(pair_keys, v.astype(str))
         uniq_pairs, pair_inverse = np.unique(pair_keys, return_inverse=True)
         # recover the actual (u,v) strings in the uniq_pairs order
         # (fast: take the first occurrence indices)
