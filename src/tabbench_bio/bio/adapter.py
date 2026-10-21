@@ -23,6 +23,7 @@ from tabbench_bio.bio.cache import (
 from tabbench_bio.bio.datasets import get_spec
 from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
 from tabbench_bio.bio.loaders import get_loader
+from tabbench_bio.bio.sample_order import align_reference_rows
 from tabbench_bio.dataset import Dataset, DatasetInfo, TaskType
 
 if TYPE_CHECKING:
@@ -91,6 +92,7 @@ def bio_raw_to_dataset(
     max_features : int | None
         Feature cap (see :func:`cap_features`). ``None`` keeps all features.
     """
+    raw = align_reference_rows(raw)
     is_classification = raw.problem_type in ("binary", "multiclass")
 
     X = _numeric_features(raw)
