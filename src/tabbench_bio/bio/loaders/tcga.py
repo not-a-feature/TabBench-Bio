@@ -19,6 +19,7 @@ Provenance: GDC open-access (NIH Genomic Data Sharing Policy); acknowledge TCGA 
 
 from __future__ import annotations
 
+import hashlib
 import io
 import json
 import tarfile
@@ -29,7 +30,9 @@ from typing import TYPE_CHECKING
 import pandas as pd
 
 from tabbench_bio.bio.cache import default_bio_cache_dir
+from tabbench_bio.bio.fingerprint import LOADER_CACHE_VERSION
 from tabbench_bio.bio.loaders.base import BioRawDataset
+from tabbench_bio.io_utils import atomic_to_pickle
 
 if TYPE_CHECKING:
     import requests
@@ -235,7 +238,7 @@ class TcgaLoader:
         """Persist the full matrix + sample types so later (re)builds skip the GDC download."""
         path = self._cache_path(spec)
         path.parent.mkdir(parents=True, exist_ok=True)
-        pd.to_pickle(
+        atomic_to_pickle(
             {
                 "X": X,
                 "sample_type_by_fid": sample_type_by_fid,
@@ -300,7 +303,19 @@ class TcgaLoader:
         series_by_fid: dict[str, pd.Series] = {}
         for start in range(0, len(file_ids), self.batch_size):
             batch = file_ids[start : start + self.batch_size]
-            series_by_fid.update(self._download_batch(session, file_ids=batch, cfg=cfg))
+            identity = json.dumps((LOADER_CACHE_VERSION, batch, cfg), sort_keys=True).encode()
+            path = self.cache_dir / "batches" / (hashlib.sha256(identity).hexdigest() + ".pkl")
+            if path.exists():
+                values = pd.read_pickle(path)
+                action = "reused"
+            else:
+                values = self._download_batch(session, file_ids=batch, cfg=cfg)
+                assert set(values) == set(batch), "GDC batch does not contain all requested files"
+                atomic_to_pickle(values, path)
+                action = "downloaded"
+            assert set(values) == set(batch), f"Invalid TCGA batch cache: {path}"
+            series_by_fid.update(values)
+            print(f"[tcga] {action} batch: {start + len(batch)}/{len(file_ids)} files", flush=True)
         # from_dict(orient="index") aligns columns by gene_id; all STAR-Counts files
         # share the same GENCODE v36 gene set, so the union equals each file's index.
         # Cast back to float32 (the per-file dtype): aligning Series upcasts to float64.
@@ -314,24 +329,36 @@ class TcgaLoader:
         A multi-file request returns a gzipped tarball (each member at
         ``<file_id>/<file_name>``); a single-file request returns the raw file text.
         """
-        resp = self._post_with_retries(
-            session,
-            GDC_DATA_ENDPOINT,
-            json={"ids": file_ids},
-            headers={"Content-Type": "application/json"},
-        )
-        content = resp.content
-
-        parse_kwargs = {"value_column": cfg["value_column"], "index_column": cfg["index_column"]}
-        # gzip magic -> tarball of many files; otherwise a single raw file.
-        if content[:2] == b"\x1f\x8b":
+        for attempt in range(self.max_retries):
+            resp = self._post_with_retries(
+                session,
+                GDC_DATA_ENDPOINT,
+                json={"ids": file_ids},
+                headers={"Content-Type": "application/json"},
+            )
+            content = resp.content
+            parse_kwargs = {
+                "value_column": cfg["value_column"],
+                "index_column": cfg["index_column"],
+            }
+            if content[:2] != b"\x1f\x8b":
+                return {file_ids[0]: parse_star_counts(content.decode("utf-8"), **parse_kwargs)}
             out: dict[str, pd.Series] = {}
-            with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
-                for member in tar.getmembers():
-                    if not member.isfile() or member.name.endswith("MANIFEST.txt"):
-                        continue
-                    fid = member.name.split("/")[0]
-                    text = tar.extractfile(member).read().decode("utf-8")
-                    out[fid] = parse_star_counts(text, **parse_kwargs)
-            return out
-        return {file_ids[0]: parse_star_counts(content.decode("utf-8"), **parse_kwargs)}
+            try:
+                with tarfile.open(fileobj=io.BytesIO(content), mode="r:gz") as tar:
+                    for member in tar.getmembers():
+                        if not member.isfile() or member.name.endswith("MANIFEST.txt"):
+                            continue
+                        fid = member.name.split("/")[0]
+                        text = tar.extractfile(member).read().decode("utf-8")
+                        out[fid] = parse_star_counts(text, **parse_kwargs)
+            except (EOFError, tarfile.ReadError):
+                if attempt + 1 == self.max_retries:
+                    raise
+                print(
+                    f"[tcga] incomplete archive; retry {attempt + 1}/{self.max_retries}", flush=True
+                )
+                time.sleep(2**attempt)
+            else:
+                return out
+        raise AssertionError("TCGA downloads require at least one attempt")
