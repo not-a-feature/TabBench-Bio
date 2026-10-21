@@ -68,9 +68,7 @@ models = [
     # TabPFN-Wide: wide-dataset TabPFN variants (keys "TABPFN-WIDE" and
     # "TABPFN-WIDE-5K-NE3"). v0.3 pins tabpfn==8.0.3.
     "tabpfnwide>=0.3.0",
-    # TabFM: Google Research zero-shot tabular foundation model (key "TABFM"). Not on PyPI;
-    # installed from source with the PyTorch backend (the JAX backend is not used).
-    "tabfm[pytorch] @ git+https://github.com/google-research/tabfm",
+    "tabfm[pytorch]==1.0.1",
     # ManyClassClassifier (ECOC) — lets TabPFN / TabFM models handle >10-class datasets.
     "tabpfn-extensions>=0.4.0",
     # AutoGluon model backends NOT pulled in by the core autogluon.* install. Without
@@ -98,7 +96,7 @@ bio = [
     "requests>=2.31",
     "kagglehub>=0.3",
     "openml>=0.14.1",
-    "pyarrow>=12.0",
+    "pyarrow>=12.0,<26.0",
     # Reproducible curation of the compact PEER protein-embedding task.
     "lmdb>=1.4,<3.0",
     # Molecular endpoints: ECFP4 fingerprints and Bemis-Murcko scaffold groups.

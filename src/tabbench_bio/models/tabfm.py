@@ -7,8 +7,7 @@ pre-trained backend loaded via ``tabfm.tabfm_v1_0_0_pytorch.load()``; this modul
 them to AutoGluon's model API so TabFM is selectable from a config like any built-in
 model, via the key ``"TABFM"``.
 
-TabFM is not on PyPI; install the PyTorch backend from source
-(``pip install 'tabfm[pytorch] @ git+https://github.com/google-research/tabfm'``). The
+Install the PyTorch backend from PyPI (``pip install 'tabfm[pytorch]==1.0.1'``). The
 PyTorch backend shares the torch/CUDA stack already required by the other foundation
 models. Both task types are supported (unlike TabPFN-Wide, which is classification only).
 """
