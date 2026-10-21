@@ -404,15 +404,12 @@ function renderModelTuning(model) {
     ? ` under a ${tuning.budget_seconds / 3600 === 1 ? "one-hour" : `${tuning.budget_seconds / 60}-minute`} budget`
     : "";
   notice.innerHTML = `<strong>Tuned configuration.</strong> A small predefined grid${escapeHtml(budget)}. Candidates are selected on a ${100 * tuning.validation_fraction}% training-only holdout; the winner is refitted on the full training fold. Up to ${100 * tuning.search_fraction}% of the budget is used for search, with the remainder reserved for refitting.`;
-  const excludesDefaults = tuning.excluded_candidates?.some((candidate) => Object.keys(candidate).length === 0);
-  if (excludesDefaults) notice.innerHTML += " Outcomes that selected benchmark defaults have been removed; these results are a filtered subset of the original run, not a new tuning run.";
   const taskGrids = Object.hasOwn(tuning.grid, "classification")
     ? Object.entries(tuning.grid)
     : [["Search grid", tuning.grid]];
   const count = (block) => Object.values(block).reduce((total, values) => total * values.length, 1);
   const tables = taskGrids.map(([label, grid]) => {
-    const blocks = (Array.isArray(grid) ? grid : [grid])
-      .filter((block) => !excludesDefaults || Object.keys(block).length > 0);
+    const blocks = Array.isArray(grid) ? grid : [grid];
     const total = blocks.reduce((sum, block) => sum + count(block), 0);
     const rows = blocks.map((block) => {
       const parameters = Object.entries(block).map(([key, values]) =>
@@ -420,7 +417,7 @@ function renderModelTuning(model) {
       ).join("") || "Benchmark defaults (no overrides)";
       return `<tr><td>${count(block)}</td><td>${parameters}</td></tr>`;
     }).join("");
-    return `<table><caption>${escapeHtml(label)} · ${total} ${excludesDefaults ? "retained " : ""}candidates</caption><thead><tr><th scope="col">Candidates</th><th scope="col">Parameter values</th></tr></thead><tbody>${rows}</tbody></table>`;
+    return `<table><caption>${escapeHtml(label)} · ${total} candidates</caption><thead><tr><th scope="col">Candidates</th><th scope="col">Parameter values</th></tr></thead><tbody>${rows}</tbody></table>`;
   }).join("");
   panel.innerHTML = `<summary>Grid parameters</summary><p>Each row adds a separate set of candidates. Values within a row are crossed; unspecified parameters keep their benchmark defaults. The budget may end before every candidate is tried.</p>${tables}`;
 }
@@ -773,7 +770,7 @@ function renderElo() {
   const tuningNote = spec.paired.length
     ? " Solid bars show untuned Elo; dotted segments show the tuning change, ending at the tuned diamond. Decreases point left and are amber. Rows are ordered by the higher of untuned and tuned Elo; both original ratings remain unchanged. For paired models, only the tuned rating has an interval. Tuning uses a small predefined grid under a one-hour budget."
     : "";
-  byId("elo-note").textContent = `${ELO_METRICS[metric]} · ${option.label} · ${domainDescription(domain)} · ${spec.peers.length ? spec.peers[0].n_targets : 0} binding targets · untuned Random Forest is anchored at 1,000${hiddenNote} · error bars are target-bootstrap 95% intervals${referenceNote}. Displayed intervals are clipped at zero; hover shows the original bounds.${tuningNote}`;
+  byId("elo-note").textContent = `${ELO_METRICS[metric]} · ${option.label} · ${domainDescription(domain)} · untuned Random Forest is anchored at 1,000${hiddenNote} · error bars are target-bootstrap 95% intervals${referenceNote}. Displayed intervals are clipped at zero; hover shows the original bounds.${tuningNote}`;
   return rendered;
 }
 
