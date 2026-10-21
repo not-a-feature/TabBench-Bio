@@ -7,32 +7,23 @@ AutoGluon, its fork and CUDA are optional.
 For resumable cluster jobs, per-model environment profiles and SQLite results you
 can merge with the benchmark, use the [model integration guide](INTEGRATION.md).
 
-## Install and try it
+## Install and run
 
-Use Python 3.11 or 3.12 and [uv](https://docs.astral.sh/uv/):
+Use Python 3.11 or 3.12. Define `create_model(task)` in your model file,
+returning a cloneable classifier or regressor; see [my_model.py](my_model.py).
 
 ```sh
-git clone https://github.com/not-a-feature/TabBench-Bio.git
-cd TabBench-Bio
 uv venv --python 3.12
-uv pip install -e ".[bio]"
-uv run --no-sync python benchmark_my_model/run.py --output my_model_results
+source .venv/bin/activate
+uv pip install "tabbench-bio[bio]"
+tabbench-bio evaluate --model my_model.py --task overall
 ```
 
-This installs the package from the clone. The first dataset download needs internet
-access. Dataset caches go beneath the output directory, and OpenML also uses its user cache.
-
-Open `my_model_results/report.html` directly in your browser.
-The default example uses two public gene-expression datasets, OpenML-1083 and
-OpenML-1088, with five outer folds, at most 10,000 retained features and 100 training
-samples per fold. Your model, Random Forest and a constant baseline use the same splits.
-
-This Random Forest is fitted locally with scikit-learn. Published benchmark results
-use the AutoGluon adapter and a larger target pool, so the two comparisons differ.
-
-Choose a fresh output directory each time. Existing output is protected.
-A model error stops the run without producing a partial ranking.
-The helper has no fit timeout or support for resuming interrupted fits.
+Before the first PyPI upload, install a built wheel with `[bio]` instead.
+Open `my_model_results/report.html` after the run. The command downloads the
+latest reference, verifies its checksum and evaluates your model on frozen folds.
+Report generation shows confidence-interval progress. Choose a new output folder
+for each run with `--output`; interrupted fits cannot resume.
 
 ## Add your model
 
@@ -45,32 +36,33 @@ Features arrive as NumPy arrays. Handle missing values in a pipeline, fit prepro
 on training data only and set random seeds explicitly. Each fold gets a fresh clone.
 
 ```sh
-uv run --no-sync python benchmark_my_model/run.py \
+tabbench-bio evaluate --model my_model.py \
   --name "My classifier" --dataset OpenML-1083 --output my_classifier_results
 ```
 
 The template selects a classifier or regressor from `task`. To try regression:
 
 ```sh
-uv run --no-sync python benchmark_my_model/run.py \
-  --task regression --dataset OpenML-46983 --output my_regressor_results
+tabbench-bio evaluate --model my_model.py \
+  --task regression --dataset OpenML-430 --output my_regressor_results
 ```
 
 The helper scores `predict` output with macro-F1 or RMSE. It does not collect
 probability-based AUROC. This standalone helper uses the active environment and
 does not select registry profiles. Install your model's dependencies there with
 `uv pip install`, and set its thread and GPU parameters yourself. `--threads 2`
-controls only the local RF baseline.
+limits CPU threads during fitting.
 
 ## Compare with published models
 
-Download the [v0.1.0 SQLite bundle](https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/results.sqlite)
-and verify its SHA-256:
-`98878cbc989c45a563f8b56ec3d3708eadf134fa7952fccddd04ecf6523d5b27`.
+The default `--baseline latest` resolves the
+[latest published release](https://github.com/not-a-feature/TabBench-Bio/releases/latest)
+on each run. Pass a
+local SQLite path to pin a particular reference or work without a release lookup.
 
 ```sh
-uv run --no-sync python benchmark_my_model/run.py \
-  --baseline /path/to/results.sqlite --cell cap_10000_n100 \
+tabbench-bio evaluate --model my_model.py \
+  --baseline latest --cell cap_10000_n100 \
   --dataset OpenML-1083 --dataset OpenML-1088 \
   --name "My classifier" --output published_comparison
 ```
@@ -100,6 +92,7 @@ comparison when reporting the ranking. Nothing is uploaded.
 | `fold_metrics.csv` | New model/dataset/fold metrics and timings |
 | `metrics/` | Full comparison metrics, including any imported baselines |
 | `config.json` | Resolved configuration. Published comparisons also save frozen splits |
+| `baseline.json` | Automatically selected release, URL, local path and SHA-256 |
 
 The helper writes CSV metrics rather than SQLite attempt bundles.
 Use the [registry pipeline](INTEGRATION.md) if you need results for `tabbench-bio merge`.
@@ -107,7 +100,7 @@ Use the [registry pipeline](INTEGRATION.md) if you need results for `tabbench-bi
 To rank a published database without training:
 
 ```sh
-uv run --no-sync tabbench-bio leaderboard \
+tabbench-bio leaderboard \
   --sqlite /path/to/results.sqlite --cell cap_10000_n100 \
   --task classification --plot --plot-path elo.png --csv leaderboard.csv
 ```

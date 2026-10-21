@@ -38,7 +38,7 @@ import time
 import zlib
 from collections import deque
 from concurrent.futures import Executor
-from contextlib import closing
+from contextlib import closing, nullcontext
 from pathlib import Path
 from typing import Any
 
@@ -417,20 +417,26 @@ class Leaderboard:
         sqlite_path: str | os.PathLike[str],
         *,
         cell: str | None = None,
+        metric_cache: str | os.PathLike[str] | None = None,
+        show_progress: bool = False,
     ) -> Leaderboard:
         """Load a leaderboard directly from a published result database.
 
         The database is opened with SQLite's ``mode=ro`` flag. No writer bundle,
-        metrics CSV, cache, or sidecar file is created. Published bundles can contain
+        metrics CSV or sidecar file is created beside it. Published bundles can contain
         several feature/sample cells; pass ``cell=...`` in that case. Use
         :meth:`sqlite_cells` to list the available values.
 
-        Ranking metrics are recomputed from the content-addressed ground-truth and
-        prediction blobs in the bundle. This deliberately follows the benchmark's
-        source-of-truth model: metrics CSV files are derived artifacts, not database
-        tables.
+        Pass ``metric_cache`` to persist derived metrics in a separate SQLite file.
+        Entries are keyed by prediction, probability and truth hashes, calculation
+        code and dependency versions. ``show_progress`` reports progress and reuse.
+        Without a metric cache, metrics are recomputed from the published blobs.
         """
         path = Path(sqlite_path).resolve()
+        if metric_cache is not None:
+            assert Path(metric_cache).resolve() != path, (
+                "Metric cache must be separate from results"
+            )
         with closing(_open_results_sqlite(path)) as connection:
             _validate_results_sqlite(connection, path)
             cells = [
@@ -449,7 +455,14 @@ class Leaderboard:
                     choices = ", ".join(cells)
                     raise ValueError(f"Unknown result cell {cell!r}. Available cells: {choices}")
                 selected_cell = cell
-            reg_df, clf_df, status = _metrics_from_sqlite(connection, selected_cell)
+            with (
+                closing(MetricCache(Path(metric_cache)))
+                if metric_cache is not None
+                else nullcontext()
+            ) as cache:
+                reg_df, clf_df, status = _metrics_from_sqlite(
+                    connection, selected_cell, cache=cache, show_progress=show_progress
+                )
             (config_json,) = connection.execute(
                 "SELECT config_json FROM cells WHERE cell = ?", (selected_cell,)
             ).fetchone()
@@ -476,7 +489,7 @@ class Leaderboard:
     # Ranking
     # ------------------------------------------------------------------
 
-    def rank(self, task: str = "overall") -> pd.DataFrame:
+    def rank(self, task: str = "overall", *, show_progress: bool = False) -> pd.DataFrame:
         """Return a ranked leaderboard DataFrame.
 
         Parameters
@@ -496,7 +509,8 @@ class Leaderboard:
                 fold_scores(
                     self._clf_metrics if task != "regression" else None,
                     self._reg_metrics if task != "classification" else None,
-                )
+                ),
+                show_process=show_progress,
             )
         df = df.merge(self._ratings[task].drop(columns="n_targets"), on="model_id", how="left")
         df = df.sort_values(
@@ -613,8 +627,8 @@ class Leaderboard:
         3. Computes metrics.
         4. Calls :meth:`add_results` to insert the model into the leaderboard.
 
-        *model* must expose a scikit-learn-compatible API:
-        ``fit(X, y)`` and ``predict(X)``.
+        *model* must expose ``fit(X, y)`` and ``predict(X)``, or map
+        ``classification`` and ``regression`` to estimators for an overall run.
 
         Parameters
         ----------
@@ -666,11 +680,14 @@ class Leaderboard:
             config["dataset_names_regression"] = []
         elif task == "regression":
             config["dataset_names_classification"] = []
-        if config["dataset_names_classification"] and not is_classifier(model):
+        models = (
+            model if isinstance(model, dict) else {"classification": model, "regression": model}
+        )
+        if config["dataset_names_classification"] and not is_classifier(models["classification"]):
             raise ValueError(
                 "Classification requires a scikit-learn classifier; set task='regression' for a regressor."
             )
-        if config["dataset_names_regression"] and not is_regressor(model):
+        if config["dataset_names_regression"] and not is_regressor(models["regression"]):
             raise ValueError(
                 "Regression requires a scikit-learn regressor; set task='classification' for a classifier."
             )
@@ -711,7 +728,11 @@ class Leaderboard:
                         check_dtype=False,
                         obj=f"Reference test split {unit}",
                     )
-                estimator = clone(model)
+                estimator = clone(
+                    models[
+                        "classification" if task_type == TaskType.Classification else "regression"
+                    ]
+                )
                 t0 = time.perf_counter()
                 estimator.fit(X_train, y_train)
                 fit_s = time.perf_counter() - t0

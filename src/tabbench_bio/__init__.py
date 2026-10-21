@@ -22,13 +22,13 @@ Quick Start
 
 Or run the full feature × sample grid sweep and build the site::
 
-    python scripts/feature_sweep.py --grid-config configs/grid_sweep.json
+    tabbench-bio RF --full-grid
     tabbench-bio site --results-dir results/feature_sweep/cap_full --out docs
 """
 
 import importlib
 
-__version__ = "0.3.0"
+__version__ = "0.4.0"
 __author__ = "Jules Kreuer (Uni Tübingen)"
 
 _public_map = {

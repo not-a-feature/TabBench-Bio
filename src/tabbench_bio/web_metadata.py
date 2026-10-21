@@ -3,11 +3,11 @@
 import json
 import re
 from collections import Counter
-from importlib.resources import files
 from pathlib import Path
 from xml.sax.saxutils import escape
 
-PACKAGE_ROOT = Path(__file__).parent
+from tabbench_bio.resources import resource_root
+
 SKILL_NAME = "biomedical-tabular-model-selection"
 
 
@@ -242,9 +242,7 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     )
     html = html[: structured.start(2)] + metadata_text + html[structured.end(2) :]
     index.write_text(html, encoding="utf-8")
-    skill = PACKAGE_ROOT.parents[1] / "skills" / SKILL_NAME
-    if not skill.is_dir():
-        skill = files("tabbench_bio").joinpath("skills", SKILL_NAME)
+    skill = resource_root() / "skills" / SKILL_NAME
     (site_dir / "skill.md").write_bytes(skill.joinpath("SKILL.md").read_bytes())
     project_url = "https://" + dashboard["meta"]["domain"]
     (site_dir / "llms.txt").write_text(build_llms_text(dashboard, project_url), encoding="utf-8")

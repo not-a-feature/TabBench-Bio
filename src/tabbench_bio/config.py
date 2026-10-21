@@ -3,6 +3,7 @@
 import json
 import os
 
+from tabbench_bio.bio.datasets import resolve_dataset_names
 from tabbench_bio.model_registry import model_entry
 from tabbench_bio.tuning import tuning_specs, validate_tuning
 
@@ -155,8 +156,9 @@ def model_overrides(models):
 def load_config(config_path):
     """Load, validate, and normalise a benchmark JSON config file.
 
-    The config must declare every key in :data:`REQUIRED_KEYS`; ``model_tuning`` is
-    optional. Keys prefixed with ``_`` are comments. Other keys are rejected so
+    The config must declare every key in :data:`REQUIRED_KEYS`; ``model_tuning`` and
+    published ``excluded_tuning_candidates`` metadata are optional.
+    Keys prefixed with ``_`` are comments. Other keys are rejected so
     misspelled settings cannot silently fall back to defaults.
 
     ``datasets_classification`` / ``datasets_regression`` / ``models`` each accept an
@@ -168,9 +170,16 @@ def load_config(config_path):
 
     keys = {k for k in config if not k.startswith("_")}
     missing = REQUIRED_KEYS - keys
-    unknown = keys - REQUIRED_KEYS - {"model_tuning"}
+    unknown = keys - REQUIRED_KEYS - {"model_tuning", "excluded_tuning_candidates"}
     assert not missing, f"{config_path}: missing required config key(s): {sorted(missing)}"
     assert not unknown, f"{config_path}: unknown config key(s): {sorted(unknown)}"
+    if "excluded_tuning_candidates" in config:
+        excluded = config["excluded_tuning_candidates"]
+        assert isinstance(excluded, dict) and all(
+            isinstance(candidates, list)
+            and all(isinstance(candidate, dict) for candidate in candidates)
+            for candidates in excluded.values()
+        ), "excluded_tuning_candidates must map model names to lists of parameter dictionaries"
 
     base_dir = os.path.dirname(os.path.abspath(config_path))
     config["dataset_names_classification"] = resolve_list(
@@ -225,8 +234,8 @@ def config_for_cell(
     # None => legacy holdout with n_rep repetitions.
     return {
         **({"model_tuning": tuning} if tuning else {}),
-        "datasets_classification": datasets,
-        "datasets_regression": datasets_regression,
+        "datasets_classification": resolve_dataset_names(datasets, "classification"),
+        "datasets_regression": resolve_dataset_names(datasets_regression, "regression"),
         "test_size": test_size,
         "n_repetitions": 1 if cv_folds is not None else n_rep,
         "cv_folds": cv_folds,
