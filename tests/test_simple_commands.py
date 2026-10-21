@@ -187,16 +187,35 @@ def test_leaderboard_rejects_conflicting_sources(monkeypatch, capsys):
 
 
 @pytest.mark.parametrize("enabled", [True, False])
-def test_registered_model_uses_bundled_grid_and_explicit_python(tmp_path, monkeypatch, enabled):
+@pytest.mark.parametrize(
+    "symlink",
+    [
+        False,
+        pytest.param(
+            True,
+            marks=pytest.mark.skipif(
+                model_run.sys.platform == "win32", reason="POSIX virtualenv Python symlinks"
+            ),
+        ),
+    ],
+)
+def test_registered_model_uses_bundled_grid_and_explicit_python(
+    tmp_path, monkeypatch, enabled, symlink
+):
     spec = datasets.get_spec("MoleculeNet-Tox21-SR-MMP")
     monkeypatch.setitem(datasets.BIO_DATASETS, spec.bio_id, replace(spec, enabled=enabled))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(model_run, "CHECKOUT", tmp_path / "installed/Lib")
     monkeypatch.setattr(model_run, "worker_environment", lambda *a: ({}, {}))
+    python = Path(model_run.sys.executable)
+    if symlink:
+        python = tmp_path / "venv/bin/python"
+        python.parent.mkdir(parents=True)
+        python.symlink_to(model_run.sys.executable)
     calls = []
 
     def worker(command, **kwargs):
-        assert command[0] == model_run.sys.executable
+        assert command[0] == str(python)
         if "--config" in command:
             path = Path(command[command.index("--config") + 1])
             config = json.loads(path.read_text())
@@ -208,7 +227,7 @@ def test_registered_model_uses_bundled_grid_and_explicit_python(tmp_path, monkey
         return SimpleNamespace(returncode=0)
 
     monkeypatch.setattr(model_run.subprocess, "run", worker)
-    monkeypatch.setattr("sys.argv", ["tabbench-bio", "RF", "--python", model_run.sys.executable])
+    monkeypatch.setattr("sys.argv", ["tabbench-bio", "RF", "--python", str(python)])
     main()
     assert len(calls) == 1
     assert calls[0]["bio_max_features"] == 10000
