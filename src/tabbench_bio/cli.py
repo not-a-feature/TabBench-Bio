@@ -34,8 +34,10 @@ from pathlib import Path
 import pandas as pd
 
 from tabbench_bio.elo import DEFAULT_N_BOOT
+from tabbench_bio.evaluate import add_arguments, evaluate
 from tabbench_bio.logging_utils import LOG_FORMAT
 from tabbench_bio.model_run import run_model
+from tabbench_bio.resources import cmd_init
 from tabbench_bio.split_manifest import freeze_manifest
 
 warnings.filterwarnings("ignore", message="'force_all_finite' was renamed")
@@ -235,8 +237,8 @@ def cmd_info(_args):
     print("A benchmark for ML on high-dimensional biological data (GEO/TCGA/Kaggle/OpenML).")
     print()
     print("  Source: https://github.com/not-a-feature/TabBench-Bio")
-    print('  Install from the clone: uv pip install -e ".[bio]"')
-    print("  Model environments: see environments/README.md")
+    print('  Install: pip install "tabbench-bio[bio]"')
+    print("  Create a workspace: tabbench-bio init my-benchmark")
 
 
 def cmd_results(args):
@@ -292,6 +294,15 @@ def main():
         formatter_class=argparse.RawDescriptionHelpFormatter,
     )
     sub = parser.add_subparsers(dest="command", metavar="COMMAND")
+
+    init_p = sub.add_parser("init", help="Create model templates, configs and environment profiles")
+    init_p.add_argument("directory", type=Path, help="New workspace directory")
+    init_p.set_defaults(func=cmd_init)
+    evaluate_p = sub.add_parser(
+        "evaluate", help="Benchmark a scikit-learn model from your own Python file"
+    )
+    add_arguments(evaluate_p)
+    evaluate_p.set_defaults(func=evaluate)
 
     model_p = sub.add_parser(
         "model",

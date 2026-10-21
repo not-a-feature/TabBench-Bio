@@ -624,8 +624,8 @@ class Leaderboard:
         3. Computes metrics.
         4. Calls :meth:`add_results` to insert the model into the leaderboard.
 
-        *model* must expose a scikit-learn-compatible API:
-        ``fit(X, y)`` and ``predict(X)``.
+        *model* must expose ``fit(X, y)`` and ``predict(X)``, or map
+        ``classification`` and ``regression`` to estimators for an overall run.
 
         Parameters
         ----------
@@ -677,11 +677,14 @@ class Leaderboard:
             config["dataset_names_regression"] = []
         elif task == "regression":
             config["dataset_names_classification"] = []
-        if config["dataset_names_classification"] and not is_classifier(model):
+        models = (
+            model if isinstance(model, dict) else {"classification": model, "regression": model}
+        )
+        if config["dataset_names_classification"] and not is_classifier(models["classification"]):
             raise ValueError(
                 "Classification requires a scikit-learn classifier; set task='regression' for a regressor."
             )
-        if config["dataset_names_regression"] and not is_regressor(model):
+        if config["dataset_names_regression"] and not is_regressor(models["regression"]):
             raise ValueError(
                 "Regression requires a scikit-learn regressor; set task='classification' for a classifier."
             )
@@ -722,7 +725,11 @@ class Leaderboard:
                         check_dtype=False,
                         obj=f"Reference test split {unit}",
                     )
-                estimator = clone(model)
+                estimator = clone(
+                    models[
+                        "classification" if task_type == TaskType.Classification else "regression"
+                    ]
+                )
                 t0 = time.perf_counter()
                 estimator.fit(X_train, y_train)
                 fit_s = time.perf_counter() - t0
