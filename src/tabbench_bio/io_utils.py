@@ -12,6 +12,7 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
+from urllib.request import urlopen
 
 import pandas as pd
 
@@ -75,6 +76,37 @@ def atomic_to_pickle(frame: object, path: str | os.PathLike[str]) -> None:
     with _atomic_path(path) as temporary:
         with temporary.open("wb") as handle:
             pd.to_pickle(frame, handle)
+
+
+def _verify_checksum(path: Path, expected: str, algorithm: str) -> None:
+    with path.open("rb") as handle:
+        actual = hashlib.file_digest(
+            handle, lambda: hashlib.new(algorithm, usedforsecurity=False)
+        ).hexdigest()
+    label = "SHA-256" if algorithm == "sha256" else algorithm.upper()
+    assert actual == expected, (
+        f"{path}: {label} mismatch (expected {expected}, found {actual}). "
+        "Remove this file and retry downloading it."
+    )
+
+
+def download_file(
+    url: str,
+    destination: Path,
+    *,
+    checksum: str,
+    algorithm: str = "sha256",
+    timeout: int = 60,
+) -> Path:
+    """Reuse a verified cache file or stream and verify a download before publishing it."""
+    if destination.is_file():
+        _verify_checksum(destination, checksum, algorithm)
+        return destination
+    with _atomic_path(destination) as temporary:
+        with temporary.open("wb") as target, urlopen(url, timeout=timeout) as source:
+            shutil.copyfileobj(source, target, length=1024 * 1024)
+        _verify_checksum(temporary, checksum, algorithm)
+    return destination
 
 
 def atomic_to_csv(

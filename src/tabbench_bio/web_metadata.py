@@ -10,18 +10,6 @@ from xml.sax.saxutils import escape
 PACKAGE_ROOT = Path(__file__).parent
 SKILL_NAME = "biomedical-tabular-model-selection"
 
-SITEMAP_PATHS = (
-    "",
-    "datasets.html",
-    "artifacts.html",
-    "changelog.html",
-    "llms.txt",
-    "skill.md",
-    "citation.html",
-    "CITATION.cff",
-    "CITATION.bib",
-)
-
 
 def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
     project_url = project_url.rstrip("/")
@@ -78,7 +66,7 @@ def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
 
 > TabBench-Bio is a living benchmark for tabular learning in high-dimensional biomedical regimes. It compares classical models, neural networks, AutoML, and tabular foundation models across controlled feature and sample budgets.
 
-Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard JSON includes analysis_views.strict (primary). Its analysis_view_files map links separate Adaptive and Failures-omitted JSON files, loaded on demand. Leaderboard JSON top-level rankings follow the Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. The Failures-omitted view drops failed runs instead of scoring them at chance, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports use Strict results.
+Use the pages below for context and the canonical SQLite database for exact, structured results. Rankings are operating-point dependent and descriptive rather than universal. The website opens in Strict (primary) mode by default, matching the paper's primary analysis and using nominal-cell results without substitution. Dashboard JSON includes analysis_views.strict (primary). Its analysis_view_files map links separate Adaptive and Failures-omitted JSON files, loaded on demand. Leaderboard JSON top-level rankings follow the Strict default. Adaptive sensitivity results may reuse a verified smaller training-sample cell after a memory failure and are not measurements at the requested larger sample size. All explicit analysis_views remain available. Tuned failures use their declared untuned parent at the same cell, dataset and fold; other failures use the constant predictor. A failure without its required source result stays missing. The Failures-omitted view drops failed runs instead of imputing them, which removes a model from those targets, so its ranking is computed on differing target pools and reads as an optimistic bound. Dataset-specific score exports use Strict results.
 
 ## Results
 
@@ -149,14 +137,18 @@ Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBenc
 """
 
 
-def build_sitemap(project_url: str, last_modified: str) -> str:
+def build_sitemap(site_dir: Path, project_url: str, last_modified: str) -> str:
     project_url = project_url.rstrip("/")
+    paths = [
+        "" if path.name == "index.html" else path.name for path in sorted(site_dir.glob("*.html"))
+    ]
+    paths += ["llms.txt", "skill.md", "CITATION.cff", "CITATION.bib"]
     urls = "\n".join(
         "  <url>\n"
         f"    <loc>{escape(f'{project_url}/{path}')}</loc>\n"
         f"    <lastmod>{last_modified}</lastmod>\n"
         "  </url>"
-        for path in SITEMAP_PATHS
+        for path in paths
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -230,8 +222,8 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     sqlite_export = next(row for row in dashboard["raw_exports"] if row["format"] == "sqlite3")
     sqlite_url = sqlite_export["path"] or "https://github.com/not-a-feature/TabBench-Bio/releases/"
     html, count = re.subn(
-        r'<link rel="alternate" type="application/vnd.sqlite3"[^>]*>',
-        f'<link rel="alternate" type="application/vnd.sqlite3" href="{escape(sqlite_url, {chr(34): "&quot;"})}" title="TabBench-Bio results">',
+        r'(<link rel="alternate" type="application/vnd.sqlite3"\s+href=")[^"]*(")',
+        lambda match: match[1] + escape(sqlite_url, {chr(34): "&quot;"}) + match[2],
         html,
     )
     assert count == 1, "Expected one SQLite alternate link"
@@ -243,14 +235,12 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
         for item in metadata["distribution"]
         if item["encodingFormat"] == "application/vnd.sqlite3"
     )
-    download.update(name="Results SQLite", contentUrl=sqlite_url, sha256=sqlite_export["sha256"])
-    html = (
-        html[: structured.start(2)]
-        + "\n"
-        + json.dumps(metadata, indent=2)
-        + "\n  "
-        + html[structured.end(2) :]
+    metadata_text = (
+        structured[2]
+        .replace(json.dumps(download["contentUrl"]), json.dumps(sqlite_url))
+        .replace(json.dumps(download["sha256"]), json.dumps(sqlite_export["sha256"]))
     )
+    html = html[: structured.start(2)] + metadata_text + html[structured.end(2) :]
     index.write_text(html, encoding="utf-8")
     skill = PACKAGE_ROOT.parents[1] / "skills" / SKILL_NAME
     if not skill.is_dir():
@@ -262,5 +252,6 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
         f"User-agent: *\nAllow: /\n\nSitemap: {project_url}/sitemap.xml\n", encoding="utf-8"
     )
     (site_dir / "sitemap.xml").write_text(
-        build_sitemap(project_url, dashboard["meta"]["snapshot_utc"][:10]), encoding="utf-8"
+        build_sitemap(site_dir, project_url, dashboard["meta"]["snapshot_utc"][:10]),
+        encoding="utf-8",
     )

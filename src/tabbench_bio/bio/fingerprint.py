@@ -27,6 +27,7 @@ DATA_FIELDS = {
     "source_max_features",
     "download_url",
     "download_sha256",
+    "download_files",
     "train_prevalence_filter",
 }
 

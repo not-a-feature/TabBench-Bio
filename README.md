@@ -5,7 +5,7 @@
 TabBench-Bio benchmarks machine learning on biological tables with many features and few
 samples, such as gene-expression and methylation data. It downloads datasets, fixes the
 train/test splits, fits models and ranks their predictions using fold-level Elo.
-The full configuration covers 30 classification and 13 regression datasets.
+The full configuration covers 33 classification and 13 regression datasets.
 
 This repository contains the package and experiment definitions. The
 [published website](https://tabbench-bio.eu) is built from Codeberg's `pages` branch.
