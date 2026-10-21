@@ -61,6 +61,7 @@ from tabbench_bio.bio import (
     reload as reload_bio_registry,
 )
 from tabbench_bio.bio.datasets import resolve_dataset_names
+from tabbench_bio.bio.sample_order import sample_order_fingerprint
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.io_utils import atomic_to_pickle, atomic_write_json
 from tabbench_bio.split_manifest import apply_frozen_split, load_manifest, split_versions
@@ -78,7 +79,7 @@ _MAX_FEATURE_MISSING_FRAC = 0.5
 
 #: Increment whenever prepared train/test matrices change semantics so stale split caches
 #: cannot survive a scientific preprocessing correction.
-_PREPARED_DATA_VERSION = 4
+_PREPARED_DATA_VERSION = 5
 
 
 def configure_benchmark(config, init_benchmark: bool = True) -> "TabBenchBio":
@@ -375,7 +376,11 @@ class TabBenchBio:
         name, _ = self.split_key(key)
         directory = Path(self.cache_dir_processed)
         if is_bio_dataset(name):
-            directory /= f"{name}_{fingerprint.spec_fingerprint(get_spec(name))}"
+            identity = fingerprint.spec_fingerprint(get_spec(name))
+            order = sample_order_fingerprint(name)
+            if order is not None:
+                identity = hashlib.sha256(f"{identity}:{order}".encode()).hexdigest()
+            directory /= f"{name}_{identity}"
         train = str(directory / f"{key}_train.pkl")
         test = str(directory / f"{key}_test.pkl")
         return train, test
@@ -390,6 +395,9 @@ class TabBenchBio:
         if is_bio_dataset(name):
             spec_path = Path(train_path).parent / "dataset_spec.json"
             payload = {"bio_id": name, "spec_sha256": fingerprint.spec_fingerprint(get_spec(name))}
+            order = sample_order_fingerprint(name)
+            if order is not None:
+                payload["sample_order_sha256"] = order
             if spec_path.exists():
                 assert json.loads(spec_path.read_text(encoding="utf-8")) == payload, spec_path
             else:
@@ -530,7 +538,7 @@ class TabBenchBio:
             return train.sample(n=n, random_state=self.random_state)
 
         y = train[label_col]
-        counts = y.value_counts()
+        counts = y.value_counts(sort=False).sort_values(ascending=False, kind="stable")
         classes = counts.index.tolist()
         k = len(classes)
         if n <= k:
@@ -785,7 +793,9 @@ class TabBenchBio:
             return data_df
 
         label_col = data_df.columns[-1]
-        counts = data_df[label_col].value_counts()
+        counts = (
+            data_df[label_col].value_counts(sort=False).sort_values(ascending=False, kind="stable")
+        )
         if len(counts) <= self.max_classes:
             return data_df
 
