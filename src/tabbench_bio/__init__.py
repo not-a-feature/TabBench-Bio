@@ -22,7 +22,7 @@ Quick Start
 
 Or run the full feature × sample grid sweep and build the site::
 
-    python scripts/feature_sweep.py --grid-config configs/grid_sweep.json
+    tabbench-bio RF --full-grid
     tabbench-bio site --results-dir results/feature_sweep/cap_full --out docs
 """
 

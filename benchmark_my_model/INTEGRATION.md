@@ -1,35 +1,44 @@
-# Add a model and run TabBench-Bio
+# Integrate a model with TabBench-Bio
 
-Add an adapter, register its key and choose its environment profile. Then run the
-benchmark, merge its results and build a leaderboard. The same model command works
-locally and in a cluster job.
+## Use a Python model without a clone
 
-## Install once
+Most models only need a `create_model(task)` factory returning a cloneable
+scikit-learn classifier or regressor. Start from [my_model.py](my_model.py),
+which provides SVC and SVR with training-only imputation and scaling.
+
+With Python 3.11 or 3.12:
 
 ```bash
-git clone https://github.com/not-a-feature/TabBench-Bio.git
-cd TabBench-Bio
 uv venv --python 3.12
-uv pip install -e '.[bio]'
 source .venv/bin/activate
+uv pip install "tabbench-bio[bio]"
+tabbench-bio evaluate --model my_model.py --task overall
 ```
 
-On PowerShell, activate with `.venv\Scripts\Activate.ps1`. This is the core environment
-for launching runs, merging databases and generating leaderboards. Model backends
-live in separate environments. Keep the editable clone: the model command reads its
-grid, dataset lists and profiles.
+Before the first PyPI upload, install a built wheel with `[bio]` instead.
+The command downloads missing data and the latest reference database, checks
+frozen test rows and labels, and fits only your model. Open
+`my_model_results/report.html` for the combined leaderboard and plots.
+Use `--task classification` or `--task regression` to select one task type.
 
-## Add the adapter and registry entry
+This workflow writes CSV metrics and release provenance. It requires a fresh
+output directory and cannot resume or produce SQLite attempt bundles for merging.
+See [the model guide](README.md) for dataset selection and other options.
 
-Add `src/tabbench_bio/models/my_model.py` with an AutoGluon adapter.
-Start from an existing adapter with a similar fit/predict interface.
-Implement fitting and prediction, select checkpoints explicitly, fix random seeds
-and honour the assigned device and CPU budget. Fit preprocessing on training data only.
-Classification probabilities must follow AutoGluon's class order.
-Regression returns numerical predictions.
+## Register an adapter for resumable runs
 
-Then add a `ModelSpec` for your key to `MODEL_REGISTRY` in
-`src/tabbench_bio/model_registry.py`:
+Adapter development requires a source checkout. Install it into your core environment:
+
+```bash
+uv pip install -e '.[bio]'
+```
+
+Add an AutoGluon adapter at `src/tabbench_bio/models/my_model.py`, using an existing
+adapter as a starting point. Fit preprocessing on training rows only, fix random
+seeds, and honour the assigned CPU and device budget. Classification probabilities
+must follow AutoGluon's class order; regression returns numerical predictions.
+
+Add its key to `MODEL_REGISTRY` in `src/tabbench_bio/model_registry.py`:
 
 ```python
 "MYMODEL": ModelSpec(
@@ -41,260 +50,99 @@ Then add a `ModelSpec` for your key to `MODEL_REGISTRY` in
 ),
 ```
 
-The entry selects the adapter, environment and device, and gives the website name and
-category. Optional capabilities: `supported_tasks=("classification",)` skips regression,
-`max_classes` skips tasks with more classes, and `max_features` records the regular
-feature limit for reporting. Enforce any hard input limit in the adapter.
+Use `supported_tasks=("classification",)` or `max_classes` for unsupported tasks.
+`max_features` records the regular feature limit; enforce hard limits in the adapter.
+No CLI or grid edits are needed. Add the key to `configs/models/all.json` only if
+it should join the default roster. Use a new key for a different checkpoint or method.
 
-No CLI or grid edits are needed. Add the key to `configs/models/all.json` only when it
-should join the default benchmark roster; per-run device and environment overrides
-remain supported. Use a new key for a different method or checkpoint version.
-Before a long run, test a small fit for each supported task type in the selected
-environment on the intended hardware. Check probability order, saving and reloading,
-and unseen categories. Check the backend's preprocessing too: some fit transforms
-on training and test rows together.
+### Install the backend
 
-## Choose an environment profile
-
-Compatible models can share a profile. For a new dependency set, add
+Reuse a compatible [environment profile](../environments/README.md), or create
 `environments/my-model.txt`:
 
 ```text
 -r ../requirements-autogluon-fork.txt
 -e .[bio,autogluon]
-# Add your model backend and its version constraints here.
+# Your backend and version constraints
 ```
 
-Keep the AutoGluon fork: it removes the 500-feature cap on tabular foundation models.
-Put model-specific packages in this file. You do not need to add a package extra or
-change the CLI. Pin Git dependencies to a commit and downloaded weights to a revision.
-Profile names use lower-case letters, digits, hyphens and underscores,
-starting with a letter or digit.
-
-From the repository root, install the profile once on each machine:
+Keep the AutoGluon fork, which removes the 500-feature cap for foundation models.
+From the checkout root:
 
 ```bash
 uv venv .venvs/my-model --python 3.12
 uv pip install --python .venvs/my-model/bin/python -r environments/my-model.txt
 ```
 
-On Windows, use `.venvs/my-model/Scripts/python.exe` in the install command.
-Keep the core `.venv` active. `tabbench-bio MYMODEL` selects `.venvs/my-model/`
-for the hardware check, adapter check and every cell's execution. It prints the
-profile and interpreter path, and stops before fitting if the environment is missing.
-It does not install or update packages during a run.
+In a checkout or exported workspace, registered commands select `.venvs/<profile>/`.
+An installed package outside a workspace uses the current interpreter.
+`--python /path/to/python` overrides either choice. To export the bundled profiles
+and configurations from an installed package, use `tabbench-bio init my-benchmark`.
+The command does not install backend dependencies during a run.
 
-Existing models declare profiles in `configs/models/all.json`. Custom entries take
-precedence. See [available profiles](../environments/README.md) for the bundled choices.
-These files declare requirements, not complete dependency locks. Keep an environment
-unchanged while running or resuming a benchmark. The profile name and interpreter
-path are recorded with the hardware details, but package changes are not checked.
+### Run and resume
 
-## Run
+Keep the core environment active:
 
 ```bash
-tabbench-bio MYMODEL              # reference: 10,000 features, 100 samples, 5 folds
-tabbench-bio MYMODEL --full-grid  # all 28 feature/sample cells
+tabbench-bio MYMODEL --threads 8              # reference cell: up to 10,000 features and 100 training rows, five folds
+tabbench-bio MYMODEL --threads 8 --full-grid  # all 28 bundled cells
 ```
 
-The terminal shows cell and fold progress, followed by pass/fail/skip counts and
-the database path. Results go to `results/mymodel/results.sqlite`, with transactional
-writer files saved during the run.
+Results go to `results/mymodel/results.sqlite`. Repeat the command to resume;
+adding `--full-grid` after the reference run fills the remaining cells.
+Use `--output` for another result directory. Keep model, checkpoint, environment
+and frozen settings unchanged when resuming; changed settings require new output.
+Tuned variants use `--model-config`; see [the tuning guide](TUNING.md).
 
-Repeat the command to resume. You can finish the reference cell first, then add
-`--full-grid` to run the remaining cells. Changed frozen cell settings need a new
-`--output` directory.
+One fit runs at a time on at most one GPU. A GPU model requires CUDA unless you
+explicitly select `--device cpu` and the adapter supports it. Set `--threads` to
+match your allocation: the registered command's default is 32, independent of
+scheduler allocation. Hardware and interpreter details are recorded with results.
 
-One fit runs at a time, using at most one GPU. The command selects the first GPU in
-`CUDA_VISIBLE_DEVICES`. Set `--threads` explicitly to match your CPU allocation;
-the command's default thread count is independent of that allocation.
-Hardware details are saved in the run records and `hardware.jsonl`. The runner may
-warn when hardware differs from the benchmark reference, because resource changes
-can affect timings and time-limited results.
+Prepare dataset credentials and checkpoint access before running. Keep the resolved
+configuration and `split_manifest.json` with the results. To reuse a reference
+manifest, copy it to the new result root and change only `experiment_id` to that
+root's name; preserve all row identities and hashes.
 
-A GPU model stops if CUDA is unavailable. If the adapter supports CPU execution,
-select it explicitly:
+## Compare registered results
+
+Registered runs need reference predictions containing RF to compute anchored Elo:
 
 ```bash
-tabbench-bio MYMODEL --threads 16 --device cpu
+tabbench-bio merge /path/to/reference.sqlite results/mymodel/results.sqlite \
+  --output results/merged/results.sqlite
+tabbench-bio leaderboard --sqlite results/merged/results.sqlite \
+  --cell cap_10000_n100 --plot --csv leaderboard.csv
 ```
 
-You can also choose the result and cache directories:
+The merge destination must be new. Inputs stay unchanged; incompatible settings,
+targets or conflicting successful predictions stop the merge. RF anchors Elo at
+1000. Coverage reflects completed comparable folds.
+
+To build the full dashboard instead:
 
 ```bash
-tabbench-bio MYMODEL --output results/my_experiment --cache-dir /path/to/cache
+tabbench-bio leaderboard results/merged/results.sqlite --out preview --workers 4
+python -m http.server 8000 --directory preview
 ```
 
-Prepare checkpoint access, dataset credentials and a writable dataset cache before
-starting. `TABBENCH_BIO_LOCAL_DIR` selects the embedding directory, and
-`TABBENCH_CACHE_DIR` selects the shared cache. Raw data, split settings and
-preprocessing must match the reference benchmark.
-
-To reuse a `split_manifest.json`, place it in the new result root and change only
-its `experiment_id` to that directory's name. Preserve every row identity and hash.
-
-## Merge and generate plots
-
-```bash
-tabbench-bio merge /path/to/reference.sqlite results/mymodel/results.sqlite
-tabbench-bio leaderboard
-```
-
-The merge creates `results/merged/results.sqlite`. That path must be new.
-It combines model and dataset rosters, removes duplicate attempts and preserves
-source metadata. Incompatible settings, corrupt artefacts, mismatched targets or
-conflicting successful predictions stop the merge. Inputs stay unchanged.
-You can also pass result directories containing writer databases.
-
-The leaderboard command reads the predictions and builds a static website in
-`website/`, relative to the current directory. In a repository clone, that directory
-is the Codeberg `pages` submodule. Initialise it before building:
-
-```bash
-git submodule update --init website
-```
-
-The build includes the dashboard, dataset explorer, model cards, three analysis views
-and fitting/prediction cost plots. It prints fold-level Elo and saves per-cell PNG
-plots and CSV tables in `website/local/<cell>/overall/`. Git ignores that directory.
-It generates no per-cell HTML reports or SVG plots. Raw datasets, a GPU and LaTeX
-are unnecessary for this step.
-
-```bash
-tabbench-bio leaderboard results/merged/results.sqlite --workers 4
-python -m http.server 8000 --directory website
-```
-
-Open `http://localhost:8000/`. Use `--out preview` to build in a separate directory.
-
-The main JSON exports are `data/dashboard.json`, `data/leaderboard.json` and
-`data/datasets/index.json`, alongside the per-dataset score files. Upload the site
-to a static webserver, or just `data/` to an existing compatible TabBench-Bio site.
-Building does not publish anything.
-
-To publish through Codeberg, switch the submodule to `pages` and update it before
-building:
-
-```bash
-git -C website switch pages
-git -C website pull --ff-only
-```
-
-After building and reviewing the changes, commit and push inside the submodule:
-
-```bash
-git -C website add --all
-git -C website commit -m "Update leaderboard"
-git -C website push origin pages
-```
-
-### Build settings and caches
-
-The default is 2,000 bootstrap rounds, matching the paper.
-Change it with `--bootstrap-rounds`. `--workers` controls both fold metrics and Elo,
-with one numerical-library thread per worker. Progress bars show completed folds,
-Elo pools and estimated time remaining.
-
-Reuse the same output directory to keep cached results.
-Elo is saved in `data/dashboard.json` after a completed build. Changes to fold scores,
-bootstrap settings or the Elo implementation invalidate the affected entries.
-
-Fold metrics are saved separately in `<out>.cache/fold_metrics.sqlite`.
-Entries match prediction, probability and target hashes, metric code and numerical-library
-versions. Completed batches survive an interrupted build. Keep this cache locally for
-later merges and builds. Deleting it forces recalculation.
-The original result database and its release checksum stay unchanged.
-
-The default reference cell is `cap_10000_n100`, or the first available cell.
-Choose another with `--reference-cell`. Custom model keys get a neutral display style.
-`--results-url URL` adds a download link for the exact input SQLite file.
-The database itself is not copied into the website.
-
-### Reading and releasing results
-
-RF anchors Elo at 1000. Rankings need RF and comparable completed folds.
-Coverage remains visible for partial runs.
-
-Strict results score failed fits using recorded DUMMY metrics and omit incomplete
-model-target fold sets. Adaptive results reuse compatible lower-sample runs after
-memory failures. Conditional results omit failures, so their target pools can differ.
-Cost plots omit missing timings.
-
-To choose explicit files, one cell or a task type:
-
-```bash
-tabbench-bio merge old.sqlite new.sqlite --output results/updated/results.sqlite
-tabbench-bio leaderboard results/updated/results.sqlite --cell cap_10000_n100
-tabbench-bio leaderboard results/updated/results.sqlite --task classification
-```
-
-Use a frozen snapshot for a reproducible build, and wait for jobs to finish before
-a final release. Snapshots of active writer files are individually consistent,
-but can represent different points in the run. Allow disk space for the combined
-database and the largest input snapshot.
-
-Continue training in the per-model directories. Keep released databases unchanged
-and publish later results as a new release.
+Open `http://localhost:8000/`. Building does not publish anything. The default
+confidence intervals use 2,000 target-bootstrap rounds; `--bootstrap-rounds`
+changes that count. Keep released databases unchanged and publish later results
+as a new release. See the [main README](../README.md) for website details.
 
 ## Run on a cluster
 
-Run the same model command inside your scheduler's job allocation. Install the core
-environment and the model profile where compute nodes can access them. Make the
-checkout, data cache and result directory available to the job, and configure any
-dataset credentials or checkpoint access before submitting it.
-
-Choose CPU count, memory, GPU requirements and wall time for your model. Keep model
-threads within the allocation and use one benchmark worker per GPU. The scheduler's
-wall-time limit covers the entire job; it is separate from the per-fit benchmark
-budget. Submit only one model-command job per result directory at a time.
-
-For example, save this as `run_benchmark.sbatch` on a Slurm cluster. The resource
-values are illustrative: adapt them and add your site's account or partition
-directives. For a GPU model, uncomment the GPU request and adjust its syntax if
-your cluster requires a GPU type.
+Use the same command within your scheduler allocation. The core environment,
+backend profile, data and output paths must be accessible on compute nodes.
+For example, within a Slurm allocation:
 
 ```bash
-#!/usr/bin/env bash
-#SBATCH --job-name=tabbench
-#SBATCH --ntasks=1
-#SBATCH --cpus-per-task=8
-#SBATCH --mem=32G
-#SBATCH --time=1-00:00:00
-#SBATCH --output=logs/benchmark.%j.out
-#SBATCH --error=logs/benchmark.%j.err
-##SBATCH --gres=gpu:1
-
-set -euo pipefail
-cd "${SLURM_SUBMIT_DIR:?Submit from the repository checkout}"
-srun .venv/bin/tabbench-bio "$@" --threads "${SLURM_CPUS_PER_TASK:?}"
+srun /path/to/core/.venv/bin/tabbench-bio MYMODEL \
+  --threads "$SLURM_CPUS_PER_TASK" --output results/my-model
 ```
 
-Submit from the repository root after creating the log directory:
-
-```bash
-mkdir -p logs
-sbatch run_benchmark.sbatch MYMODEL --output results/my-model
-```
-
-For a tuned model, pass the JSON definition from the [tuning guide](TUNING.md):
-
-```bash
-sbatch run_benchmark.sbatch MY-MODEL-TUNED --model-config my_grid.json --output results/my-tuned-model
-```
-
-Add `--full-grid` to either submission to run every configured feature and sample
-budget. Use `--device cpu` if you want CPU execution and the adapter supports it;
-otherwise request the GPU required by the model's registry entry. The model command
-selects its installed environment profile automatically.
-
-If a job stops at its wall-time limit, submit the same command again after it exits.
-Completed benchmark units are resumed from the same result directory. Keep the
-model definition, split settings and environment unchanged between submissions.
-For another scheduler, replace the allocation directives and launch command while
-keeping the TabBench command and paths the same.
-
-The lower-level `run` command and `scripts/feature_sweep.py` use the interpreter
-that launches them; activate a compatible model profile when using those directly.
-
-For a small comparison using scikit-learn alone, see [Benchmark my model](README.md).
-That helper exports metrics but does not write SQLite attempt bundles for merging.
+Request the memory, wall time and GPU required by your adapter. Run only one
+registered-model job per result directory. After a job stops, resubmit the same
+command to resume completed units. The `evaluate` workflow above does not resume.
