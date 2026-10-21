@@ -12,53 +12,39 @@ This repository contains the package and experiment definitions. The
 
 ## Install
 
-Clone the repository and install the package with its dataset loaders:
+Use Python 3.11 or 3.12:
 
 ```bash
-git clone https://github.com/not-a-feature/TabBench-Bio.git
-cd TabBench-Bio
 uv venv --python 3.12
-uv pip install -e ".[bio]"
+source .venv/bin/activate
+uv pip install "tabbench-bio[bio]"
 ```
 
-The [scikit-learn example](benchmark_my_model/README.md) works with this installation.
-Registered models run in separate [environment profiles](environments/README.md).
-Install the profile declared by your model before running it. For the existing
-models that use `standard`, on Linux:
+Before the first PyPI upload, install a built wheel with `[bio]` instead.
+Missing datasets download automatically. Custom estimators need no AutoGluon or CUDA.
+
+## Benchmark your model
+
+Define `create_model(task)` in `my_model.py`, returning a cloneable scikit-learn
+classifier or regressor. See the [SVM example](benchmark_my_model/my_model.py).
 
 ```bash
-uv venv .venvs/standard --python 3.12
-uv pip install --python .venvs/standard/bin/python -r environments/standard.txt
+tabbench-bio evaluate --model my_model.py --task overall
 ```
 
-The profile installs the required AutoGluon fork and model dependencies.
-Compatible models can share a profile. The [model guide](benchmark_my_model/INTEGRATION.md)
-explains how to give a new model its own environment.
+This uses the latest published reference and frozen folds, then writes
+`my_model_results/report.html`, Elo plots and CSV metrics.
+See the [model guide](benchmark_my_model/README.md) for options.
 
-## Run a benchmark
-
-To try your own scikit-learn model, edit `benchmark_my_model/my_model.py` and run:
+Registered models use their installed backend dependencies:
 
 ```bash
-uv run --no-sync python benchmark_my_model/run.py --output my_model_results
+tabbench-bio RF
+tabbench-bio RF --full-grid
 ```
 
-This fits your model and local baselines, then saves an HTML report, Elo plot and CSV
-results. Its `--baseline` option compares against published predictions on frozen splits.
-
-For resumable runs and SQLite results, [register an adapter](benchmark_my_model/INTEGRATION.md).
-The model command runs the reference cell by default. Add `--full-grid` for all 28 cells:
-
-```bash
-uv run --no-sync tabbench-bio MYMODEL
-uv run --no-sync tabbench-bio MYMODEL --full-grid
-```
-
-The command selects `.venvs/<profile>/` automatically, including on Slurm.
-The lower-level `run` command and `scripts/feature_sweep.py` use their current Python
-environment, so run them in a profile that supports every selected model.
-Keep each run's configuration and `split_manifest.json` with its results.
-Resuming relies on those settings and row identities staying fixed.
+See the [integration guide](benchmark_my_model/INTEGRATION.md) for environment
+profiles, resumable runs and adapter development.
 
 ## Datasets and models
 
