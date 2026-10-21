@@ -9,6 +9,7 @@ from matplotlib import get_data_path
 from PIL import Image, ImageDraw, ImageFont
 
 BUNDLED_FONTS = Path(get_data_path()) / "fonts" / "ttf"
+WEB_FONTS = Path(__file__).parent / "web" / "assets" / "fonts"
 SIZE = (1732, 908)
 
 BG = "#f4f5f1"
@@ -31,16 +32,10 @@ SERIF_FONTS = [
     BUNDLED_FONTS / "DejaVuSerif.ttf",
 ]
 SANS_FONTS = [
-    Path("C:/Windows/Fonts/segoeui.ttf"),
-    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-    Path("/System/Library/Fonts/SFNS.ttf"),
-    BUNDLED_FONTS / "DejaVuSans.ttf",
+    WEB_FONTS / "AtkinsonHyperlegibleNext-Regular.woff2",
 ]
 SANS_BOLD_FONTS = [
-    Path("C:/Windows/Fonts/segoeuib.ttf"),
-    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-    Path("/System/Library/Fonts/SFNS.ttf"),
-    BUNDLED_FONTS / "DejaVuSans-Bold.ttf",
+    WEB_FONTS / "AtkinsonHyperlegibleNext-Bold.woff2",
 ]
 
 
@@ -201,10 +196,6 @@ def generate_social_preview(dashboard_path: Path, output: Path) -> None:
     draw.text((990, 184), setting, font=setting_font, fill=MUTED)
     draw.line((990, 228, 1592, 228), fill=LINE, width=2)
     draw_podium(draw, leaders, 990, 258, 602)
-    note_font = font(SANS_FONTS, 17)
-    draw.text(
-        (990, 744), "Bars show rank; numbers show Elo and 95% interval.", font=note_font, fill=MUTED
-    )
 
     assert image.size == SIZE
     output.parent.mkdir(parents=True, exist_ok=True)
