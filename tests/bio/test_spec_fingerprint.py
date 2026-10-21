@@ -25,6 +25,16 @@ def spec():
         ("group_column", "patient"),
         ("source_max_features", 5),
         ("embedding_column", "embedding"),
+        (
+            "download_files",
+            {
+                "genotype.csv": {
+                    "url": "https://example.org/genotype.csv",
+                    "checksum": "0" * 32,
+                    "algorithm": "md5",
+                }
+            },
+        ),
     ],
 )
 def test_registry_changes_invalidate_raw_and_split_cache(tmp_path, monkeypatch, spec, field, value):
@@ -62,6 +72,22 @@ def test_loader_version_invalidates_fingerprint(spec, monkeypatch):
     old = fingerprint.spec_fingerprint(spec)
     monkeypatch.setattr(fingerprint, "LOADER_CACHE_VERSION", fingerprint.LOADER_CACHE_VERSION + 1)
     assert fingerprint.spec_fingerprint(spec) != old
+
+
+@pytest.mark.parametrize(
+    "field,value",
+    [("url", "https://example.org/updated"), ("checksum", "0" * 32)],
+)
+def test_multifile_source_changes_invalidate_only_the_affected_dataset(field, value):
+    spec = datasets.get_spec("gp-maize-FT")
+    other = datasets.get_spec("gp-rice-FT")
+    original = fingerprint.spec_fingerprint(spec)
+    unchanged = fingerprint.spec_fingerprint(other)
+    files = {name: dict(asset) for name, asset in spec.download_files.items()}
+    files["maize_geno.csv"][field] = value
+    assert fingerprint.spec_fingerprint(replace(spec, download_files=files)) != original
+    assert fingerprint.spec_fingerprint(spec) == original
+    assert fingerprint.spec_fingerprint(other) == unchanged
 
 
 def test_existing_split_metadata_is_validated_without_writing(tmp_path, monkeypatch):

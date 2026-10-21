@@ -89,6 +89,18 @@ def get_loader(spec: BioDatasetSpec, *, cache_dir: str | None = None) -> BioLoad
         from tabbench_bio.bio.loaders.chembl import ChemblLoader
 
         return ChemblLoader()
+    if source == "moleculenet":
+        from tabbench_bio.bio.loaders.moleculenet import MoleculeNetLoader
+
+        return MoleculeNetLoader(
+            cache_dir=Path(cache_dir) / "moleculenet_raw" if cache_dir else None
+        )
+    if source == "metabolomics":
+        from tabbench_bio.bio.loaders.metabolomics import MetabolomicsLoader
+
+        return MetabolomicsLoader(
+            cache_dir=Path(cache_dir) / "metabolomics_raw" if cache_dir else None
+        )
     raise ValueError(f"Unknown bio source: {source!r}")
 
 
