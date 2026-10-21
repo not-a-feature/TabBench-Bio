@@ -1,4 +1,4 @@
-include CONTRIBUTING.md CITATION.cff CITATION.bib requirements-autogluon-fork.txt
+include CONTRIBUTING.md CITATION.cff CITATION.bib requirements-autogluon-fork.txt src/build_support.py
 recursive-include benchmark_my_model *.py *.md
 recursive-include configs *.json
 recursive-include environments *.txt *.md

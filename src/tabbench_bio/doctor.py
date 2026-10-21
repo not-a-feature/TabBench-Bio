@@ -1,4 +1,4 @@
-"""Read-only checks for a benchmark checkout and its caches."""
+"""Read-only checks for an installed benchmark and its caches."""
 
 import importlib.util
 import json
@@ -12,9 +12,10 @@ from tabbench_bio.bio.datasets import load_specs
 from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
 from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 from tabbench_bio.model_run import model_python
+from tabbench_bio.resources import resource_root
 from tabbench_bio.web_metadata import SKILL_NAME
 
-CHECKOUT = Path(__file__).resolve().parents[2]
+CHECKOUT = resource_root()
 
 
 def check_metadata(root: Path) -> list[str]:
@@ -38,7 +39,8 @@ def check_skill(root: Path, site_dir: Path | None = None) -> list[str]:
     problems = []
     if "license: EUPL-1.2" not in source.read_text(encoding="utf-8").splitlines():
         problems.append(f"{source}: expected license: EUPL-1.2")
-    destinations = [(root / "src/tabbench_bio/web", False)]
+    web = root.parent / "web" if root.name == "_resources" else root / "src/tabbench_bio/web"
+    destinations = [(web, False)]
     if site_dir is not None:
         destinations.append((site_dir, True))
     for destination, required in destinations:
@@ -98,7 +100,6 @@ def check_adapter(key: str) -> list[str]:
         return [str(exc)]
     environment = dict(os.environ)
     environment.pop("PYTHONHOME", None)
-    environment["PYTHONPATH"] = str(CHECKOUT / "src")
     result = subprocess.run(
         [
             python,
@@ -107,7 +108,6 @@ def check_adapter(key: str) -> list[str]:
             "_resolve_hyperparameters([sys.argv[1]], 0) if sys.argv[1] != 'AUTOGLUON' else None",
             key,
         ],
-        cwd=CHECKOUT,
         env=environment,
         capture_output=True,
         text=True,
@@ -118,7 +118,6 @@ def check_adapter(key: str) -> list[str]:
 
 
 def cmd_doctor(args) -> None:
-    assert (CHECKOUT / "configs/models").is_dir(), "Run doctor from an editable source checkout"
     checks = [
         ("Registry and environment files", check_metadata(CHECKOUT)),
         ("Skill source and copies", check_skill(CHECKOUT, args.site_dir)),

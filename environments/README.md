@@ -1,5 +1,11 @@
 # Model environments
 
+For a PyPI installation, run `tabbench-bio init my-benchmark` and change into that
+directory to export these profiles. Exported profiles install the matching package
+release. The commands below work from either that workspace or a source checkout.
+Outside a workspace, the model command uses the active interpreter. Pass
+`--python /path/to/python` to select another installed model environment explicitly.
+
 Each registered model selects an `environment` profile. The profile's requirements
 live in `environments/<profile>.txt`, and its installed Python environment lives in
 `.venvs/<profile>/`. Compatible models can share one profile.

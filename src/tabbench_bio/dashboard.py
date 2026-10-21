@@ -9,7 +9,6 @@ import json
 import math
 import re
 import shutil
-import sysconfig
 from importlib.metadata import version
 from pathlib import Path
 
@@ -26,6 +25,7 @@ from tabbench_bio.model_registry import (
     MODEL_REGISTRY,
     REGULAR_MAX_FEATURES,
 )
+from tabbench_bio.resources import resource_root
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.social_preview import write_social_preview
 from tabbench_bio.web_metadata import write_agent_metadata, write_home_summary
@@ -145,9 +145,7 @@ def write_dashboard_payload(path: Path, dashboard: dict) -> None:
 
 
 def load_model_registry(configs=()) -> dict[str, dict]:
-    directory = PACKAGE_ROOT.parents[1] / "configs" / "models"
-    if not directory.is_dir():
-        directory = Path(sysconfig.get_path("data")) / "share" / "tabbench-bio" / "models"
+    directory = resource_root() / "configs/models"
     paths = sorted(directory.glob("*.json"))
     assert paths, f"Model registry missing: {directory}"
     registry = {}
@@ -226,8 +224,6 @@ def dataset_source_url(source: str, fetch_id: str) -> str | None:
         return f"https://www.kaggle.com/datasets/{fetch_id}"
     if source == "metagenomics":
         return "https://github.com/segatalab/metaml"
-    if source == "gp":
-        return "https://doi.org/10.5061/dryad.xksn02vb9"
     if source == "chembl":
         return f"https://www.ebi.ac.uk/chembl/explore/target/{fetch_id}"
     return None

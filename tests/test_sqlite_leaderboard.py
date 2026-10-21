@@ -20,6 +20,28 @@ from tabbench_bio.leaderboard import _metrics_from_sqlite
 from tabbench_bio.metric_cache import MetricCache
 
 
+def test_public_sqlite_loader_reuses_metrics_without_reading_blobs(tmp_path, monkeypatch, capsys):
+    database, cache = tmp_path / "results.sqlite", tmp_path / "cache/fold_metrics.sqlite"
+    _build_release_bundle(database)
+    checksum = hashlib.sha256(database.read_bytes()).hexdigest()
+    cold = Leaderboard.from_sqlite(
+        database, cell="cap_10000_n100", metric_cache=cache, show_progress=True
+    )
+    assert "reused 0/2; computed 2" in capsys.readouterr().out
+    monkeypatch.setattr(
+        "tabbench_bio.leaderboard._sqlite_frame",
+        lambda *a: pytest.fail("Warm public loader must not decode prediction blobs"),
+    )
+    warm = Leaderboard.from_sqlite(
+        database, cell="cap_10000_n100", metric_cache=cache, show_progress=True
+    )
+    assert "reused 2/2; computed 0" in capsys.readouterr().out
+    pd.testing.assert_frame_equal(cold._clf_metrics, warm._clf_metrics, check_exact=True)
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == checksum
+    with pytest.raises(AssertionError, match="separate from results"):
+        Leaderboard.from_sqlite(database, cell="cap_10000_n100", metric_cache=database)
+
+
 def test_metric_cache_persists_and_skips_blob_loading(tmp_path, monkeypatch):
     database = tmp_path / "results.sqlite"
     cache_path = tmp_path / "fold_metrics.sqlite"

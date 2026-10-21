@@ -348,12 +348,6 @@
         <p><strong>Tuning protocol.</strong> Tuned models use a small predefined grid under a one-hour budget.
           Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold.</p>
         <p><strong>System configuration.</strong> NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.</p>
-        <p><strong>Strict website default.</strong> Performance charts and rankings open in Strict
-          (primary) mode, using results at the requested feature and sample budgets. Tuned failures use
-          the matching untuned model at the same cell and fold; other failures use the constant predictor.
-          Adaptive remains available as a sensitivity view and may reuse a
-          verified smaller sample budget after a memory failure. Dataset-specific exports and the downloadable
-          LaTeX leaderboard also use Strict results.</p>
       </aside>
     </section>
 

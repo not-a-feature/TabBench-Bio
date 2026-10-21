@@ -1,12 +1,14 @@
 """Short commands preserve the protocol and distinguish CPUs from model threads."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from tabbench_bio import model_run
+from tabbench_bio.bio import datasets
 from tabbench_bio.cli import main
 from tabbench_bio.result_store import ResultRepository
 
@@ -182,3 +184,57 @@ def test_leaderboard_rejects_conflicting_sources(monkeypatch, capsys):
         main()
     assert error.value.code == 2
     assert "not allowed with argument" in capsys.readouterr().err
+
+
+@pytest.mark.parametrize("enabled", [True, False])
+@pytest.mark.parametrize(
+    "symlink",
+    [
+        False,
+        pytest.param(
+            True,
+            marks=pytest.mark.skipif(
+                model_run.sys.platform == "win32", reason="POSIX virtualenv Python symlinks"
+            ),
+        ),
+    ],
+)
+def test_registered_model_uses_bundled_grid_and_explicit_python(
+    tmp_path, monkeypatch, enabled, symlink
+):
+    spec = datasets.get_spec("MoleculeNet-Tox21-SR-MMP")
+    monkeypatch.setitem(datasets.BIO_DATASETS, spec.bio_id, replace(spec, enabled=enabled))
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(model_run, "CHECKOUT", tmp_path / "installed/Lib")
+    monkeypatch.setattr(model_run, "worker_environment", lambda *a: ({}, {}))
+    python = Path(model_run.sys.executable)
+    if symlink:
+        python = tmp_path / "venv/bin/python"
+        python.parent.mkdir(parents=True)
+        python.symlink_to(model_run.sys.executable)
+    calls = []
+
+    def worker(command, **kwargs):
+        assert command[0] == str(python)
+        if "--config" in command:
+            path = Path(command[command.index("--config") + 1])
+            config = json.loads(path.read_text())
+            calls.append(config)
+            ResultRepository(path.parent, config).write(
+                {"dataset": "toy_0", "model": "RF", "status": "skip", "reason": "model_limit"},
+                seed=0,
+            )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(model_run.subprocess, "run", worker)
+    monkeypatch.setattr("sys.argv", ["tabbench-bio", "RF", "--python", str(python)])
+    main()
+    assert len(calls) == 1
+    assert calls[0]["bio_max_features"] == 10000
+    assert calls[0]["train_subsample"] == 100
+    assert (spec.bio_id in calls[0]["datasets_classification"]) == enabled
+    assert calls[0]["datasets_classification"] == datasets.resolve_dataset_names(
+        None, "classification"
+    )
+    assert calls[0]["datasets_regression"] == datasets.resolve_dataset_names(None, "regression")
+    assert (tmp_path / "results/rf/results.sqlite").is_file()
