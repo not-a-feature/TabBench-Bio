@@ -177,3 +177,30 @@ def test_leaderboard_rejects_conflicting_sources(monkeypatch, capsys):
         main()
     assert error.value.code == 2
     assert "not allowed with argument" in capsys.readouterr().err
+
+
+def test_registered_model_uses_bundled_grid_and_explicit_python(tmp_path, monkeypatch):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(model_run, "CHECKOUT", tmp_path / "installed/Lib")
+    monkeypatch.setattr(model_run, "worker_environment", lambda *a: ({}, {}))
+    calls = []
+
+    def worker(command, **kwargs):
+        assert command[0] == model_run.sys.executable
+        if "--config" in command:
+            path = Path(command[command.index("--config") + 1])
+            config = json.loads(path.read_text())
+            calls.append(config)
+            ResultRepository(path.parent, config).write(
+                {"dataset": "toy_0", "model": "RF", "status": "skip", "reason": "model_limit"},
+                seed=0,
+            )
+        return SimpleNamespace(returncode=0)
+
+    monkeypatch.setattr(model_run.subprocess, "run", worker)
+    monkeypatch.setattr("sys.argv", ["tabbench-bio", "RF", "--python", model_run.sys.executable])
+    main()
+    assert len(calls) == 1
+    assert calls[0]["bio_max_features"] == 10000
+    assert calls[0]["train_subsample"] == 100
+    assert (tmp_path / "results/rf/results.sqlite").is_file()

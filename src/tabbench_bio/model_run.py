@@ -1,4 +1,4 @@
-"""Run one model through the standard grid from an editable checkout."""
+"""Run one model through the bundled benchmark grid."""
 
 import json
 import os
@@ -17,10 +17,19 @@ from tabbench_bio.config import (
 )
 from tabbench_bio.io_utils import atomic_write_json
 from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key, model_entry
+from tabbench_bio.resources import resource_root
 from tabbench_bio.result_store import ResultRepository, consolidate_results
 from tabbench_bio.tuning import tuning_specs
 
 CHECKOUT = Path(__file__).resolve().parents[2]
+
+
+def workspace_root() -> Path:
+    if (CHECKOUT / "environments").is_dir():
+        return CHECKOUT
+    if (Path.cwd() / "environments").is_dir():
+        return Path.cwd()
+    return CHECKOUT
 
 
 def model_python(profile: str) -> str:
@@ -28,12 +37,18 @@ def model_python(profile: str) -> str:
     assert re.fullmatch(r"[a-z0-9][a-z0-9_-]*", profile), (
         f"Invalid environment profile: {profile!r}"
     )
-    requirements = CHECKOUT / "environments" / f"{profile}.txt"
+    workspace = workspace_root()
+    requirements = workspace / "environments" / f"{profile}.txt"
+    if not (workspace / "environments").is_dir():
+        assert (resource_root() / "environments" / f"{profile}.txt").is_file(), (
+            f"Missing environment profile: {profile}"
+        )
+        return sys.executable
     assert requirements.is_file(), f"Missing environment profile: {requirements}"
-    environment = CHECKOUT / ".venvs" / profile
+    environment = workspace / ".venvs" / profile
     executable = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
     assert executable.is_file(), (
-        f"Environment {profile!r} is not installed. From {CHECKOUT}, run:\n"
+        f"Environment {profile!r} is not installed. From {workspace}, run:\n"
         f"uv venv .venvs/{profile} --python 3.12\n"
         f'uv pip install --python "{executable}" -r environments/{profile}.txt'
     )
@@ -110,8 +125,9 @@ def worker_environment(
 def run_model(args) -> None:
     key = canonical_model_key(args.model_key)
     assert re.fullmatch(r"[A-Z0-9][A-Z0-9_.-]*", key), f"Invalid model key: {key}"
-    grid_path = CHECKOUT / "configs/grid_sweep_all.json"
-    assert grid_path.is_file(), "Use an editable clone: uv pip install -e '.[bio,autogluon]'"
+    grid_path = workspace_root() / "configs/grid_sweep_all.json"
+    if not grid_path.is_file():
+        grid_path = resource_root() / "configs/grid_sweep_all.json"
     grid = json.loads(grid_path.read_text(encoding="utf-8"))
     roster = resolve_list(grid["models"], str(grid_path.parent))
     entries = {entry["key"]: entry for entry in roster}
@@ -125,7 +141,9 @@ def run_model(args) -> None:
     entry = model_entry(entries[key] if key in entries else {"key": key})
     assert "environment" in entry, f"Model {key} must declare an environment profile"
     profile = entry["environment"]
-    python = model_python(profile)
+    python = str(Path(args.python).resolve()) if args.python else model_python(profile)
+    if args.python:
+        assert Path(python).is_file(), f"Python interpreter not found: {python}"
     device = args.device if args.device else entry["device"]
     assert device in ("cpu", "gpu"), f"Invalid device for {key}: {device}"
     print(f"{key}: environment {profile} ({python})", flush=True)

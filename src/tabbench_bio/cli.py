@@ -296,10 +296,13 @@ def main():
     model_p = sub.add_parser(
         "model",
         help="Run MODELKEY in its environment profile (also: tabbench-bio MODELKEY)",
-        description="Run a model in its installed .venvs/<profile> environment.",
+        description="Run a model in a workspace profile or the current Python environment.",
     )
     model_p.add_argument("model_key")
     model_p.add_argument("--model-config", help="JSON model roster, including tuned variants")
+    model_p.add_argument(
+        "--python", help="Explicit Python executable with the selected model installed"
+    )
     model_p.add_argument(
         "--full-grid", action="store_true", help="Run all 28 cells; default: reference cell"
     )
