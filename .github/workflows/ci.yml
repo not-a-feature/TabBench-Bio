@@ -29,8 +29,9 @@ jobs:
 
       - name: Build and install package (core + dev)
         run: |
-          pip install build
+          pip install build twine
           python -m build
+          python -m twine check --strict dist/*
           wheels=(dist/*.whl)
           pip install "${wheels[0]}[dev]"
 
