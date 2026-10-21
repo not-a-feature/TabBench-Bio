@@ -8,7 +8,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from tabbench_bio import dashboard, web_metadata
+from tabbench_bio import dashboard, resources, web_metadata
 from tabbench_bio.cli import main
 from tabbench_bio.config import config_for_cell
 from tabbench_bio.elo import compute_elo, fold_scores
@@ -52,13 +52,13 @@ def test_frozen_results_supply_parent_for_retired_rosters():
 
 
 def test_installed_registry_is_loaded_without_a_source_checkout(tmp_path, monkeypatch):
-    directory = tmp_path / "share/tabbench-bio/models"
+    package = tmp_path / "lib/site-packages/tabbench_bio"
+    directory = package / "_resources/configs/models"
     directory.mkdir(parents=True)
     (directory / "custom.json").write_text(
         json.dumps([{"key": "CUSTOM", "base_model": "RF", "training_data_overlap": True}])
     )
-    monkeypatch.setattr(dashboard, "PACKAGE_ROOT", tmp_path / "lib/site-packages/tabbench_bio")
-    monkeypatch.setattr(dashboard.sysconfig, "get_path", lambda _: str(tmp_path))
+    monkeypatch.setattr(resources, "__file__", str(package / "resources.py"))
     registry = dashboard.load_model_registry()
     assert dashboard.model_meta("CUSTOM", registry)["tuned_from"] == "RF"
 
@@ -230,10 +230,11 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     assert (output / "assets/og.png").read_bytes() == social_image
 
     # Installed wheels must generate the same skill without a source checkout.
-    installed = tmp_path / "installed/tabbench_bio/skills" / skill.name
+    installed = tmp_path / "installed/tabbench_bio/_resources/skills" / skill.name
     shutil.copytree(skill, installed)
-    monkeypatch.setattr(web_metadata, "PACKAGE_ROOT", tmp_path / "lib/site-packages/tabbench_bio")
-    monkeypatch.setattr(web_metadata, "files", lambda _: tmp_path / "installed/tabbench_bio")
+    monkeypatch.setattr(
+        web_metadata, "resource_root", lambda: tmp_path / "installed/tabbench_bio/_resources"
+    )
     (output / "skill.md").write_text("stale copy", encoding="utf-8")
     web_metadata.write_agent_metadata(output, payload)
     assert not (output / "skills").exists()

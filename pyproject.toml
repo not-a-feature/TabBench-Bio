@@ -141,13 +141,13 @@ where = ["src"]
 [tool.setuptools.package-dir]
 "" = "src"
 
+[tool.setuptools.cmdclass]
+build_py = "build_support.BuildPy"
+
 [tool.setuptools.package-data]
 tabbench_bio = [
     "bio/data/*.json", "web/*", "web/.nojekyll", "web/js/*", "web/assets/*", "web/assets/fonts/*",
 ]
-
-[tool.setuptools.data-files]
-"share/tabbench-bio/models" = ["configs/models/*.json"]
 
 [tool.black]
 line-length = 100
