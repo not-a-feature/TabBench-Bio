@@ -13,8 +13,6 @@ moving catalogue or heuristic target selection.
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -23,105 +21,26 @@ import pandas as pd
 
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.loaders.base import BioRawDataset
+from tabbench_bio.io_utils import download_file
 
 if TYPE_CHECKING:
     from tabbench_bio.bio.datasets import BioDatasetSpec
 
 
-DATAVERSE_URL = "https://dataverse.harvard.edu/api/access/datafile/{file_id}"
 FINGERPRINT_BITS = 2048
 FINGERPRINT_RADIUS = 2
 MAX_INVALID_FRACTION = 0.01
 MAX_CONFLICT_FRACTION = 0.01
 
 
-@dataclass(frozen=True)
-class TdcEndpoint:
-    """Frozen identity and provenance for one TDC endpoint."""
-
-    file_id: int
-    problem_type: str
-    citation: str
-    sha256: str
-    n_bytes: int
-
-
-ENDPOINTS: dict[str, TdcEndpoint] = {
-    "bbb_martins": TdcEndpoint(
-        4259566,
-        "binary",
-        "Martins IF et al. (2012), A Bayesian approach to in silico blood-brain barrier penetration modeling.",
-        "eb32676c7bf6e2bcd98b7625186bbb2ba4e4644c1d1468dfa18b6be665bd5e98",
-        137899,
-    ),
-    "ames": TdcEndpoint(
-        4259564,
-        "binary",
-        "Hansen K et al. (2009), Benchmark data set for in silico prediction of Ames mutagenicity.",
-        "825c2b4c31c9cec81aa32eb394fd24e6b32ee4959905d4272e56483ecb6f3e16",
-        344128,
-    ),
-    "cyp3a4_veith": TdcEndpoint(
-        4259582,
-        "binary",
-        "Veith H et al. (2009), Comprehensive characterization of cytochrome P450 isozyme selectivity.",
-        "4c85a4cea9ffadd36fdd188f96b866d1d8db5d333a6d423172cf4363a585565a",
-        746183,
-    ),
-    "solubility_aqsoldb": TdcEndpoint(
-        4259610,
-        "regression",
-        "Sorkun MC et al. (2019), AqSolDB, a curated reference set of aqueous solubility.",
-        "0b593f7b55abbe477ba4284aefd7b5450551f4ed21ac4aed80a097931141c9a4",
-        852658,
-    ),
-    "lipophilicity_astrazeneca": TdcEndpoint(
-        4259595,
-        "regression",
-        "AstraZeneca / MoleculeNet lipophilicity benchmark, distributed by Therapeutics Data Commons.",
-        "14add1edb356e62f78256ff964c0cbba03c007be3ff48d6d4c18679f307f1d4c",
-        297882,
-    ),
-    "ld50_zhu": TdcEndpoint(
-        4267146,
-        "regression",
-        "Zhu H et al. (2009), Quantitative structure-activity relationship modeling of rat acute toxicity.",
-        "fdae7cfe7840fcca3341be0126cb6cbf1b16a4fcde42865f98cb9ca607f5ff16",
-        706604,
-    ),
+ENDPOINTS = {
+    "bbb_martins": "binary",
+    "ames": "binary",
+    "cyp3a4_veith": "binary",
+    "solubility_aqsoldb": "regression",
+    "lipophilicity_astrazeneca": "regression",
+    "ld50_zhu": "regression",
 }
-
-
-def _download(endpoint: str, destination: Path) -> Path:
-    """Download a frozen Dataverse file once, using an atomic cache write."""
-    import requests
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    record = ENDPOINTS[endpoint]
-    if not destination.exists():
-        url = DATAVERSE_URL.format(file_id=record.file_id)
-        response = requests.get(url, stream=True, timeout=180)
-        response.raise_for_status()
-        partial = destination.with_suffix(destination.suffix + ".part")
-        try:
-            with partial.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        handle.write(chunk)
-            partial.replace(destination)
-        finally:
-            if partial.exists():
-                partial.unlink()
-
-    n_bytes = destination.stat().st_size
-    digest = hashlib.sha256(destination.read_bytes()).hexdigest()
-    if n_bytes != record.n_bytes or digest != record.sha256:
-        raise ValueError(
-            f"{endpoint}: cached/downloaded TDC file failed identity check "
-            f"(bytes={n_bytes}, sha256={digest}); expected bytes={record.n_bytes}, "
-            f"sha256={record.sha256}. Remove only this cache file and retry."
-        )
-    return destination
 
 
 def _canonicalise(smiles: str) -> tuple[str, object] | None:
@@ -278,36 +197,43 @@ class TdcLoader:
                 f"{spec.bio_id}: unsupported TDC endpoint {spec.fetch_id!r}; "
                 f"curated endpoints are {sorted(ENDPOINTS)}."
             )
-        endpoint = ENDPOINTS[endpoint_name]
-        if spec.problem_type is not None and spec.problem_type != endpoint.problem_type:
+        problem_type = ENDPOINTS[endpoint_name]
+        if spec.problem_type is not None and spec.problem_type != problem_type:
             raise ValueError(
                 f"{spec.bio_id}: registry problem_type={spec.problem_type!r} disagrees with "
-                f"curated TDC endpoint type {endpoint.problem_type!r}."
+                f"curated TDC endpoint type {problem_type!r}."
             )
 
-        path = _download(endpoint_name, self.cache_dir / f"{endpoint_name}.tab")
+        assert spec.download_url and spec.download_sha256, (
+            f"{spec.bio_id}: missing download configuration"
+        )
+        path = download_file(
+            spec.download_url,
+            self.cache_dir / f"{endpoint_name}.tab",
+            checksum=spec.download_sha256,
+            timeout=180,
+        )
         table = pd.read_csv(path, sep="\t")
         X, y, groups, metadata = prepare_tdc_table(
             table,
             bio_id=spec.bio_id,
-            problem_type=endpoint.problem_type,
+            problem_type=problem_type,
         )
         metadata.update(
             {
                 "endpoint": endpoint_name,
-                "dataverse_file_id": endpoint.file_id,
-                "source_sha256": endpoint.sha256,
+                "dataverse_file_id": int(spec.source_url.rsplit("/", 1)[1]),
+                "source_sha256": spec.download_sha256,
             }
         )
-        source_url = DATAVERSE_URL.format(file_id=endpoint.file_id)
         return BioRawDataset(
             bio_id=spec.bio_id,
             X=X,
             y=y,
-            problem_type=endpoint.problem_type,
+            problem_type=problem_type,
             license=spec.license or "TDC distribution; underlying source terms apply",
-            source_url=source_url,
-            citation=endpoint.citation,
+            source_url=spec.source_url,
+            citation=spec.citation,
             metadata=metadata,
             groups=groups,
         )

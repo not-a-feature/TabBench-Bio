@@ -2,14 +2,12 @@
 
 Each panel pairs a SNP genotype matrix (plant lines by markers) with one
 quantitative phenotype.  The files are the CC0 Dryad release mirrored by its
-Zenodo record; byte sizes and checksums are pinned so a benchmark run cannot
+Zenodo record; URLs and checksums are pinned in the registry so a benchmark run cannot
 silently consume changed source data.
 """
 
 from __future__ import annotations
 
-import hashlib
-from dataclasses import dataclass
 from pathlib import Path
 from typing import TYPE_CHECKING
 
@@ -17,103 +15,13 @@ import pandas as pd
 
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.loaders.base import BioRawDataset
+from tabbench_bio.io_utils import download_file
 
 if TYPE_CHECKING:
     from tabbench_bio.bio.datasets import BioDatasetSpec
 
 
-ZENODO_RECORD = "https://zenodo.org/api/records/4980429"
-ZENODO_FILE_URL = ZENODO_RECORD + "/files/{filename}/content"
-SOURCE_URL = "https://doi.org/10.5061/dryad.xksn02vb9"
-CITATION = (
-    "Azodi CB et al. (2019), Benchmarking Parametric and Machine Learning Models "
-    "for Genomic Prediction of Complex Traits, G3: Genes|Genomes|Genetics, "
-    "doi:10.1534/g3.119.400498."
-)
-
-
-@dataclass(frozen=True)
-class SourceFile:
-    """Pinned identity of one file in the public Zenodo record."""
-
-    filename: str
-    n_bytes: int
-    md5: str
-
-
-@dataclass(frozen=True)
-class GenomicPanel:
-    """The curated phenotype and two source files for one crop panel."""
-
-    trait: str
-    genotype: SourceFile
-    phenotype: SourceFile
-
-
-PANELS: dict[str, GenomicPanel] = {
-    "maize": GenomicPanel(
-        trait="FT",
-        genotype=SourceFile("maize_geno.csv", 217_174_436, "2e2d6fbcbe478105077ed0063fe2401a"),
-        phenotype=SourceFile("maize_pheno.csv", 23_462, "1f8eadf2595faec317af5665f8be4afc"),
-    ),
-    "rice": GenomicPanel(
-        trait="FT",
-        genotype=SourceFile("rice_geno.csv", 50_527_158, "3584b09824b1b4cfa8d44869b91e3fd4"),
-        phenotype=SourceFile("rice_pheno.csv", 19_797, "f6f14948fc9cbede9d08cc3edb78c2d7"),
-    ),
-    "soy": GenomicPanel(
-        trait="YLD",
-        genotype=SourceFile("soy_geno.csv", 50_038_368, "211c2c45f1d38d479471cf803a4dfa3f"),
-        phenotype=SourceFile("soy_pheno.csv", 327_918, "bdfaa0ceacf42b0197cbb8ee8347f56c"),
-    ),
-    "switchgrass": GenomicPanel(
-        trait="HT",
-        genotype=SourceFile(
-            "switchgrass_geno.csv", 237_057_149, "99d6c544cab1d93073c5e86a6855a0f0"
-        ),
-        phenotype=SourceFile("switchgrass_pheno.csv", 33_780, "5d2fbd31a9fde9edffec23f1d13f34d7"),
-    ),
-}
-
-
-def _md5(path: Path) -> str:
-    """Calculate a source-identity checksum without loading a large panel into RAM."""
-    digest = hashlib.md5(usedforsecurity=False)
-    with path.open("rb") as handle:
-        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
-            digest.update(chunk)
-    return digest.hexdigest()
-
-
-def _download(source: SourceFile, destination: Path) -> Path:
-    """Download and verify one source file, using an atomic cache write."""
-    import requests
-
-    destination.parent.mkdir(parents=True, exist_ok=True)
-    if not destination.exists():
-        url = ZENODO_FILE_URL.format(filename=source.filename)
-        response = requests.get(url, stream=True, timeout=300)
-        response.raise_for_status()
-        partial = destination.with_suffix(destination.suffix + ".part")
-        try:
-            with partial.open("wb") as handle:
-                for chunk in response.iter_content(chunk_size=1024 * 1024):
-                    if chunk:
-                        handle.write(chunk)
-            partial.replace(destination)
-        finally:
-            if partial.exists():
-                partial.unlink()
-
-    n_bytes = destination.stat().st_size
-    checksum = _md5(destination)
-    if n_bytes != source.n_bytes or checksum != source.md5:
-        raise ValueError(
-            f"{source.filename}: cached/downloaded genomic-prediction file failed identity "
-            f"check (bytes={n_bytes}, md5={checksum}); expected bytes={source.n_bytes}, "
-            f"md5={source.md5}. Remove only this cache file and retry."
-        )
-    return destination
+PANELS = {"maize": "FT", "rice": "FT", "soy": "YLD", "switchgrass": "HT"}
 
 
 class GenomicPredictionLoader:
@@ -129,11 +37,11 @@ class GenomicPredictionLoader:
                 f"{spec.bio_id}: unsupported genomic-prediction crop {spec.fetch_id!r}; "
                 f"curated panels are {sorted(PANELS)}."
             )
-        panel = PANELS[crop]
-        if spec.target != panel.trait:
+        trait = PANELS[crop]
+        if spec.target != trait:
             raise ValueError(
                 f"{spec.bio_id}: registry target={spec.target!r} disagrees with the curated "
-                f"{crop} trait {panel.trait!r}."
+                f"{crop} trait {trait!r}."
             )
         if spec.problem_type is not None and spec.problem_type != "regression":
             raise ValueError(
@@ -141,8 +49,22 @@ class GenomicPredictionLoader:
                 f"not {spec.problem_type!r}."
             )
 
-        genotype_path = _download(panel.genotype, self.cache_dir / panel.genotype.filename)
-        phenotype_path = _download(panel.phenotype, self.cache_dir / panel.phenotype.filename)
+        assert spec.download_files is not None, f"{spec.bio_id}: missing download configuration"
+        genotype_file = f"{crop}_geno.csv"
+        phenotype_file = f"{crop}_pheno.csv"
+        assert set(spec.download_files) == {genotype_file, phenotype_file}, (
+            f"{spec.bio_id}: expected genotype and phenotype source files"
+        )
+        genotype_path = download_file(
+            destination=self.cache_dir / genotype_file,
+            timeout=300,
+            **spec.download_files[genotype_file],
+        )
+        phenotype_path = download_file(
+            destination=self.cache_dir / phenotype_file,
+            timeout=300,
+            **spec.download_files[phenotype_file],
+        )
         X = pd.read_csv(genotype_path, index_col=0)
         phenotypes = pd.read_csv(phenotype_path, index_col=0)
 
@@ -154,10 +76,8 @@ class GenomicPredictionLoader:
             raise ValueError(
                 f"{spec.bio_id}: phenotype table has duplicate plant-line identifiers."
             )
-        if panel.trait not in phenotypes.columns:
-            raise ValueError(
-                f"{spec.bio_id}: phenotype table is missing curated trait {panel.trait!r}."
-            )
+        if trait not in phenotypes.columns:
+            raise ValueError(f"{spec.bio_id}: phenotype table is missing curated trait {trait!r}.")
         non_numeric = X.select_dtypes(exclude="number").columns
         if len(non_numeric):
             raise ValueError(
@@ -165,7 +85,7 @@ class GenomicPredictionLoader:
                 f"{non_numeric[:5].tolist()}."
             )
 
-        target = pd.to_numeric(phenotypes[panel.trait], errors="coerce")
+        target = pd.to_numeric(phenotypes[trait], errors="coerce")
         keep = X.index.isin(target.index[target.notna()])
         X = X.loc[keep]
         y = target.reindex(X.index)
@@ -177,17 +97,19 @@ class GenomicPredictionLoader:
             )
 
         X = X.reset_index(drop=True)
-        y = y.reset_index(drop=True).rename(panel.trait)
+        y = y.reset_index(drop=True).rename(trait)
         metadata = {
             "crop": crop,
-            "trait": panel.trait,
+            "trait": trait,
             "split_unit": "plant line",
             "source_doi": "10.5061/dryad.xksn02vb9",
-            "source_record": ZENODO_RECORD,
-            "genotype_file": panel.genotype.filename,
-            "genotype_md5": panel.genotype.md5,
-            "phenotype_file": panel.phenotype.filename,
-            "phenotype_md5": panel.phenotype.md5,
+            "source_record": spec.download_files[genotype_file]["url"].split("/files/", 1)[0],
+            "genotype_file": genotype_file,
+            "genotype_checksum": spec.download_files[genotype_file]["checksum"],
+            "genotype_checksum_algorithm": spec.download_files[genotype_file]["algorithm"],
+            "phenotype_file": phenotype_file,
+            "phenotype_checksum": spec.download_files[phenotype_file]["checksum"],
+            "phenotype_checksum_algorithm": spec.download_files[phenotype_file]["algorithm"],
             "n_features": int(X.shape[1]),
         }
         return BioRawDataset(
@@ -196,7 +118,7 @@ class GenomicPredictionLoader:
             y=y,
             problem_type="regression",
             license=spec.license or "CC0-1.0",
-            source_url=SOURCE_URL,
-            citation=CITATION,
+            source_url=spec.source_url,
+            citation=spec.citation,
             metadata=metadata,
         )

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+from dataclasses import replace
 
 import pytest
 
@@ -103,6 +104,7 @@ def test_tdc_endpoints_are_grouped_and_not_marked_for_rehosting():
     assert len(tdc) == 6
     assert all(spec.target == "Y" for spec in tdc)
     assert all(not spec.redistributable for spec in tdc)
+    assert all(spec.download_url and spec.download_sha256 and spec.citation for spec in tdc)
 
 
 def test_genomic_prediction_panels_are_the_four_curated_regressions():
@@ -116,6 +118,41 @@ def test_genomic_prediction_panels_are_the_four_curated_regressions():
     }
     assert all(spec.problem_type == "regression" for spec in gp.values())
     assert all(spec.redistributable for spec in gp.values())
+    for spec in gp.values():
+        assert set(spec.download_files) == {
+            f"{spec.fetch_id}_geno.csv",
+            f"{spec.fetch_id}_pheno.csv",
+        }
+        assert spec.source_url and spec.citation
+
+
+@pytest.mark.parametrize(
+    "asset",
+    [
+        {"url": "http://example.org/file", "checksum": "0" * 32, "algorithm": "md5"},
+        {"url": "https://example.org/file", "checksum": "bad", "algorithm": "md5"},
+        {"url": "https://example.org/file", "checksum": "0" * 32, "algorithm": "sha256"},
+        {"url": "https://example.org/file", "checksum": "0" * 32, "algorithm": "unknown"},
+        {"url": "https://example.org/file", "checksum": "0" * 32},
+    ],
+)
+def test_multifile_registry_rejects_invalid_source_identity(asset):
+    spec = ds.get_spec("gp-maize-FT")
+    with pytest.raises(AssertionError):
+        replace(spec, download_files={"maize_geno.csv": asset})
+
+
+@pytest.mark.parametrize("filename", ["", ".", "..", "../escape.csv"])
+def test_multifile_registry_rejects_invalid_cache_filename(filename):
+    spec = ds.get_spec("gp-maize-FT")
+    with pytest.raises(AssertionError, match="plain filenames"):
+        replace(spec, download_files={filename: spec.download_files["maize_geno.csv"]})
+
+
+def test_multifile_registry_rejects_conflicting_download_configuration():
+    spec = ds.get_spec("gp-maize-FT")
+    with pytest.raises(AssertionError, match="either download_files or download_url"):
+        replace(spec, download_url="https://example.org/file", download_sha256="0" * 64)
 
 
 def test_chembl_endpoints_are_curated_regressions_not_marked_for_rehosting():
@@ -132,6 +169,22 @@ def test_unknown_field_rejected(tmp_path):
     bad.write_text(json.dumps([{"bio_id": "x", "source": "openml", "fetch_id": "1", "bogus": 1}]))
     with pytest.raises(ValueError, match="unknown field"):
         load_specs(bad)
+
+
+def test_tox21_and_st001000_have_explicit_targets_and_source_policies():
+    specs = load_specs()
+    for endpoint in ("SR-MMP", "NR-AhR"):
+        spec = specs[f"MoleculeNet-Tox21-{endpoint}"]
+        assert spec.enabled and spec.source == "moleculenet"
+        assert spec.fetch_id == spec.target == endpoint
+        assert spec.problem_type == "binary" and not spec.redistributable
+        assert spec.download_url.endswith("/tox21.csv.gz") and len(spec.download_sha256) == 64
+    st = specs["MW-ST001000-CD-UC"]
+    assert st.enabled and st.source == "metabolomics"
+    assert st.target == "diagnosis" and st.license == "CC BY 4.0"
+    assert st.data_type == "Metabolomics"
+    assert "DF=ST001000_AN001880_res.txt" in st.download_url
+    assert len(st.download_sha256) == 64
 
 
 def test_unknown_source_rejected():

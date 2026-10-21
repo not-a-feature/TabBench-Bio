@@ -35,6 +35,8 @@ BioSource = (
     "tdc",
     "gp",
     "chembl",
+    "moleculenet",
+    "metabolomics",
 )
 BioProblemType = ("binary", "multiclass", "regression")
 
@@ -68,7 +70,7 @@ class BioDatasetSpec:
     source : str
         Which loader fetches it (``"geo" | "geo_matrix" | "fusionai" | "tcga" | "kaggle" |
         "openml" | "local" | "mgnify" | "metagenomics" | "tdc" | "gp" |
-        "chembl"``).
+        "chembl" | "moleculenet" | "metabolomics"``).
     fetch_id : str
         Source-specific identifier passed to the loader (GEO accession, optionally
         ``"<accession>@<GPL>"``; a ``geo_matrix`` accession for a streamed GEO series
@@ -77,7 +79,8 @@ class BioDatasetSpec:
         local-data dir or absolute; MGnify study accession (``MGYSxxxxxxxx``);
         ``metagenomics`` MetAML disease code, e.g. ``"cirrhosis"``; or a curated
         Therapeutics Data Commons endpoint slug (e.g. ``"bbb_martins"``); a curated
-        genomic-prediction crop; or a ChEMBL target identifier.
+        genomic-prediction crop; a ChEMBL target identifier; a Tox21 assay name;
+        or the metabolomics study accession ST001000.
     data_type : str | None
         Curated biological data *modality* (e.g. ``"Gene Expression"``, ``"EEG"``,
         ``"Methylation"``, ``"Misc"``). Independent of :attr:`source` (where the data was
@@ -117,9 +120,12 @@ class BioDatasetSpec:
         Maximum number of features retained while ingesting a source matrix. This is
         independent of the benchmark's experimental feature cap.
     download_url : str | None
-        Pinned HTTPS asset URL for a local table that can be downloaded when missing.
+        Pinned HTTPS source asset URL to download when missing.
     download_sha256 : str | None
         SHA-256 checksum required when ``download_url`` is configured.
+    download_files : dict[str, dict[str, str]] | None
+        Multiple source assets keyed by cache filename. Each asset supplies
+        ``url``, ``checksum``, and ``algorithm`` (sha256 or md5).
     notes : str
         Free-text curation notes (label semantics, caveats).
     """
@@ -144,6 +150,7 @@ class BioDatasetSpec:
     train_prevalence_filter: float | None = None
     download_url: str | None = None
     download_sha256: str | None = None
+    download_files: dict[str, dict[str, str]] | None = None
     notes: str = ""
 
     def __post_init__(self) -> None:
@@ -155,12 +162,33 @@ class BioDatasetSpec:
             f"{self.bio_id}: download_url and download_sha256 must be supplied together"
         )
         if self.download_url is not None:
-            assert self.source == "local" and self.download_url.startswith("https://"), (
-                f"{self.bio_id}: downloadable local tables require an HTTPS URL"
+            assert self.download_url.startswith("https://"), (
+                f"{self.bio_id}: downloadable source assets require an HTTPS URL"
             )
             assert re.fullmatch(r"[0-9a-f]{64}", self.download_sha256), (
                 f"{self.bio_id}: download_sha256 must be a lowercase SHA-256 checksum"
             )
+        if self.download_files is not None:
+            assert self.download_files and self.download_url is None, (
+                f"{self.bio_id}: use either download_files or download_url"
+            )
+            for filename, asset in self.download_files.items():
+                assert filename not in {"", ".", ".."} and Path(filename).name == filename, (
+                    f"{self.bio_id}: download_files keys must be plain filenames"
+                )
+                assert set(asset) == {"url", "checksum", "algorithm"}, (
+                    f"{self.bio_id}: each download file requires url, checksum and algorithm"
+                )
+                assert asset["url"].startswith("https://"), (
+                    f"{self.bio_id}: downloadable source assets require an HTTPS URL"
+                )
+                assert asset["algorithm"] in {"sha256", "md5"}, (
+                    f"{self.bio_id}: unsupported download checksum algorithm"
+                )
+                size = 64 if asset["algorithm"] == "sha256" else 32
+                assert re.fullmatch(rf"[0-9a-f]{{{size}}}", asset["checksum"]), (
+                    f"{self.bio_id}: invalid {asset['algorithm']} download checksum"
+                )
         if self.source not in BioSource:
             raise ValueError(
                 f"{self.bio_id}: unknown source {self.source!r} (expected one of {BioSource})."
