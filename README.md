@@ -51,7 +51,10 @@ profiles, resumable runs and adapter development.
 The [dataset registry](src/tabbench_bio/bio/data/bio_datasets.json) gives each task a
 stable `bio_id`. Edit it to add datasets from a supported source, or set
 `TABBENCH_BIO_DATASETS` to your own registry file. A run config selects tasks through
-`datasets_classification` and `datasets_regression`.
+`datasets_classification` and `datasets_regression`. Default grids use `null` for
+both selections, expanding the enabled, curated tasks in this registry by task
+type. There are no separate default dataset rosters to maintain. Explicit lists
+still select subsets, and each run freezes its resolved dataset IDs.
 
 Missing datasets download automatically and are cached. Curated embedding tables
 come from checksum-verified Parquet assets in the

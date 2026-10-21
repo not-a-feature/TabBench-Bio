@@ -1,6 +1,5 @@
 {
-  "_doc": "All 30 active classification + 13 regression Bio datasets. Transactional writer bundles resume completed units directly; result trees are never copied or overlaid.",
-  "_samples_doc": "5000 is omitted: the largest training split in the corpus is 3118 rows, so every cell on that budget was a duplicate of the full-sample cell and produced no fits.",
+  "_doc": "All enabled, curated Bio datasets from the main dataset registry. Transactional writer bundles resume completed units directly; result trees are never copied or overlaid.",
   "caps": [
     2000,
     10000,
@@ -16,8 +15,8 @@
     1000,
     null
   ],
-  "datasets": "datasets/bio_classification.json",
-  "datasets_regression": "datasets/bio_regression.json",
+  "datasets": null,
+  "datasets_regression": null,
   "models": "models/all.json",
   "model_cells": {
     "AUTOGLUON": [

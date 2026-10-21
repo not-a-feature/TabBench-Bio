@@ -1,12 +1,14 @@
 """Short commands preserve the protocol and distinguish CPUs from model threads."""
 
 import json
+from dataclasses import replace
 from pathlib import Path
 from types import ModuleType, SimpleNamespace
 
 import pytest
 
 from tabbench_bio import model_run
+from tabbench_bio.bio import datasets
 from tabbench_bio.cli import main
 from tabbench_bio.result_store import ResultRepository
 
@@ -179,7 +181,10 @@ def test_leaderboard_rejects_conflicting_sources(monkeypatch, capsys):
     assert "not allowed with argument" in capsys.readouterr().err
 
 
-def test_registered_model_uses_bundled_grid_and_explicit_python(tmp_path, monkeypatch):
+@pytest.mark.parametrize("enabled", [True, False])
+def test_registered_model_uses_bundled_grid_and_explicit_python(tmp_path, monkeypatch, enabled):
+    spec = datasets.get_spec("MoleculeNet-Tox21-SR-MMP")
+    monkeypatch.setitem(datasets.BIO_DATASETS, spec.bio_id, replace(spec, enabled=enabled))
     monkeypatch.chdir(tmp_path)
     monkeypatch.setattr(model_run, "CHECKOUT", tmp_path / "installed/Lib")
     monkeypatch.setattr(model_run, "worker_environment", lambda *a: ({}, {}))
@@ -203,4 +208,9 @@ def test_registered_model_uses_bundled_grid_and_explicit_python(tmp_path, monkey
     assert len(calls) == 1
     assert calls[0]["bio_max_features"] == 10000
     assert calls[0]["train_subsample"] == 100
+    assert (spec.bio_id in calls[0]["datasets_classification"]) == enabled
+    assert calls[0]["datasets_classification"] == datasets.resolve_dataset_names(
+        None, "classification"
+    )
+    assert calls[0]["datasets_regression"] == datasets.resolve_dataset_names(None, "regression")
     assert (tmp_path / "results/rf/results.sqlite").is_file()
