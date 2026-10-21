@@ -4,11 +4,13 @@ import hashlib
 import json
 import re
 from pathlib import Path
+from textwrap import wrap
 
 from matplotlib import get_data_path
 from PIL import Image, ImageDraw, ImageFont
 
 BUNDLED_FONTS = Path(get_data_path()) / "fonts" / "ttf"
+WEB_FONTS = Path(__file__).parent / "web" / "assets" / "fonts"
 SIZE = (1732, 908)
 
 BG = "#f4f5f1"
@@ -31,16 +33,10 @@ SERIF_FONTS = [
     BUNDLED_FONTS / "DejaVuSerif.ttf",
 ]
 SANS_FONTS = [
-    Path("C:/Windows/Fonts/segoeui.ttf"),
-    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf"),
-    Path("/System/Library/Fonts/SFNS.ttf"),
-    BUNDLED_FONTS / "DejaVuSans.ttf",
+    WEB_FONTS / "AtkinsonHyperlegibleNext-Regular.woff2",
 ]
 SANS_BOLD_FONTS = [
-    Path("C:/Windows/Fonts/segoeuib.ttf"),
-    Path("/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf"),
-    Path("/System/Library/Fonts/SFNS.ttf"),
-    BUNDLED_FONTS / "DejaVuSans-Bold.ttf",
+    WEB_FONTS / "AtkinsonHyperlegibleNext-Bold.woff2",
 ]
 
 
@@ -78,7 +74,7 @@ def draw_podium(
     rank_fills = [VIOLET_SOFT, GREEN_SOFT, AMBER_SOFT]
     gap = 18
     column_width = (width - 2 * gap) // 3
-    baseline = top + 360
+    baseline = top + 410
     name_area_top = top + 26
 
     for column, leader_index in enumerate(rank_order):
@@ -94,29 +90,31 @@ def draw_podium(
         display = str(leader["display"])
         elo = f"{int(leader['Elo']):,}"
 
-        name_font = fitted_font(draw, SANS_BOLD_FONTS, display, 26, 18, column_width - 18)
-        name_box = draw.textbbox((0, 0), display, font=name_font)
-        draw.text(
+        name = "\n".join(wrap(display, width=11, break_long_words=False, break_on_hyphens=False))
+        name_font = fitted_font(draw, SANS_BOLD_FONTS, name, 34, 28, column_width - 12)
+        name_box = draw.multiline_textbbox((0, 0), name, font=name_font, align="center")
+        draw.multiline_text(
             (center - (name_box[2] - name_box[0]) / 2, name_area_top),
-            display,
+            name,
             font=name_font,
             fill=INK,
+            align="center",
         )
 
-        elo_font = font(SERIF_FONTS, 44 if rank == 1 else 38)
+        elo_font = font(SERIF_FONTS, 56 if rank == 1 else 50)
         elo_box = draw.textbbox((0, 0), elo, font=elo_font)
         draw.text(
-            (center - (elo_box[2] - elo_box[0]) / 2, name_area_top + 50),
+            (center - (elo_box[2] - elo_box[0]) / 2, name_area_top + 92),
             elo,
             font=elo_font,
             fill=color,
         )
 
         interval = f"{int(leader['Elo_lo']):,}–{int(leader['Elo_hi']):,}"
-        interval_font = font(SANS_FONTS, 17)
+        interval_font = font(SANS_FONTS, 26)
         interval_box = draw.textbbox((0, 0), interval, font=interval_font)
         draw.text(
-            (center - (interval_box[2] - interval_box[0]) / 2, name_area_top + 108),
+            (center - (interval_box[2] - interval_box[0]) / 2, name_area_top + 160),
             interval,
             font=interval_font,
             fill=MUTED,
@@ -129,7 +127,7 @@ def draw_podium(
             outline=color,
             width=3,
         )
-        rank_font = font(SERIF_FONTS, 70 if rank == 1 else 58)
+        rank_font = font(SERIF_FONTS, 84 if rank == 1 else 70)
         rank_text = str(rank)
         rank_box = draw.textbbox((0, 0), rank_text, font=rank_font)
         draw.text(
@@ -173,38 +171,34 @@ def generate_social_preview(dashboard_path: Path, output: Path) -> None:
     for y in range(84, 850, 58):
         draw.line((1016, y, 1690, y), fill="#e4e7e1", width=2)
 
-    title_font = font(SERIF_FONTS, 112)
+    title_font = font(SERIF_FONTS, 120)
     draw.text((108, 262), "TabBench-Bio", font=title_font, fill=INK)
-    subtitle_font = font(SANS_FONTS, 38)
+    subtitle_font = font(SANS_FONTS, 48)
     draw.text((116, 410), "A living benchmark for biomedical", font=subtitle_font, fill=INK)
-    draw.text((116, 462), "tabular learning.", font=subtitle_font, fill=INK)
+    draw.text((116, 470), "tabular learning.", font=subtitle_font, fill=INK)
     draw.line((116, 572, 800, 572), fill=LINE, width=3)
-    detail_font = font(SANS_FONTS, 24)
+    detail_font = font(SANS_FONTS, 30)
     detail = (
         f"{len(dashboard['datasets'])} datasets  ·  "
         f"{int(dashboard['meta']['configured_model_count'])} model configurations  ·  5-fold CV"
     )
     draw.text((116, 616), detail, font=detail_font, fill=MUTED)
-    url_font = font(SANS_BOLD_FONTS, 24)
+    url_font = font(SANS_BOLD_FONTS, 32)
     draw.text((116, 752), "tabbench-bio.eu", font=url_font, fill=GREEN)
 
     card = (932, 94, 1650, 814)
     draw.rounded_rectangle(card, radius=34, fill=SURFACE, outline=LINE, width=3)
-    kicker_font = font(SANS_BOLD_FONTS, 20)
+    kicker_font = font(SANS_BOLD_FONTS, 28)
     draw.text((990, 146), "CURRENT REFERENCE PODIUM", font=kicker_font, fill=GREEN)
-    setting_font = font(SANS_FONTS, 21)
+    setting_font = font(SANS_FONTS, 28)
     setting = (
-        f"Macro-F1 Elo  ·  {leaders[0]['cell_label']}  ·  {int(leaders[0]['n_targets'])} targets"
+        f"Macro-F1 Elo  ·  {leaders[0]['cell_label']}\n{int(leaders[0]['n_targets'])} targets"
         if leaders
         else "Reference rankings pending"
     )
-    draw.text((990, 184), setting, font=setting_font, fill=MUTED)
-    draw.line((990, 228, 1592, 228), fill=LINE, width=2)
-    draw_podium(draw, leaders, 990, 258, 602)
-    note_font = font(SANS_FONTS, 17)
-    draw.text(
-        (990, 744), "Bars show rank; numbers show Elo and 95% interval.", font=note_font, fill=MUTED
-    )
+    draw.multiline_text((990, 194), setting, font=setting_font, fill=MUTED, spacing=8)
+    draw.line((990, 282, 1592, 282), fill=LINE, width=2)
+    draw_podium(draw, leaders, 990, 310, 602)
 
     assert image.size == SIZE
     output.parent.mkdir(parents=True, exist_ok=True)
