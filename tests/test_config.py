@@ -74,6 +74,12 @@ def test_load_config_allows_comment_keys(tmp_path):
     assert loaded["models"] == ["RF"]
 
 
+def test_load_config_preserves_published_candidate_exclusions(tmp_path):
+    metadata = {"RF-TUNED-V2": [{}]}
+    loaded = load_config(_write(tmp_path, _complete_cfg(excluded_tuning_candidates=metadata)))
+    assert loaded["excluded_tuning_candidates"] == metadata
+
+
 def test_load_config_datasets_null_pass_through(tmp_path):
     # null is the explicit "load every registered dataset" sentinel.
     cfg = _complete_cfg(datasets_classification=None, datasets_regression=None)

@@ -10,18 +10,6 @@ from tabbench_bio.resources import resource_root
 
 SKILL_NAME = "biomedical-tabular-model-selection"
 
-SITEMAP_PATHS = (
-    "",
-    "datasets.html",
-    "artifacts.html",
-    "changelog.html",
-    "llms.txt",
-    "skill.md",
-    "citation.html",
-    "CITATION.cff",
-    "CITATION.bib",
-)
-
 
 def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
     project_url = project_url.rstrip("/")
@@ -149,14 +137,18 @@ Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBenc
 """
 
 
-def build_sitemap(project_url: str, last_modified: str) -> str:
+def build_sitemap(site_dir: Path, project_url: str, last_modified: str) -> str:
     project_url = project_url.rstrip("/")
+    paths = [
+        "" if path.name == "index.html" else path.name for path in sorted(site_dir.glob("*.html"))
+    ]
+    paths += ["llms.txt", "skill.md", "CITATION.cff", "CITATION.bib"]
     urls = "\n".join(
         "  <url>\n"
         f"    <loc>{escape(f'{project_url}/{path}')}</loc>\n"
         f"    <lastmod>{last_modified}</lastmod>\n"
         "  </url>"
-        for path in SITEMAP_PATHS
+        for path in paths
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -230,8 +222,8 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     sqlite_export = next(row for row in dashboard["raw_exports"] if row["format"] == "sqlite3")
     sqlite_url = sqlite_export["path"] or "https://github.com/not-a-feature/TabBench-Bio/releases/"
     html, count = re.subn(
-        r'<link rel="alternate" type="application/vnd.sqlite3"[^>]*>',
-        f'<link rel="alternate" type="application/vnd.sqlite3" href="{escape(sqlite_url, {chr(34): "&quot;"})}" title="TabBench-Bio results">',
+        r'(<link rel="alternate" type="application/vnd.sqlite3"\s+href=")[^"]*(")',
+        lambda match: match[1] + escape(sqlite_url, {chr(34): "&quot;"}) + match[2],
         html,
     )
     assert count == 1, "Expected one SQLite alternate link"
@@ -243,14 +235,12 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
         for item in metadata["distribution"]
         if item["encodingFormat"] == "application/vnd.sqlite3"
     )
-    download.update(name="Results SQLite", contentUrl=sqlite_url, sha256=sqlite_export["sha256"])
-    html = (
-        html[: structured.start(2)]
-        + "\n"
-        + json.dumps(metadata, indent=2)
-        + "\n  "
-        + html[structured.end(2) :]
+    metadata_text = (
+        structured[2]
+        .replace(json.dumps(download["contentUrl"]), json.dumps(sqlite_url))
+        .replace(json.dumps(download["sha256"]), json.dumps(sqlite_export["sha256"]))
     )
+    html = html[: structured.start(2)] + metadata_text + html[structured.end(2) :]
     index.write_text(html, encoding="utf-8")
     skill = resource_root() / "skills" / SKILL_NAME
     (site_dir / "skill.md").write_bytes(skill.joinpath("SKILL.md").read_bytes())
@@ -260,5 +250,6 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
         f"User-agent: *\nAllow: /\n\nSitemap: {project_url}/sitemap.xml\n", encoding="utf-8"
     )
     (site_dir / "sitemap.xml").write_text(
-        build_sitemap(project_url, dashboard["meta"]["snapshot_utc"][:10]), encoding="utf-8"
+        build_sitemap(site_dir, project_url, dashboard["meta"]["snapshot_utc"][:10]),
+        encoding="utf-8",
     )
