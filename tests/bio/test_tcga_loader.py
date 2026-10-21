@@ -2,6 +2,13 @@
 
 from __future__ import annotations
 
+import io
+import tarfile
+from types import SimpleNamespace
+
+import pandas as pd
+import pytest
+
 from tabbench_bio.bio.loaders.tcga import (
     _CATEGORY_CONFIG,
     TcgaLoader,
@@ -91,3 +98,59 @@ def test_query_files_returns_patient_groups(monkeypatch):
         "file-tumor": "TCGA-XX-0001",
         "file-normal": "TCGA-XX-0001",
     }
+
+
+def _archive():
+    stream = io.BytesIO()
+    data = _STAR_COUNTS_SAMPLE.encode()
+    with tarfile.open(fileobj=stream, mode="w:gz") as archive:
+        for name in ("file1", "file2"):
+            member = tarfile.TarInfo(f"{name}/counts.tsv")
+            member.size = len(data)
+            archive.addfile(member, io.BytesIO(data))
+    return stream.getvalue()
+
+
+def test_truncated_archive_is_retried_before_a_batch_is_published(tmp_path, monkeypatch):
+    payload = _archive()
+    responses = iter([payload[: len(payload) // 2], payload])
+    loader = TcgaLoader(cache_dir=tmp_path, batch_size=2, max_retries=2)
+    monkeypatch.setattr(
+        loader, "_post_with_retries", lambda *a, **kw: SimpleNamespace(content=next(responses))
+    )
+    monkeypatch.setattr("tabbench_bio.bio.loaders.tcga.time.sleep", lambda _: None)
+    matrix = loader._download_matrix(
+        object(),
+        file_ids=["file1", "file2"],
+        cfg=_CATEGORY_CONFIG["Gene-Expression-Quantification"],
+    )
+    assert list(matrix.index) == ["file1", "file2"]
+    assert matrix.loc["file1", "ENSG00000000003.15"] == 12.5
+    assert len(list((tmp_path / "batches").glob("*.pkl"))) == 1
+
+
+def test_completed_batches_survive_interruption_and_are_reused(tmp_path, monkeypatch):
+    loader = TcgaLoader(cache_dir=tmp_path, batch_size=2)
+    calls = []
+
+    def interrupted(session, *, file_ids, cfg):
+        calls.append(file_ids)
+        if file_ids == ["file3"]:
+            raise ConnectionError("interrupted transfer")
+        return {name: pd.Series([1.0], index=["gene"], dtype="float32") for name in file_ids}
+
+    monkeypatch.setattr(loader, "_download_batch", interrupted)
+    cfg = _CATEGORY_CONFIG["Gene-Expression-Quantification"]
+    with pytest.raises(ConnectionError, match="interrupted"):
+        loader._download_matrix(object(), file_ids=["file1", "file2", "file3"], cfg=cfg)
+    assert len(list((tmp_path / "batches").glob("*.pkl"))) == 1
+
+    def resumed(session, *, file_ids, cfg):
+        calls.append(file_ids)
+        assert file_ids == ["file3"], "Completed files must come from the source cache"
+        return {"file3": pd.Series([1.0], index=["gene"], dtype="float32")}
+
+    monkeypatch.setattr(loader, "_download_batch", resumed)
+    matrix = loader._download_matrix(object(), file_ids=["file1", "file2", "file3"], cfg=cfg)
+    assert list(matrix.index) == ["file1", "file2", "file3"]
+    assert calls == [["file1", "file2"], ["file3"], ["file3"]]
