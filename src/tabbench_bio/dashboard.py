@@ -170,11 +170,6 @@ def load_model_registry(configs=()) -> dict[str, dict]:
             tuning = {name: value for name, value in spec.items() if name != "base_model"}
             if "autogluon_time_limit" in config:
                 tuning["budget_seconds"] = config["autogluon_time_limit"]
-            if (
-                "excluded_tuning_candidates" in config
-                and key in config["excluded_tuning_candidates"]
-            ):
-                tuning["excluded_candidates"] = config["excluded_tuning_candidates"][key]
             assert key not in frozen_tuning or frozen_tuning[key] == tuning, (
                 f"Conflicting frozen tuning configuration: {key}"
             )

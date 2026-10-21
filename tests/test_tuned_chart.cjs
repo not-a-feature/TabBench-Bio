@@ -77,7 +77,7 @@ test('paired parents have no error bars or interval tooltip; standalone interval
   assert.doesNotMatch(base.hovertemplate[parent], /95% interval/);
   assert.equal(base.error_x.array[standalone], 20);
   assert.match(base.hovertemplate[standalone], /95% interval/);
-  assert.equal(spec.traces[1].hoverinfo, 'skip');
+  assert.equal(spec.traces[1].hoverinfo, 'none');
   assert.doesNotMatch(spec.traces[2].hovertemplate, /Tuning change/);
   assert.equal(spec.traces[2].error_x.array[0], 20);
   assert.equal(spec.layout.showlegend, false);
@@ -167,7 +167,7 @@ test('budget curves clip displayed intervals without changing line values', () =
   const elements = {
     'perf-domain': { value: 'all' }, 'perf-cap': { value: '10000' },
     'perf-group': { value: 'all' }, 'perf-ci': { checked: true },
-    'performance-chart': {}, 'performance-note': {},
+    'performance-chart': { closest: () => null }, 'performance-note': {},
   };
   const rows = [
     { ...row('RF', 1000), cell: 'one', domain: 'all', metric: 'f1_macro' },

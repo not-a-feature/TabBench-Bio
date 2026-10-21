@@ -11,6 +11,7 @@ import pytest
 from tabbench_bio import dashboard, resources, web_metadata
 from tabbench_bio.cli import main
 from tabbench_bio.config import config_for_cell
+from tabbench_bio.dashboard_data import read_inputs
 from tabbench_bio.elo import compute_elo, fold_scores
 from tabbench_bio.leaderboard import Leaderboard
 from tabbench_bio.result_store import ResultRepository, consolidate_results
@@ -269,6 +270,79 @@ def test_cli_writes_matching_reports_and_website(database, tmp_path, monkeypatch
         assert dict(zip(table.model_id, table.Elo)) == {
             row["model_id"]: row["Elo"] for row in payload["cell_elo"] if row["cell"] == cell
         }
+
+
+def test_tuned_failure_scores_match_sqlite_and_dashboard_without_crossing_cells(tmp_path):
+    root = tmp_path / "results"
+    for n in (20, 50):
+        cell = root / f"cap_100_n{n}"
+        config = config_for_cell(
+            100,
+            n,
+            datasets=["toy"],
+            datasets_regression=["reg"],
+            models=["RF", "DUMMY", "SEARCH"],
+            limits={},
+            overrides={},
+            n_rep=1,
+            cv_folds=2,
+            time_limit=60,
+            out_dir=str(cell),
+            cache_dir=".cache",
+            test_size=0.2,
+            random_state=42,
+            min_samples_per_class=2,
+            tuning={"SEARCH": {"base_model": "RF"}},
+        )
+        repository = ResultRepository(cell, config)
+        for seed in (0, 1):
+            truth = pd.DataFrame({"target": [0, 0, 1, 1]}, index=range(seed * 4, seed * 4 + 4))
+            for dataset in ("toy", "reg"):
+                for model in config["models"]:
+                    failed = model == "SEARCH"
+                    prediction = (
+                        truth.copy() if model == "RF" and n == 20 else truth.assign(target=0)
+                    )
+                    proba = (
+                        pd.DataFrame({0: 1 - prediction.target, 1: prediction.target})
+                        if dataset == "toy"
+                        else None
+                    )
+                    repository.write(
+                        {
+                            "dataset": dataset + "_0",
+                            "model": model,
+                            "status": "fail" if failed else "pass",
+                            "reason": "fit_error" if failed else "",
+                            "n_train_samples": n,
+                        },
+                        seed=seed,
+                        ground_truth=None if failed else truth,
+                        prediction=None if failed else prediction,
+                        probability=None if failed else proba,
+                    )
+    database = consolidate_results(root)
+    checksum = hashlib.sha256(database.read_bytes()).hexdigest()
+    _, views, status, _ = read_inputs(database)
+    assert len(status.query("model == 'SEARCH' and status == 'fail'")) == 8
+    for n in (20, 50):
+        cell = f"cap_100_n{n}"
+        leaderboard = Leaderboard.from_sqlite(database, cell=cell)
+        for task, metric, table in (
+            ("classification", "f1_macro", leaderboard._clf_metrics),
+            ("regression", "rmse", leaderboard._reg_metrics),
+        ):
+            expected = table.query("model == 'RF'").sort_values(["seed", "key"])[metric].tolist()
+            assert (
+                table.query("model == 'SEARCH'").sort_values(["seed", "key"])[metric].tolist()
+                == expected
+            )
+            for name in ("strict", "adaptive"):
+                rows = views[name][task].query("cell == @cell and model == 'SEARCH'")
+                assert rows.sort_values(["seed", "key"])[metric].tolist() == expected
+                assert rows.imputed.all()
+            assert views["conditional"][task].query("model == 'SEARCH'").empty
+    assert hashlib.sha256(database.read_bytes()).hexdigest() == checksum
 
 
 @pytest.mark.parametrize("task", ["classification", "regression"])

@@ -388,14 +388,15 @@ class Leaderboard:
         reg_df = pd.read_csv(reg_path) if os.path.exists(reg_path) else pd.DataFrame()
         clf_df = pd.read_csv(clf_path) if os.path.exists(clf_path) else pd.DataFrame()
 
-        # Score failed fits at chance rather than omitting them, so a model cannot improve
-        # its standing by crashing on the targets it finds hard.
+        # Tuned failures use their untuned parent; other failed fits use chance.
         status = load_status(results_dir)
         with open(os.path.join(results_dir, "config.json")) as f:
-            seeds = get_seeds(json.load(f))
+            config = json.load(f)
+        seeds = get_seeds(config)
+        tuning = config["model_tuning"] if "model_tuning" in config else {}
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status), status, seeds),
-            complete_folds(impute_failures(clf_df, status), status, seeds),
+            complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds),
+            complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds),
         )
         leaderboard._expected_seeds = set(seeds)
         return leaderboard
@@ -465,13 +466,15 @@ class Leaderboard:
             (config_json,) = connection.execute(
                 "SELECT config_json FROM cells WHERE cell = ?", (selected_cell,)
             ).fetchone()
-        seeds = get_seeds(json.loads(config_json))
+        config = json.loads(config_json)
+        seeds = get_seeds(config)
+        tuning = config["model_tuning"] if "model_tuning" in config else {}
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status), status, seeds),
-            complete_folds(impute_failures(clf_df, status), status, seeds),
+            complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds),
+            complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds),
         )
         leaderboard._reference_sqlite = path
-        leaderboard._reference_config = json.loads(config_json)
+        leaderboard._reference_config = config
         leaderboard._expected_seeds = set(seeds)
         with closing(_open_results_sqlite(path)) as connection:
             for row in connection.execute(_CURRENT_SQLITE_ATTEMPTS, (selected_cell,)):
@@ -1011,7 +1014,7 @@ def _aggregate_leaderboard(per_ds: pd.DataFrame) -> pd.DataFrame:
 
     Every model is scored on the targets it actually has a result for, and ``# Targets``
     reports how many that is. Absent ``(model, key)`` pairings are **not** imputed here: a
-    fit that was attempted and failed has already been imputed at chance level upstream
+    fit that failed has already been imputed at its untuned parent or chance upstream
     (:func:`tabbench_bio.coverage.impute_failures`), so what remains absent is a unit the
     benchmark excluded by design — a declared input-size limit, a degenerate split, a
     duplicate grid cell. Scoring those as zero ranks the benchmark's own limits rather than

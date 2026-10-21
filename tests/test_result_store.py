@@ -49,7 +49,7 @@ def test_reader_uses_sqlite_read_only_mode(tmp_path):
     path = tmp_path / "results # shared.sqlite"
     with sqlite3.connect(path) as connection:
         connection.execute("CREATE TABLE marker (value INTEGER)")
-    with closing(_connect(path, read_only=True)) as connection:
+    with _connect(path, read_only=True) as connection:
         connection.execute("PRAGMA query_only=OFF")
         assert connection.execute("SELECT count(*) FROM marker").fetchone() == (0,)
         with pytest.raises(sqlite3.OperationalError, match="readonly"):
@@ -57,11 +57,51 @@ def test_reader_uses_sqlite_read_only_mode(tmp_path):
 
 
 def test_initialisation_keeps_the_callers_transaction(tmp_path):
-    with closing(_connect(tmp_path / "writer.sqlite")) as connection:
+    with _connect(tmp_path / "writer.sqlite") as connection:
         connection.execute("BEGIN IMMEDIATE")
         result_store._initialise(connection, experiment_id="test", bundle_writer="node")
         connection.rollback()
         assert not connection.execute("SELECT name FROM sqlite_master").fetchall()
+
+
+def test_live_reader_waits_for_committed_writer_without_blocking_other_bundles(tmp_path):
+    path = tmp_path / "writers" / "node-a.sqlite"
+    other = path.with_name("node-b.sqlite")
+    for database in (path, other):
+        with _connect(database) as connection:
+            connection.execute("CREATE TABLE marker (value INTEGER)")
+            connection.execute("INSERT INTO marker VALUES (0)")
+            connection.commit()
+    started = Event()
+
+    def read(database):
+        started.set()
+        with _connect(database, read_only=True) as connection:
+            return connection.execute("SELECT value FROM marker").fetchone()[0]
+
+    with ThreadPoolExecutor(max_workers=2) as executor:
+        with _connect(path) as connection:
+            connection.execute("BEGIN IMMEDIATE")
+            connection.execute("UPDATE marker SET value = 1")
+            reader = executor.submit(read, path)
+            assert started.wait(timeout=5)
+            assert executor.submit(read, other).result(timeout=5) == 0
+            assert not reader.done()
+            connection.commit()
+        assert reader.result(timeout=5) == 1
+
+
+def test_live_lock_releases_after_rollback(tmp_path):
+    path = tmp_path / "writers" / "node-a.sqlite"
+    with _connect(path) as connection:
+        connection.execute("CREATE TABLE marker (value INTEGER)")
+        connection.commit()
+    with pytest.raises(RuntimeError, match="interrupted"):
+        with _connect(path) as connection:
+            connection.execute("INSERT INTO marker VALUES (1)")
+            raise RuntimeError("interrupted")
+    with _connect(path, read_only=True) as connection:
+        assert connection.execute("SELECT count(*) FROM marker").fetchone()[0] == 0
 
 
 @pytest.mark.parametrize("writers", [("node-a", "node-a"), ("node-a", "node-b")])

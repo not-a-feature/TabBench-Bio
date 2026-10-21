@@ -66,6 +66,9 @@ def _resolve_hyperparameters(models: list[str], num_gpus: int) -> dict:
         cls = ag_model_registry.key_to_cls(key)
         assert isinstance(cls, type), f"Unknown AutoGluon model key: {key}"
         hp[cls] = [{**gpu_arg}]
+        if key == "KNN":
+            # Molecular fingerprints are numeric binary features, tagged bool by AutoGluon.
+            hp[cls][0]["ag.ignored_type_group_special"] = []
     return hp
 
 
@@ -215,6 +218,8 @@ class AutoGluonModel:
         }
 
         if not self._autogluon_native:
+            # Preserve fit/refit errors instead of falling back to a holdout-only model.
+            fit_args["raise_on_model_failure"] = True
             # Preserve the established peer protocol: refit the selected configuration on
             # train+validation data and use that model for held-out prediction.
             fit_args["ag_args_fit"] = {
