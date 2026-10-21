@@ -986,7 +986,8 @@ def build_website(
         "raw_exports": [
             {
                 "name": "Results SQLite",
-                "path": results_url or "https://github.com/not-a-feature/TabBench-Bio/releases/",
+                "path": results_url
+                or "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.4.0/results.sqlite",
                 "records": attempt_count,
                 "bytes": database.stat().st_size,
                 "sha256": sha256_file(database),

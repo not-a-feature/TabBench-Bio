@@ -63,7 +63,7 @@ Download the Markdown file directly; no repository clone is needed.
 - [Leaderboard JSON](https://tabbench-bio.eu/data/leaderboard.json): aggregate rankings.
 - [Dataset index JSON](https://tabbench-bio.eu/data/datasets/index.json): task-specific metrics and links to per-dataset scores.
 
-- Results SQLite: download link not configured; 1960.1 MB, SHA-256 `384448edffd3e0e3e0606c2c48236d6d94962e9f25ac583714ece8fc7b52039d`
+- [Canonical results SQLite](https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.4.0/results.sqlite): 187,757 attempts, SHA-256 `10d5b3e2b1e4c492b32e1d54a113b897fc8da04595e91db4c34f9d68b5f4ee43`
 
 ## Citation
 
