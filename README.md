@@ -12,10 +12,10 @@ This repository contains the package and experiment definitions. The
 
 ## Install
 
-Use Python 3.11 or 3.12:
+This release supports Python 3.13 and NumPy 2.4.x.
 
 ```bash
-uv venv --python 3.12
+uv venv --python 3.13
 source .venv/bin/activate
 uv pip install "tabbench-bio[bio]"
 ```

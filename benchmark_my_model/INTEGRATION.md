@@ -6,10 +6,10 @@ Most models only need a `create_model(task)` factory returning a cloneable
 scikit-learn classifier or regressor. Start from [my_model.py](my_model.py),
 which provides SVC and SVR with training-only imputation and scaling.
 
-With Python 3.11 or 3.12:
+With Python 3.13:
 
 ```bash
-uv venv --python 3.12
+uv venv --python 3.13
 source .venv/bin/activate
 uv pip install "tabbench-bio[bio]"
 tabbench-bio evaluate --model my_model.py --task overall
@@ -70,7 +70,7 @@ Keep the AutoGluon fork, which removes the 500-feature cap for foundation models
 From the checkout root:
 
 ```bash
-uv venv .venvs/my-model --python 3.12
+uv venv .venvs/my-model --python 3.13
 uv pip install --python .venvs/my-model/bin/python -r environments/my-model.txt
 ```
 
