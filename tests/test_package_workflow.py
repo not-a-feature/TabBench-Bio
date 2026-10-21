@@ -12,8 +12,8 @@ def test_workspace_exports_versioned_profiles_and_protects_existing_files(tmp_pa
     destination = tmp_path / "workspace"
     resources.init_workspace(destination)
     grid = json.loads((destination / "configs/grid_sweep_all.json").read_text())
-    for field in ("models", "datasets", "datasets_regression"):
-        assert (destination / "configs" / grid[field]).is_file()
+    assert (destination / "configs" / grid["models"]).is_file()
+    assert grid["datasets"] is None and grid["datasets_regression"] is None
     for profile in (destination / "environments").glob("*.txt"):
         content = profile.read_text()
         assert "-e ." not in content

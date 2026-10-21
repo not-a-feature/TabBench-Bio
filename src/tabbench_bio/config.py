@@ -3,6 +3,7 @@
 import json
 import os
 
+from tabbench_bio.bio.datasets import resolve_dataset_names
 from tabbench_bio.model_registry import model_entry
 from tabbench_bio.tuning import tuning_specs, validate_tuning
 
@@ -225,8 +226,8 @@ def config_for_cell(
     # None => legacy holdout with n_rep repetitions.
     return {
         **({"model_tuning": tuning} if tuning else {}),
-        "datasets_classification": datasets,
-        "datasets_regression": datasets_regression,
+        "datasets_classification": resolve_dataset_names(datasets, "classification"),
+        "datasets_regression": resolve_dataset_names(datasets_regression, "regression"),
         "test_size": test_size,
         "n_repetitions": 1 if cv_folds is not None else n_rep,
         "cv_folds": cv_folds,

@@ -7,12 +7,13 @@ learning-curve point (``docs/split_reproducibility.md``). ``train_subsample = nu
 1-D feature sweep's full-sample cells (``cap_<cap>/``).
 
 All knobs live in ``configs/grid_sweep.json``. ``datasets`` and ``models`` each take an
-inline list or a path to a JSON array file (relative to the config). Schema::
+inline list or a path to a JSON array file (relative to the config). Null dataset
+selections use all enabled, curated tasks from the main dataset registry. Schema::
 
     {
       "caps":     [2000, 10000, 25000, null],       # null = keep every feature
       "samples":  [20, 50, 100, 200, 500, null],    # null = full training set
-      "datasets": "datasets/bio_classification.json",   # JSON path or inline bio-id list
+      "datasets": null,                               # all enabled classification tasks
       "models":   "models/all.json",                    # JSON path or inline key list
       "cv_folds": 5, "time_limit": 300, "test_size": 0.2, "random_state": 42,
       "min_samples_per_class": 10, "output": "results/feature_sweep", "cache_dir": ".cache"
@@ -57,6 +58,7 @@ from queue import Queue
 
 import pandas as pd
 
+from tabbench_bio.bio.datasets import resolve_dataset_names
 from tabbench_bio.config import cell_name as _cell_dirname
 from tabbench_bio.config import config_for_cell as _config_for_cell
 from tabbench_bio.config import model_limits, model_overrides, parse_models, resolve_list
@@ -695,9 +697,11 @@ def main():
 
     caps = _norm_axis(pick("caps", args.caps))
     samples = _norm_axis(pick("samples", args.samples))
-    datasets = resolve_list(pick("datasets", args.datasets), config_dir)
-    datasets_regression = resolve_list(
-        pick("datasets_regression", args.datasets_regression), config_dir
+    datasets = resolve_dataset_names(
+        resolve_list(pick("datasets", args.datasets), config_dir), "classification"
+    )
+    datasets_regression = resolve_dataset_names(
+        resolve_list(pick("datasets_regression", args.datasets_regression), config_dir), "regression"
     )
     models = resolve_list(pick("models", args.models), config_dir)
     # Resource-intensive references can be restricted to named operating points. Models not
