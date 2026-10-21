@@ -6,7 +6,7 @@
   <meta name="description" content="TabBench-Bio is a living benchmark for tabular learning in high-dimensional biomedical regimes.">
   <meta name="theme-color" content="#f4f5f1">
   <link rel="canonical" href="https://tabbench-bio.eu/">
-  <link rel="alternate" type="application/vnd.sqlite3" href="https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.3.0/results.sqlite" title="TabBench-Bio results">
+  <link rel="alternate" type="application/vnd.sqlite3" href="https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.4.0/results.sqlite" title="TabBench-Bio results">
   <link rel="alternate" type="text/plain" href="https://tabbench-bio.eu/llms.txt" title="TabBench-Bio guide for AI agents">
   <link rel="alternate" type="text/x-citation-cff" href="https://tabbench-bio.eu/CITATION.cff" title="TabBench-Bio citation metadata">
   <meta property="og:type" content="website">
@@ -41,8 +41,8 @@
           "@type": "DataDownload",
           "name": "Results SQLite",
           "encodingFormat": "application/vnd.sqlite3",
-          "contentUrl": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.3.0/results.sqlite",
-          "sha256": "3688d61eb17e880ced6482c5f5c8aad16b55a39b37873fa1f611db0926c9b7a9"
+          "contentUrl": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.4.0/results.sqlite",
+          "sha256": "10d5b3e2b1e4c492b32e1d54a113b897fc8da04595e91db4c34f9d68b5f4ee43"
         },
         {
           "@type": "DataDownload",
@@ -273,11 +273,6 @@
         <p><strong>Tuning protocol.</strong> Tuned models use a small predefined grid under a one-hour budget.
         Candidates are selected on a training-only holdout, then the winner is refitted on the full training fold.</p>
         <p><strong>System configuration.</strong> NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM.</p>
-        <p><strong>Strict website default.</strong> Performance charts and rankings open in Strict
-        (primary) mode, using results at the requested feature and sample budgets. Failures are scored
-        with the constant predictor. Adaptive remains available as a sensitivity view and may reuse a
-        verified smaller sample budget after a memory failure. Dataset-specific exports and the downloadable
-        LaTeX leaderboard also use Strict results.</p>
       </aside>
     </section>
 
