@@ -218,6 +218,8 @@ class AutoGluonModel:
         }
 
         if not self._autogluon_native:
+            # Preserve fit/refit errors instead of falling back to a holdout-only model.
+            fit_args["raise_on_model_failure"] = True
             # Preserve the established peer protocol: refit the selected configuration on
             # train+validation data and use that model for held-out prediction.
             fit_args["ag_args_fit"] = {

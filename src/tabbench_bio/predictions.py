@@ -58,7 +58,11 @@ from tabbench_bio.split_manifest import validate_prepared
 from tabbench_bio.tuning import tuning_fingerprint
 
 _MODEL_IMPORT_ERROR = None
+_AUTOGLUON_MEMORY_ERRORS = ()
 try:
+    from autogluon.core.utils.exceptions import NotEnoughCudaMemoryError, NotEnoughMemoryError
+
+    _AUTOGLUON_MEMORY_ERRORS = (NotEnoughCudaMemoryError, NotEnoughMemoryError)
     from tabbench_bio.model import AutoGluonModel
     from tabbench_bio.models.tuned import TunedModel
 except ImportError as exc:
@@ -448,11 +452,15 @@ def _is_cuda_oom(error: BaseException) -> bool:
 
 
 def _is_stage_oom(error: BaseException, stage: str, active_log_path: str) -> bool:
-    """Recognise direct CUDA OOMs and AutoGluon's generic fit wrapper."""
-    return _is_cuda_oom(error) or (
-        stage == "fit"
-        and "no models were trained successfully" in str(error).lower()
-        and log_has_memory_failure(active_log_path)
+    """Recognise typed memory errors and AutoGluon's generic fit wrapper."""
+    return (
+        isinstance(error, _AUTOGLUON_MEMORY_ERRORS)
+        or _is_cuda_oom(error)
+        or (
+            stage == "fit"
+            and "no models were trained successfully" in str(error).lower()
+            and log_has_memory_failure(active_log_path)
+        )
     )
 
 
