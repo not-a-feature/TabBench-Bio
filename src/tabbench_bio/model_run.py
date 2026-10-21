@@ -141,7 +141,7 @@ def run_model(args) -> None:
     entry = model_entry(entries[key] if key in entries else {"key": key})
     assert "environment" in entry, f"Model {key} must declare an environment profile"
     profile = entry["environment"]
-    python = str(Path(args.python).resolve()) if args.python else model_python(profile)
+    python = os.path.abspath(args.python) if args.python else model_python(profile)
     if args.python:
         assert Path(python).is_file(), f"Python interpreter not found: {python}"
     device = args.device if args.device else entry["device"]
