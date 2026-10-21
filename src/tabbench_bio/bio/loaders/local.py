@@ -19,19 +19,16 @@ Parquet tables require the ``bio`` extra's PyArrow dependency.
 
 from __future__ import annotations
 
-import hashlib
 import os
-import shutil
-import tempfile
 from pathlib import Path
 from typing import TYPE_CHECKING
-from urllib.request import urlopen
 
 import numpy as np
 import pandas as pd
 
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.loaders.base import BioRawDataset
+from tabbench_bio.io_utils import download_file
 
 if TYPE_CHECKING:
     from tabbench_bio.bio.datasets import BioDatasetSpec
@@ -68,34 +65,6 @@ def _read_table(path: Path) -> pd.DataFrame:
         df = pd.read_csv(path, sep="\t" if suffix == ".tsv" else ",", skipinitialspace=True)
     df.columns = [str(c).strip() for c in df.columns]
     return df
-
-
-def _verify_download(path: Path, expected: str) -> None:
-    with path.open("rb") as handle:
-        actual = hashlib.file_digest(handle, "sha256").hexdigest()
-    assert actual == expected, (
-        f"{path}: SHA-256 mismatch (expected {expected}, found {actual}). "
-        "Remove this file and retry downloading it."
-    )
-
-
-def _ensure_download(path: Path, spec: BioDatasetSpec) -> None:
-    if path.is_file():
-        _verify_download(path, spec.download_sha256)
-        return
-    path.parent.mkdir(parents=True, exist_ok=True)
-    descriptor, name = tempfile.mkstemp(dir=path.parent, prefix=f".{path.name}.", suffix=".part")
-    temporary = Path(name)
-    try:
-        with (
-            os.fdopen(descriptor, "wb") as target,
-            urlopen(spec.download_url, timeout=60) as source,
-        ):
-            shutil.copyfileobj(source, target, length=1024 * 1024)
-        _verify_download(temporary, spec.download_sha256)
-        temporary.replace(path)
-    finally:
-        temporary.unlink(missing_ok=True)
 
 
 def _explode_embedding(series: pd.Series, column: str, bio_id: str) -> pd.DataFrame:
@@ -166,7 +135,7 @@ class LocalLoader:
                 and not Path(spec.fetch_id).is_absolute()
             ):
                 path = self.cache_dir / Path(spec.fetch_id).name
-            _ensure_download(path, spec)
+            download_file(spec.download_url, path, checksum=spec.download_sha256)
         if not path.exists():
             raise FileNotFoundError(
                 f"{spec.bio_id}: local file {path} not found (fetch_id={spec.fetch_id!r})."
