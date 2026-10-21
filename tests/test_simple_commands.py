@@ -103,6 +103,11 @@ def test_reference_then_full_grid_resume_and_unknown_model(tmp_path, monkeypatch
     main()
     assert len(calls) == 1
     assert calls[0]["bio_max_features"] == 10000 and calls[0]["train_subsample"] == 100
+    assert {
+        "MoleculeNet-Tox21-SR-MMP",
+        "MoleculeNet-Tox21-NR-AhR",
+        "MW-ST001000-CD-UC",
+    } <= set(calls[0]["datasets_classification"])
     root = tmp_path / "results/rf"
     frozen = (root / "cap_10000_n100/config.json").read_bytes()
     monkeypatch.setattr("sys.argv", ["tabbench-bio", "RF", "--full-grid"])

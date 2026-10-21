@@ -239,6 +239,117 @@ def test_failure_without_a_baseline_result_stays_missing():
     assert set(imputed["model"]) == {"STRONG"}
 
 
+@pytest.mark.parametrize(
+    "metric,parent_score,dummy_score", [("f1_macro", 0.8, 0.2), ("rmse", 1.0, 4.0)]
+)
+@pytest.mark.parametrize("include_dummy", [False, True])
+def test_tuned_failure_uses_declared_parent_on_matching_fold(
+    metric, parent_score, dummy_score, include_dummy
+):
+    metrics = pd.DataFrame(
+        [
+            {"seed": seed, "key": "ds_0", "model": model, metric: score}
+            for seed in (0, 1)
+            for model, score in [("RF", parent_score + seed / 10)]
+            + ([("DUMMY", dummy_score)] if include_dummy else [])
+        ]
+    )
+    status = pd.DataFrame(
+        [
+            {
+                "seed": 1,
+                "key": "ds_0",
+                "model": "CUSTOM-SEARCH",
+                "status": "fail",
+                "reason": "fit_error",
+            }
+        ]
+    )
+    scored = impute_failures(metrics, status, model_tuning={"CUSTOM-SEARCH": {"base_model": "RF"}})
+    row = scored.set_index(["seed", "key", "model"]).loc[(1, "ds_0", "CUSTOM-SEARCH")]
+    assert row[metric] == pytest.approx(parent_score + 0.1)
+    assert row["imputed"]
+    assert status.loc[0, "status"] == "fail"
+    pd.testing.assert_frame_equal(
+        scored[scored.model != "CUSTOM-SEARCH"].drop(columns="imputed"), metrics
+    )
+
+
+@pytest.mark.parametrize("parent_state", ["missing", "other_fold", "other_dataset", "failed"])
+def test_tuned_failure_without_matching_parent_stays_missing(parent_state):
+    rows = _fold_rows("DUMMY", "ds_0", [0], 0.2)
+    if parent_state == "other_fold":
+        rows += _fold_rows("RF", "ds_0", [1], 0.9)
+    if parent_state == "other_dataset":
+        rows += _fold_rows("RF", "other_0", [0], 0.9)
+    failures = [
+        {
+            "seed": 0,
+            "key": "ds_0",
+            "model": "CUSTOM-SEARCH",
+            "status": "fail",
+            "reason": "fit_error",
+        }
+    ]
+    if parent_state == "failed":
+        failures.append({**failures[0], "model": "RF"})
+    scored = impute_failures(
+        pd.DataFrame(rows),
+        pd.DataFrame(failures),
+        model_tuning={"CUSTOM-SEARCH": {"base_model": "RF"}},
+    )
+    assert "CUSTOM-SEARCH" not in set(scored.model)
+    pd.testing.assert_frame_equal(
+        impute_failures(
+            scored, pd.DataFrame(failures), model_tuning={"CUSTOM-SEARCH": {"base_model": "RF"}}
+        ),
+        scored,
+    )
+
+
+def test_tuned_imputation_preserves_passes_skips_and_ordinary_failure_policy():
+    metrics = pd.DataFrame(
+        _fold_rows("DUMMY", "ds_0", [0], 0.2)
+        + _fold_rows("RF", "ds_0", [0], 0.8)
+        + _fold_rows("PASSED", "ds_0", [0], 0.9)
+    )
+    status = pd.DataFrame(
+        [
+            {"seed": 0, "key": "ds_0", "model": model, "status": state, "reason": reason}
+            for model, state, reason in [
+                ("PASSED", "fail", "fit_error"),
+                ("SKIPPED", "skip", "class_limit"),
+                ("NOT-TUNED", "fail", "fit_oom"),
+            ]
+        ]
+    )
+    tuning = {model: {"base_model": "RF"} for model in ["PASSED", "SKIPPED"]}
+    scored = impute_failures(metrics, status, model_tuning=tuning).set_index("model")
+    assert scored.loc["PASSED", PRIMARY_CLF_METRIC] == pytest.approx(0.9)
+    assert not scored.loc["PASSED", "imputed"]
+    assert "SKIPPED" not in scored.index
+    assert scored.loc["NOT-TUNED", PRIMARY_CLF_METRIC] == pytest.approx(0.2)
+
+
+def test_csv_leaderboard_uses_frozen_tuning_parent(tmp_path):
+    records = [
+        ("ds_0", "DUMMY", "pass", ""),
+        ("ds_0", "RF", "pass", ""),
+        ("ds_0", "SEARCH", "fail", "fit_error"),
+    ]
+    metrics = [(0, "ds_0", "DUMMY", 0.2), (0, "ds_0", "RF", 0.8)]
+    results_dir = _results_dir(tmp_path, records, metrics)
+    config_path = tmp_path / "config.json"
+    config = json.loads(config_path.read_text())
+    config["model_tuning"] = {"SEARCH": {"base_model": "RF"}}
+    config_path.write_text(json.dumps(config))
+    scored = Leaderboard.from_results_dir(results_dir)._clf_metrics.set_index("model")
+    assert scored.loc["SEARCH", PRIMARY_CLF_METRIC] == pytest.approx(
+        scored.loc["RF", PRIMARY_CLF_METRIC]
+    )
+    assert scored.loc["SEARCH", "imputed"]
+
+
 def test_duplicate_grid_cell_is_a_declared_design_skip():
     # The grid's sample axis runs past the size of the smaller datasets; those cells repeat
     # the full-sample fit and must be recognisable as exclusions rather than results.
