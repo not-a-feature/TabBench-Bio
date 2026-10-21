@@ -168,6 +168,7 @@ def _metrics_from_sqlite(
     max_pending: int = 2,
     show_progress: bool = False,
     cache: MetricCache | None = None,
+    datasets: list[str] | None = None,
 ) -> tuple[pd.DataFrame, pd.DataFrame, pd.DataFrame]:
     regression_rows: list[dict[str, object]] = []
     classification_rows: list[dict[str, object]] = []
@@ -175,6 +176,9 @@ def _metrics_from_sqlite(
     ground_truth_cache: dict[str, pd.DataFrame] = {}
     assert max_pending > 0
     attempts = list(connection.execute(_CURRENT_SQLITE_ATTEMPTS, (cell,)))
+    if datasets is not None:
+        selected = set(datasets)
+        attempts = [row for row in attempts if row[1].rsplit("_", 1)[0] in selected]
     progress = tqdm(
         total=sum(row[3] == "pass" for row in attempts),
         desc=f"Metrics {cell}",
@@ -419,6 +423,7 @@ class Leaderboard:
         cell: str | None = None,
         metric_cache: str | os.PathLike[str] | None = None,
         show_progress: bool = False,
+        datasets: list[str] | None = None,
     ) -> Leaderboard:
         """Load a leaderboard directly from a published result database.
 
@@ -431,6 +436,9 @@ class Leaderboard:
         Entries are keyed by prediction, probability and truth hashes, calculation
         code and dependency versions. ``show_progress`` reports progress and reuse.
         Without a metric cache, metrics are recomputed from the published blobs.
+
+        Pass ``datasets`` to restrict baseline metrics and frozen test identities to
+        those dataset IDs before computing metrics and rankings. ``None`` loads all.
         """
         path = Path(sqlite_path).resolve()
         if metric_cache is not None:
@@ -461,7 +469,11 @@ class Leaderboard:
                 else nullcontext()
             ) as cache:
                 reg_df, clf_df, status = _metrics_from_sqlite(
-                    connection, selected_cell, cache=cache, show_progress=show_progress
+                    connection,
+                    selected_cell,
+                    cache=cache,
+                    show_progress=show_progress,
+                    datasets=datasets,
                 )
             (config_json,) = connection.execute(
                 "SELECT config_json FROM cells WHERE cell = ?", (selected_cell,)
@@ -478,6 +490,8 @@ class Leaderboard:
         leaderboard._expected_seeds = set(seeds)
         with closing(_open_results_sqlite(path)) as connection:
             for row in connection.execute(_CURRENT_SQLITE_ATTEMPTS, (selected_cell,)):
+                if datasets is not None and row[1].rsplit("_", 1)[0] not in datasets:
+                    continue
                 if row[7] is not None:
                     key = (int(row[0]), str(row[1]))
                     if key in leaderboard._reference_truth:
