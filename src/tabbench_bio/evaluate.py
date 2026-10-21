@@ -173,6 +173,7 @@ def evaluate(args):
             cell=args.cell,
             metric_cache=cache_dir / "fold_metrics.sqlite",
             show_progress=True,
+            datasets=config["datasets_classification"] + config["datasets_regression"],
         )
         mode = "Comparison with published baselines on matching frozen folds"
     else:

@@ -278,6 +278,40 @@ def test_sqlite_loader_requires_cell_for_multi_cell_bundle(tmp_path: Path) -> No
         Leaderboard.from_sqlite(path)
 
 
+@pytest.mark.parametrize("datasets", [None, [], ["selected_with_underscores"]])
+def test_sqlite_loader_filters_dataset_targets_and_cached_metrics(tmp_path, datasets):
+    path = tmp_path / "results.sqlite"
+    _build_release_bundle(path)
+    with sqlite3.connect(path) as connection:
+        for target in (0, 1):
+            connection.execute(
+                "INSERT INTO attempts SELECT attempt_id || ?, cell, seed, ?, model, "
+                "status, reason, timestamp, record_json, prediction_sha256, probability_sha256, "
+                "ground_truth_sha256, log_sha256 FROM attempts WHERE dataset = 'synthetic_0'",
+                (f"-selected-{target}", f"selected_with_underscores_{target}"),
+            )
+    checksum = hashlib.sha256(path.read_bytes()).hexdigest()
+    expected = {"selected_with_underscores_0", "selected_with_underscores_1"}
+    if datasets is None:
+        expected.add("synthetic_0")
+    elif not datasets:
+        expected.clear()
+    cache = tmp_path / "metrics.sqlite"
+    for _ in range(2):
+        lb = Leaderboard.from_sqlite(
+            path, cell="cap_10000_n100", metric_cache=cache, datasets=datasets
+        )
+        if expected:
+            assert set(lb._clf_metrics["key"]) == expected
+        else:
+            assert lb._clf_metrics.empty
+        assert {key for seed, key in lb._reference_truth} == expected
+        assert lb._reg_metrics.empty
+        if expected:
+            assert set(lb.rank("classification")["# Targets"]) == {len(expected)}
+    assert hashlib.sha256(path.read_bytes()).hexdigest() == checksum
+
+
 def test_sqlite_leaderboard_rejects_custom_model_on_different_test_rows(
     tmp_path: Path, monkeypatch: pytest.MonkeyPatch
 ) -> None:
