@@ -66,8 +66,11 @@ def test_groups_reach_native_validation_but_are_ignored_features(model_module, t
     pd.testing.assert_series_equal(fit.args[0][column], groups, check_names=False)
     assert column not in frame
     if not native:
+        assert fit.kwargs["raise_on_model_failure"] is True
         assert fit.kwargs["num_bag_folds"] == 0
         assert fit.kwargs["refit_full"] is True
+    else:
+        assert "raise_on_model_failure" not in fit.kwargs
 
 
 @pytest.mark.parametrize("scheduler_cpus,model_cpus,expected", [(18, "32", 32), (32, None, 32)])
