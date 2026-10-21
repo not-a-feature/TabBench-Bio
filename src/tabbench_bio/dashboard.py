@@ -16,7 +16,6 @@ import pandas as pd
 from threadpoolctl import threadpool_limits
 from tqdm.auto import tqdm
 
-from tabbench_bio.bio.loaders.tdc import DATAVERSE_URL, ENDPOINTS
 from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read_inputs
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
 from tabbench_bio.io_utils import atomic_write_json, sha256_file
@@ -230,11 +229,6 @@ def dataset_source_url(source: str, fetch_id: str) -> str | None:
         return f"https://www.kaggle.com/datasets/{fetch_id}"
     if source == "metagenomics":
         return "https://github.com/segatalab/metaml"
-    if source == "tdc":
-        assert fetch_id in ENDPOINTS, f"Unknown frozen TDC endpoint: {fetch_id}"
-        return DATAVERSE_URL.format(file_id=ENDPOINTS[fetch_id].file_id)
-    if source == "gp":
-        return "https://doi.org/10.5061/dryad.xksn02vb9"
     if source == "chembl":
         return f"https://www.ebi.ac.uk/chembl/explore/target/{fetch_id}"
     return None
