@@ -471,7 +471,7 @@ function renderModelCard() {
       const row = byCell.get(`${domain}|${cell.id}`);
       const coverage = coverageByCell.get(`${domain}|${cell.id}`);
       if (coverage && coverage.successful_fits === 0 && coverage.failed_fits > 0) {
-        const detail = `${domain}, ${cell.label}: no data. Every recorded fit failed, for example because of an out-of-memory condition or another training error. Failures use the untuned parent for tuned models and the constant predictor otherwise.`;
+        const detail = `${domain}, ${cell.label}: no data. Every recorded fit failed, for example because of an out-of-memory condition or another training error. All failed fits, including tuned models, use the constant predictor.`;
         return `<div class="model-card-cell model-card-cell-missing" role="cell" aria-label="${escapeHtml(detail)}" title="${escapeHtml(detail)}"><strong>No data</strong><span>Fit error</span></div>`;
       }
       if (!row) {

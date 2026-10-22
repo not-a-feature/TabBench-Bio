@@ -10,8 +10,8 @@ only those CSVs cannot tell the two apart and ends up measuring the harness.
 One convention, applied by every consumer (leaderboard ``Score``, the per-dataset score
 heatmap, and Elo alike):
 
-* ``fail``   — a tuned variant uses its declared untuned parent's metrics on the same
-  ``(seed, key)``; other models use the run's chance-level baseline
+* ``fail``   — every model uses the run's constant-predictor baseline on the same
+  ``(seed, key)``
   (:data:`BASELINE_MODEL`). Without the required source result on that fold, the failure
   stays missing. The original attempt remains a failure in coverage counts.
 * ``skip``   — dropped from that model's target pool, and reported as reduced coverage
@@ -28,7 +28,7 @@ import pandas as pd
 
 from tabbench_bio.result_store import ResultRepository, result_location
 
-#: Model whose result defines chance level for failures of untuned models.
+#: Model whose result supplies failure scores for every model.
 BASELINE_MODEL = "DUMMY"
 
 #: ``reason`` codes that mark a unit the benchmark excluded by design rather than a model
@@ -43,6 +43,7 @@ DESIGN_SKIPS = frozenset(
         "class_limit",
         "duplicate_cell",
         "benchmark_exclusion",
+        "dummy_unavailable",
     }
 )
 
@@ -84,20 +85,16 @@ def impute_failures(
     metrics_df: pd.DataFrame,
     status: pd.DataFrame,
     baseline_model: str = BASELINE_MODEL,
-    *,
-    model_tuning: dict | None = None,
 ) -> pd.DataFrame:
-    """Score failed tuning at its untuned parent and other failures at chance.
+    """Score every failed fit at the matching constant-predictor baseline.
 
-    ``model_tuning`` comes from the cell's frozen configuration. Each appended row copies
-    the source model's metrics on the same ``(seed, key)`` and is flagged ``imputed``.
-    Design skips and failures without their required source result stay absent. Only
-    existing metrics supply imputations; a parent's failure cannot cascade to its child.
+    Each appended row copies the baseline's metrics on the same ``(seed, key)`` and is
+    flagged ``imputed``. Successful fits remain unchanged. Design skips and failures
+    without a successful baseline result stay absent.
     """
     if metrics_df.empty or status.empty:
         return metrics_df
 
-    specifications = model_tuning if model_tuning is not None else {}
     have = set(zip(metrics_df["seed"], metrics_df["key"], metrics_df["model"]))
     sources = (
         metrics_df[~metrics_df["imputed"].eq(True).fillna(False)]
@@ -110,12 +107,7 @@ def impute_failures(
     for unit in failures.itertuples(index=False):
         if (unit.seed, unit.key, unit.model) in have:
             continue
-        source_model = (
-            specifications[unit.model]["base_model"]
-            if unit.model in specifications
-            else baseline_model
-        )
-        source = (unit.seed, unit.key, source_model)
+        source = (unit.seed, unit.key, baseline_model)
         if source not in sources.index:
             continue
         row = sources.loc[source].to_dict()

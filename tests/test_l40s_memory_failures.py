@@ -11,9 +11,23 @@ from tabbench_bio.result_store import ResultRepository
 
 def test_prediction_pipeline_preserves_terminal_l40s_oom(tmp_path, monkeypatch, debug_config):
     cell = tmp_path / "experiment/cap_2000_n20"
-    debug_config.update(output_dir=str(cell), models=["RF"])
+    debug_config.update(output_dir=str(cell), models=["DUMMY", "RF"])
     frame = pd.DataFrame({"feature": range(12), "target": [0, 1] * 6})
     calls = []
+    baseline = ResultRepository(cell, debug_config)
+    baseline.write(
+        {
+            "dataset": "OpenML-1138_0",
+            "model": "DUMMY",
+            "status": "pass",
+            "reason": "",
+            "task_type": "classification",
+        },
+        seed=0,
+        prediction=frame.iloc[8:][["target"]],
+        ground_truth=frame.iloc[8:][["target"]],
+        probability=pd.DataFrame({0: [0.5] * 4, 1: [0.5] * 4}, index=frame.iloc[8:].index),
+    )
 
     class Benchmark:
         _key_list = ["OpenML-1138_0"]
@@ -64,7 +78,7 @@ def test_prediction_pipeline_preserves_terminal_l40s_oom(tmp_path, monkeypatch, 
     monkeypatch.setenv("TABBENCH_BIO_RESOURCE_TIER", "l40s")
     predictions.compute_predictions(debug_config)
     repository = ResultRepository.from_root(cell.parent, cell=cell.name)
-    (attempt,) = repository.current_attempts()
+    attempt = repository.current(0, "OpenML-1138_0", "RF")
     assert (attempt.status, attempt.reason) == ("fail", "fit_oom")
     assert attempt.record["allocated_cpus"] == 32
     assert attempt.record["slurm_cpus_per_task"] == 18
