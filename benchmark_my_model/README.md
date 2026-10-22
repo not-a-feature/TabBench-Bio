@@ -86,13 +86,24 @@ comparison when reporting the ranking. Nothing is uploaded.
 
 | File | Contents |
 |---|---|
-| `report.html` | Report linking the figure, table and results |
-| `leaderboard.png`, `leaderboard.svg` | Elo with 95% target-bootstrap intervals |
+| `report.html` | Self-contained ranking, dataset scores, paired tests and coverage; sortable/filterable tables |
+| `*.png`, `*.svg`, `*.pdf` | Elo, dataset heatmaps and paired-score plots |
 | `leaderboard.csv` | Elo, intervals, ranks, target counts and descriptive Score |
 | `fold_metrics.csv` | New model/dataset/fold metrics and timings |
 | `metrics/` | Full comparison metrics, including any imported baselines |
 | `config.json` | Resolved configuration. Published comparisons also save frozen splits |
 | `baseline.json` | Automatically selected release, URL, local path and SHA-256 |
+| `dataset_scores_*.csv`, `dataset_summary_*.csv` | Dataset means, fold SDs and fold counts |
+| `paired_comparisons_*.csv`, `paired_successful_*.csv` | Paired effects, bootstrap intervals, Holm tests and successful-fit sensitivity |
+| `coverage.csv`, `failure_reasons.csv`, `attempts.csv` | Scored folds, imputations and recorded attempt outcomes |
+| `*.tex` | Paper tables; requires `booktabs` and `graphicx` |
+
+Regenerate a report from saved metrics without fitting models or downloading data:
+
+```sh
+tabbench-bio evaluate --report-only --output my_classifier_results \
+  --name "My classifier" --task classification
+```
 
 The helper writes CSV metrics rather than SQLite attempt bundles.
 Use the [registry pipeline](INTEGRATION.md) if you need results for `tabbench-bio merge`.

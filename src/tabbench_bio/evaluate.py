@@ -1,7 +1,7 @@
 """Benchmark your estimator and export fold metrics, Elo, and a local HTML report."""
 
 import argparse
-import html
+import hashlib
 import importlib.util
 import json
 import os
@@ -17,8 +17,11 @@ from threadpoolctl import threadpool_limits
 from tabbench_bio import Leaderboard
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.datasets import get_spec
+from tabbench_bio.evaluation_report import write_report
 from tabbench_bio.io_utils import atomic_write_json
-from tabbench_bio.leaderboard import _open_results_sqlite, _sqlite_frame
+from tabbench_bio.leaderboard import _CURRENT_SQLITE_ATTEMPTS, _open_results_sqlite, _sqlite_frame
+from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
+from tabbench_bio.model_registry import MODEL_DISPLAY
 from tabbench_bio.releases import latest_reference
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import split_versions, unit_id
@@ -140,10 +143,135 @@ def add_arguments(parser):
         help="Shared dataset and metric cache; default: TABBENCH_BIO_CACHE or ~/.cache/tabbench_bio",
     )
     parser.add_argument("--threads", type=int, default=2)
+    parser.add_argument(
+        "--report-only",
+        action="store_true",
+        help="Regenerate a saved output's report without fitting or downloading",
+    )
+    parser.add_argument(
+        "--exclude-model",
+        action="append",
+        default=[],
+        help="Omit a model ID from this report; repeat as needed",
+    )
+
+
+def report_scores_sha256(lb, task):
+    """Identify the exact scored folds behind a cached Elo table."""
+    digest = hashlib.sha256(task.encode())
+    for frame, metric in (
+        (lb._reg_metrics, PRIMARY_REG_METRIC),
+        (lb._clf_metrics, PRIMARY_CLF_METRIC),
+    ):
+        if not frame.empty:
+            ordered = frame[["key", "seed", "model", metric]].sort_values(["key", "seed", "model"])
+            digest.update(ordered.to_csv(index=False).encode())
+    return digest.hexdigest()
+
+
+def generate_report(args, lb, config, status):
+    """Render the selected comparison without changing stored fold metrics."""
+    excluded = set(args.exclude_model)
+    assert args.name not in excluded, "Cannot omit the evaluated model"
+    known = set().union(
+        *(set(frame["model"]) for frame in (lb._reg_metrics, lb._clf_metrics) if not frame.empty)
+    )
+    assert excluded <= known, f"Unknown model IDs: {sorted(excluded - known)}"
+    display = []
+    for model in sorted(known):
+        parent = model.removesuffix("-TUNED")
+        label = MODEL_DISPLAY[parent] if parent in MODEL_DISPLAY else model
+        display.append(
+            {
+                "model_id": model,
+                "Model": label
+                + (" (tuned)" if model.endswith("-TUNED") and parent in MODEL_DISPLAY else ""),
+            }
+        )
+    display_meta = pd.concat(
+        [lb._display_meta, pd.DataFrame(display)], ignore_index=True
+    ).drop_duplicates("model_id", keep="first")
+    view = Leaderboard(
+        (
+            lb._reg_metrics.loc[~lb._reg_metrics["model"].isin(excluded)]
+            if not lb._reg_metrics.empty
+            else pd.DataFrame()
+        ),
+        (
+            lb._clf_metrics.loc[~lb._clf_metrics["model"].isin(excluded)]
+            if not lb._clf_metrics.empty
+            else pd.DataFrame()
+        ),
+        display_meta,
+    )
+    view._added_models = [args.name]
+    scores_sha256 = report_scores_sha256(view, args.task)
+    report_config = args.output / "report_config.json"
+    rank_path = args.output / "leaderboard.csv"
+    if args.report_only and report_config.exists() and rank_path.exists():
+        previous = json.loads(report_config.read_text(encoding="utf-8"))
+        if "scores_sha256" in previous and previous["scores_sha256"] == scores_sha256:
+            saved = pd.read_csv(rank_path)
+            view._ratings[args.task] = saved[
+                ["model_id", "Elo", "Elo_lo", "Elo_hi", "# Targets"]
+            ].rename(columns={"# Targets": "n_targets"})
+    print("Generating report: computing Elo and 95% confidence intervals...", flush=True)
+    with threadpool_limits(limits=1):
+        ranking = view.rank(args.task, show_progress=True)
+        baseline = args.output / "baseline.json"
+        reference = (
+            json.loads(baseline.read_text(encoding="utf-8"))["tag"]
+            if baseline.exists()
+            else ("Local smoke baselines" if args.baseline == "none" else "Published frozen folds")
+        )
+        settings_path = args.output / "model.json"
+        model_settings = (
+            json.loads(settings_path.read_text(encoding="utf-8"))["estimator"]
+            if settings_path.exists()
+            else "Not recorded"
+        )
+        write_report(
+            view,
+            ranking,
+            args.output,
+            focus=args.name,
+            task=args.task,
+            cell=args.cell,
+            config=config,
+            status=status,
+            reference=reference,
+            model_settings=model_settings,
+        )
+    atomic_write_json(
+        args.output / "report_config.json",
+        {
+            "name": args.name,
+            "task": args.task,
+            "cell": args.cell,
+            "exclude_models": sorted(excluded),
+            "scores_sha256": scores_sha256,
+        },
+    )
+    print(f"\nReport: {args.output / 'report.html'}")
 
 
 def evaluate(args):
     assert args.threads > 0
+    if args.report_only:
+        assert not args.dataset, "Saved reports use the recorded dataset selection"
+        config = json.loads((args.output / "config.json").read_text(encoding="utf-8"))
+        frames = []
+        for task in ("regression", "classification"):
+            path = args.output / "metrics" / f"{task}_metrics.csv"
+            frames.append(pd.read_csv(path) if path.exists() else pd.DataFrame())
+        status_path = args.output / "attempts.csv"
+        status = (
+            pd.read_csv(status_path, keep_default_na=False)
+            if status_path.exists()
+            else pd.DataFrame(columns=["seed", "key", "model", "status", "reason"])
+        )
+        generate_report(args, Leaderboard(*frames), config, status)
+        return
     factory = load_model_factory(args.model)
     model = (
         {task: factory(task) for task in ("classification", "regression")}
@@ -157,10 +285,12 @@ def evaluate(args):
     output = args.output.resolve()
     assert not output.exists(), f"Choose a new output directory: {output}"
     output.mkdir(parents=True)
+    atomic_write_json(output / "model.json", {"factory": args.model, "estimator": repr(model)})
     cache_dir = (args.cache_dir or default_bio_cache_dir().parent).resolve()
     print(f"Cache directory: {cache_dir}", flush=True)
     os.environ["TABBENCH_MODEL_CPUS"] = str(args.threads)
     baseline = None
+    status = pd.DataFrame(columns=["seed", "key", "model", "status", "reason"])
     if args.baseline == "latest":
         baseline, provenance = latest_reference(cache_dir)
         atomic_write_json(output / "baseline.json", provenance)
@@ -175,7 +305,19 @@ def evaluate(args):
             show_progress=True,
             datasets=config["datasets_classification"] + config["datasets_regression"],
         )
-        mode = "Comparison with published baselines on matching frozen folds"
+        selected_keys = {
+            name + "_0"
+            for name in config["datasets_classification"] + config["datasets_regression"]
+        }
+        with closing(_open_results_sqlite(baseline)) as connection:
+            status = pd.DataFrame(
+                [
+                    (row[0], row[1], row[2], row[3], row[4])
+                    for row in connection.execute(_CURRENT_SQLITE_ATTEMPTS, (args.cell,))
+                    if row[1] in selected_keys
+                ],
+                columns=["seed", "key", "model", "status", "reason"],
+            )
     else:
         assert args.task == "classification" or args.dataset, (
             "Choose a regression dataset with --dataset"
@@ -208,9 +350,6 @@ def evaluate(args):
             "exclude_targets": [],
         }
         lb = Leaderboard(pd.DataFrame(), pd.DataFrame())
-        mode = (
-            "Small local comparison; these freshly fitted baselines are not the published benchmark"
-        )
     config["output_dir"] = str(output / args.cell)
     config["cache_dir"] = str(cache_dir)
     config_path = output / "config.json"
@@ -239,44 +378,10 @@ def evaluate(args):
     for task, frame in [("classification", lb._clf_metrics), ("regression", lb._reg_metrics)]:
         if not frame.empty:
             frame.to_csv(output / "metrics" / f"{task}_metrics.csv", index=False)
-    print("Generating report: computing Elo and 95% confidence intervals...", flush=True)
-    with threadpool_limits(limits=1):
-        ranking = lb.rank(args.task, show_progress=True)
-    ranking.to_csv(output / "leaderboard.csv", index=False)
-    print("Generating report: saving plots and HTML...", flush=True)
-    figure = lb.plot(args.task)
-    figure.savefig(output / "leaderboard.png", dpi=200, bbox_inches="tight")
-    figure.savefig(output / "leaderboard.svg", bbox_inches="tight")
-    table = ranking[["Rank", "Model", "Elo", "Elo_lo", "Elo_hi", "# Targets"]].to_html(
-        index=False, border=0
-    )
-    reference = (
-        f'<p>Published reference: <a href="baseline.json">{html.escape(provenance["tag"])}</a>; '
-        f"SHA-256 <code>{provenance['sha256']}</code>.</p>"
-        if args.baseline == "latest"
-        else ""
-    )
-    (output / "report.html").write_text(
-        f"""<!doctype html>
-<html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width">
-<title>TabBench-Bio · {html.escape(args.name)}</title>
-<style>
-body{{font:17px system-ui;max-width:1050px;margin:40px auto;padding:20px;color:#172033}}
-img,table{{width:100%}} table{{border-collapse:collapse;font-size:15px}}
-td,th{{padding:10px;text-align:left;border-bottom:1px solid #ddd}}
-</style>
-<h1>TabBench-Bio · {html.escape(args.name)}</h1><p>{html.escape(mode)}.</p>
-{reference}
-<p>Fold-level Bradley-Terry Elo; Random Forest = 1000. Intervals resample datasets.
-Baseline coverage may differ.</p>
-<img src="leaderboard.svg" alt="Elo ratings and 95 percent target-bootstrap intervals">
-{table}
-<p><a href="leaderboard.csv">Leaderboard CSV</a> · <a href="fold_metrics.csv">Fold metrics</a> ·
-<a href="leaderboard.png">PNG</a> · <a href="config.json">Configuration</a></p></html>""",
-        encoding="utf-8",
-    )
-    print(lb.summary(args.task))
-    print(f"\nReport: {output / 'report.html'}")
+    passed = metrics[["seed", "key", "model"]].assign(status="pass", reason="")
+    status = pd.concat([status, passed], ignore_index=True)
+    status.to_csv(output / "attempts.csv", index=False)
+    generate_report(args, lb, config, status)
 
 
 def main(argv=None):
