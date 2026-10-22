@@ -84,7 +84,7 @@ WITH ranked_attempts AS (
         ROW_NUMBER() OVER (
             PARTITION BY cell, seed, dataset, model
             ORDER BY
-                CASE WHEN status = 'skip' AND reason = 'benchmark_exclusion' THEN 2
+                CASE WHEN status = 'skip' AND reason IN ('benchmark_exclusion', 'dummy_unavailable') THEN 2
                      WHEN status = 'pass' THEN 1 ELSE 0 END DESC,
                 timestamp DESC,
                 attempt_id DESC
@@ -392,15 +392,14 @@ class Leaderboard:
         reg_df = pd.read_csv(reg_path) if os.path.exists(reg_path) else pd.DataFrame()
         clf_df = pd.read_csv(clf_path) if os.path.exists(clf_path) else pd.DataFrame()
 
-        # Tuned failures use their untuned parent; other failed fits use chance.
+        # All failed fits use the constant predictor on the same fold.
         status = load_status(results_dir)
         with open(os.path.join(results_dir, "config.json")) as f:
             config = json.load(f)
         seeds = get_seeds(config)
-        tuning = config["model_tuning"] if "model_tuning" in config else {}
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds),
-            complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds),
+            complete_folds(impute_failures(reg_df, status), status, seeds),
+            complete_folds(impute_failures(clf_df, status), status, seeds),
         )
         leaderboard._expected_seeds = set(seeds)
         return leaderboard
@@ -480,10 +479,9 @@ class Leaderboard:
             ).fetchone()
         config = json.loads(config_json)
         seeds = get_seeds(config)
-        tuning = config["model_tuning"] if "model_tuning" in config else {}
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds),
-            complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds),
+            complete_folds(impute_failures(reg_df, status), status, seeds),
+            complete_folds(impute_failures(clf_df, status), status, seeds),
         )
         leaderboard._reference_sqlite = path
         leaderboard._reference_config = config
@@ -1028,7 +1026,7 @@ def _aggregate_leaderboard(per_ds: pd.DataFrame) -> pd.DataFrame:
 
     Every model is scored on the targets it actually has a result for, and ``# Targets``
     reports how many that is. Absent ``(model, key)`` pairings are **not** imputed here: a
-    fit that failed has already been imputed at its untuned parent or chance upstream
+    fit that failed has already been imputed at the constant predictor upstream
     (:func:`tabbench_bio.coverage.impute_failures`), so what remains absent is a unit the
     benchmark excluded by design — a declared input-size limit, a degenerate split, a
     duplicate grid cell. Scoring those as zero ranks the benchmark's own limits rather than

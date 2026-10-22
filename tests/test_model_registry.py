@@ -69,13 +69,29 @@ def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config, key):
         def __iter__(self):
             yield frame, frame, "toy_0", TaskType.Classification
 
-    debug_config.update(output_dir=str(tmp_path / "run"), models=[key], train_subsample=None)
+    debug_config.update(
+        output_dir=str(tmp_path / "run"), models=["DUMMY", key], train_subsample=None
+    )
+    repository = ResultRepository(debug_config["output_dir"], debug_config)
+    repository.write(
+        {
+            "dataset": "toy_0",
+            "model": "DUMMY",
+            "status": "pass",
+            "reason": "",
+            "task_type": "classification",
+        },
+        seed=0,
+        prediction=frame[["target"]],
+        ground_truth=frame[["target"]],
+        probability=pd.DataFrame(1 / 12, index=frame.index, columns=range(12)),
+    )
     monkeypatch.setattr(predictions, "configure_benchmark", lambda config: Benchmark())
     monkeypatch.setattr(predictions, "get_seeds", lambda config: [0])
     monkeypatch.setattr(predictions, "_set_global_seeds", lambda seed: None)
     model = Mock(side_effect=AssertionError("Must skip before fitting"))
     monkeypatch.setattr(predictions, "AutoGluonModel", model)
     predictions.compute_predictions(debug_config)
-    (attempt,) = ResultRepository(debug_config["output_dir"], debug_config).current_attempts()
+    attempt = ResultRepository(debug_config["output_dir"], debug_config).current(0, "toy_0", key)
     assert (attempt.status, attempt.reason) == ("skip", "class_limit")
     model.assert_not_called()

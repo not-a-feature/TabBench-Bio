@@ -523,6 +523,9 @@ def main():
     )
     doctor_p.add_argument("--cache-dir", type=Path, default=Path(".cache"))
     doctor_p.add_argument(
+        "--results", type=Path, help="Check a results SQLite file for missing/duplicate splits"
+    )
+    doctor_p.add_argument(
         "--site-dir", type=Path, help="Also verify a generated site's skill copies"
     )
     doctor_p.add_argument(

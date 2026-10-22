@@ -22,15 +22,16 @@ def test_missing_filtered_split_is_terminal_for_each_model_and_seed(
         _task_type_list = [TaskType.Classification]
 
         def __len__(self):
-            return 1
+            return len(self._key_list)
 
         def __iter__(self):
-            yield (
-                None if missing in {"train", "both"} else frame,
-                None if missing in {"test", "both"} else frame,
-                self._key_list[0],
-                self._task_type_list[0],
-            )
+            for key in self._key_list:
+                yield (
+                    None if missing in {"train", "both"} else frame,
+                    None if missing in {"test", "both"} else frame,
+                    key,
+                    self._task_type_list[0],
+                )
 
     def forbidden_model(**kwargs):
         pytest.fail("A filtered split must never instantiate a model")
@@ -39,16 +40,21 @@ def test_missing_filtered_split_is_terminal_for_each_model_and_seed(
     monkeypatch.setattr(predictions, "get_seeds", lambda config: [0, 1])
     monkeypatch.setattr(predictions, "_set_global_seeds", lambda seed: None)
     monkeypatch.setattr(predictions, "AutoGluonModel", forbidden_model)
-    # Each shard must write only its own units; restarting preserves terminal coverage.
+    # Each shard owns whole splits, including DUMMY and every dependent model.
     predictions.compute_predictions(debug_config, num_shards=2, shard_index=0)
     reader = ResultRepository.from_root(cell.parent, cell=cell.name)
-    assert {(a.seed, a.model) for a in reader.current_attempts()} == {(0, "DUMMY"), (1, "DUMMY")}
+    assert {(a.seed, a.model) for a in reader.current_attempts()} == {
+        (seed, model) for seed in [0, 1] for model in ["DUMMY", "RF"]
+    }
     predictions.compute_predictions(debug_config, num_shards=2, shard_index=1)
     predictions.compute_predictions(debug_config)
     reader = ResultRepository.from_root(cell.parent, cell=cell.name)
     assert len(reader.current_attempts()) == 4
     for attempt in reader.current_attempts():
-        assert (attempt.status, attempt.reason) == ("skip", "empty_split_after_filtering")
+        assert attempt.status == "skip"
+        assert attempt.reason == (
+            "empty_split_after_filtering" if attempt.model == "DUMMY" else "dummy_unavailable"
+        )
         assert attempt.record["n_train_samples"] == (None if missing in {"train", "both"} else 2)
         assert attempt.record["n_test_samples"] == (None if missing in {"test", "both"} else 2)
 

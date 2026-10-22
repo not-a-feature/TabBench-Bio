@@ -1136,16 +1136,15 @@ def build_site(
         except Exception as e:
             logger.warning("Could not load config %s for feature counts: %s", config_path, e)
 
-    # Tuned failures use their untuned parent; other failures use chance. Design skips
+    # All failed fits use the constant predictor on the same fold. Design skips
     # reduce coverage, and targets missing scheduled folds are left out for that model.
     status = load_status(results_dir)
     scoring_config = (
         config if config is not None else load_config(os.path.join(results_dir, "config.json"))
     )
     seeds = get_seeds(scoring_config)
-    tuning = scoring_config["model_tuning"] if "model_tuning" in scoring_config else {}
-    clf_df = complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds)
-    reg_df = complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds)
+    clf_df = complete_folds(impute_failures(clf_df, status), status, seeds)
+    reg_df = complete_folds(impute_failures(reg_df, status), status, seeds)
 
     model_ids = sorted(
         set(clf_df.get("model", pd.Series(dtype=str)))
