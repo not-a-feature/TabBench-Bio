@@ -20,7 +20,7 @@ tabbench-bio evaluate --model my_model.py --task overall
 ```
 
 Before the first PyPI upload, install a built wheel with `[bio]` instead.
-Open `my_model_results/report.html` after the run. The command downloads the
+Open `my_model_results/report/report.html` after the run. The command downloads the
 latest reference, verifies its checksum and evaluates your model on frozen folds.
 Report generation shows confidence-interval progress. Choose a new output folder
 for each run with `--output`; interrupted fits cannot resume.
@@ -86,17 +86,19 @@ comparison when reporting the ranking. Nothing is uploaded.
 
 | File | Contents |
 |---|---|
-| `report.html` | Self-contained ranking, dataset scores, paired tests and coverage; sortable/filterable tables |
-| `*.png`, `*.svg`, `*.pdf` | Elo, dataset heatmaps and paired-score plots |
-| `leaderboard.csv` | Elo, intervals, ranks, target counts and descriptive Score |
+| `report/report.html` | Self-contained ranking, dataset scores, paired tests and coverage; sortable/filterable tables |
+| `report/*.png`, `report/*.svg`, `report/*.pdf` | Elo, dataset heatmaps and paired-score plots |
+| `report/leaderboard.csv` | Elo, intervals, ranks, target counts and descriptive Score |
 | `fold_metrics.csv` | New model/dataset/fold metrics and timings |
 | `metrics/` | Full comparison metrics, including any imported baselines |
 | `config.json` | Resolved configuration. Published comparisons also save frozen splits |
 | `baseline.json` | Automatically selected release, URL, local path and SHA-256 |
-| `dataset_scores_*.csv`, `dataset_summary_*.csv` | Dataset means, fold SDs and fold counts |
-| `paired_comparisons_*.csv`, `paired_successful_*.csv` | Paired effects, bootstrap intervals, Holm tests and successful-fit sensitivity |
-| `coverage.csv`, `failure_reasons.csv`, `attempts.csv` | Scored folds, imputations and recorded attempt outcomes |
-| `*.tex` | Paper tables; requires `booktabs` and `graphicx` |
+| `report/dataset_scores_*.csv`, `report/dataset_summary_*.csv` | Dataset means, fold SDs and fold counts |
+| `report/paired_comparisons_*.csv`, `report/paired_successful_*.csv` | Paired effects, bootstrap intervals, Holm tests and successful-fit sensitivity |
+| `report/coverage.csv`, `report/failure_reasons.csv` | Scored folds, imputations and failure summaries |
+| `attempts.csv` | Recorded attempt outcomes |
+| `report/report_config.json` | Report selection and score fingerprint for regeneration |
+| `report/*.tex` | Paper tables; requires `booktabs` and `graphicx` |
 
 Regenerate a report from saved metrics without fitting models or downloading data:
 
