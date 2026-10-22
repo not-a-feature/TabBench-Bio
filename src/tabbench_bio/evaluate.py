@@ -206,8 +206,10 @@ def generate_report(args, lb, config, status):
     )
     view._added_models = [args.name]
     scores_sha256 = report_scores_sha256(view, args.task)
-    report_config = args.output / "report_config.json"
-    rank_path = args.output / "leaderboard.csv"
+    report_dir = args.output / "report"
+    report_dir.mkdir(parents=True, exist_ok=True)
+    report_config = report_dir / "report_config.json"
+    rank_path = report_dir / "leaderboard.csv"
     if args.report_only and report_config.exists() and rank_path.exists():
         previous = json.loads(report_config.read_text(encoding="utf-8"))
         if "scores_sha256" in previous and previous["scores_sha256"] == scores_sha256:
@@ -233,7 +235,7 @@ def generate_report(args, lb, config, status):
         write_report(
             view,
             ranking,
-            args.output,
+            report_dir,
             focus=args.name,
             task=args.task,
             cell=args.cell,
@@ -243,7 +245,7 @@ def generate_report(args, lb, config, status):
             model_settings=model_settings,
         )
     atomic_write_json(
-        args.output / "report_config.json",
+        report_config,
         {
             "name": args.name,
             "task": args.task,
@@ -252,7 +254,7 @@ def generate_report(args, lb, config, status):
             "scores_sha256": scores_sha256,
         },
     )
-    print(f"\nReport: {args.output / 'report.html'}")
+    print(f"\nReport: {report_dir / 'report.html'}")
 
 
 def evaluate(args):

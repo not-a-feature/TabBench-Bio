@@ -33,7 +33,7 @@ tabbench-bio evaluate --model my_model.py --task overall
 ```
 
 This uses the latest published reference and frozen folds, then writes
-`my_model_results/report.html`, Elo plots and CSV metrics.
+`my_model_results/report/report.html`, Elo plots and CSV metrics.
 See the [model guide](benchmark_my_model/README.md) for options.
 
 Registered models use their installed backend dependencies:
