@@ -15,8 +15,6 @@ authors:
     given-names: "Nico"
     orcid: "https://orcid.org/0000-0002-4647-8566"
 title: "TabBench-Bio"
-version: 0.4.0
-date-released: 2026-10-21
 url: "https://github.com/not-a-feature/TabBench-Bio"
 license: EUPL-1.2
 preferred-citation:

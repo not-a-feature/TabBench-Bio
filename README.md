@@ -20,15 +20,14 @@ source .venv/bin/activate
 uv pip install tabbench-bio
 ```
 
-Publishing is postponed. Until the first PyPI upload, install a built wheel or
-use `uv pip install -e .` from a source checkout.
+For development, use `uv pip install -e .` from a source checkout.
 Dataset-loading dependencies are included by default.
 Missing datasets download automatically. Custom estimators need no AutoGluon or CUDA.
 
 ## Benchmark your model
 
 Define `create_model(task)` in `my_model.py`, returning a cloneable scikit-learn
-classifier or regressor. See the [SVM example](benchmark_my_model/my_model.py).
+classifier or regressor. See the [SVM example](https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/my_model.py).
 
 ```bash
 tabbench-bio evaluate --model my_model.py --task overall
@@ -37,21 +36,11 @@ tabbench-bio evaluate --model my_model.py --task overall
 This checks the latest published reference, reuses its verified local cache or
 downloads the current database, and uses its frozen folds. It writes
 `my_model_results/report/report.html`, Elo plots and CSV metrics.
-See the [model guide](benchmark_my_model/README.md) for options.
-
-Registered models use their installed backend dependencies:
-
-```bash
-tabbench-bio RF
-tabbench-bio RF --full-grid
-```
-
-See the [integration guide](benchmark_my_model/INTEGRATION.md) for environment
-profiles, resumable runs and adapter development.
+See [Benchmark my model](https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/README.md) for options.
 
 ## Datasets and models
 
-The [dataset registry](src/tabbench_bio/bio/data/bio_datasets.json) gives each task a
+The [dataset registry](https://github.com/not-a-feature/TabBench-Bio/blob/main/src/tabbench_bio/bio/data/bio_datasets.json) gives each task a
 stable `bio_id`. Edit it to add datasets from a supported source, or set
 `TABBENCH_BIO_DATASETS` to your own registry file. A run config selects tasks through
 `datasets_classification` and `datasets_regression`. Default grids use `null` for
@@ -64,9 +53,9 @@ come from checksum-verified Parquet assets in the
 [GitHub Release](https://github.com/not-a-feature/TabBench-Bio/releases/tag/v0.1.0).
 Kaggle requires `~/.kaggle/kaggle.json`.
 Use `--cache-dir` to select the cache or `TABBENCH_BIO_LOCAL_DIR` for local tables.
-The [contributor guide](CONTRIBUTING.md#adding-a-dataset) explains how to add and check a dataset.
+The [contributor guide](https://github.com/not-a-feature/TabBench-Bio/blob/main/CONTRIBUTING.md#adding-a-dataset) explains how to add and check a dataset.
 
-The [model roster](configs/models/all.json) includes linear models, trees, neural
+The [model roster](https://github.com/not-a-feature/TabBench-Bio/blob/main/configs/models/all.json) includes linear models, trees, neural
 networks and tabular foundation models. `DUMMY` provides a constant baseline, and
 Random Forest anchors Elo at 1000. New adapters need a `ModelSpec` in
 `src/tabbench_bio/model_registry.py`, including their environment profile.
@@ -102,7 +91,7 @@ Use `--out preview` to build elsewhere.
 
 The input database stays read-only. Building needs no raw datasets, GPU or LaTeX,
 and publishes nothing automatically. See the
-[model guide](benchmark_my_model/INTEGRATION.md#merge-and-generate-plots) for publishing
+[model guide](https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/INTEGRATION.md#merge-and-generate-plots) for publishing
 and cache settings. The released database and SHA-256 checksum are listed in the
 [artifact browser](https://tabbench-bio.eu/artifacts.html).
 
@@ -160,13 +149,13 @@ uses training data only, with search and refitting sharing the run's time budget
 tabbench-bio MY-MODEL-TUNED --model-config my_grid.json --output results/my-tuned-model
 ```
 
-See [Add a tuned model](benchmark_my_model/TUNING.md) for the JSON template and
-[Run on a cluster](benchmark_my_model/INTEGRATION.md#run-on-a-cluster) for batch execution.
+See [Add a tuned model](https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/TUNING.md) for the JSON template and
+[Run on a cluster](https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/INTEGRATION.md#run-on-a-cluster) for batch execution.
 
 ## Licence
 
-EUPL-1.2. See [LICENSE](LICENSE). The vendored TabArena Elo helper retains Apache-2.0,
-as recorded in [NOTICE](NOTICE) and [its licence](licenses/Apache-2.0.txt).
+EUPL-1.2. See [LICENSE](https://github.com/not-a-feature/TabBench-Bio/blob/main/LICENSE). The vendored TabArena Elo helper retains Apache-2.0,
+as recorded in [NOTICE](https://github.com/not-a-feature/TabBench-Bio/blob/main/NOTICE) and [its licence](https://github.com/not-a-feature/TabBench-Bio/blob/main/licenses/Apache-2.0.txt).
 Datasets and models retain their providers' licences.
 
 ## Paper citation
@@ -178,7 +167,7 @@ TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomed
 
 ## Agent skill for model selection
 
-The [model-selection skill](skills/biomedical-tabular-model-selection/SKILL.md) helps an
+The [model-selection skill](https://github.com/not-a-feature/TabBench-Bio/blob/main/skills/biomedical-tabular-model-selection/SKILL.md) helps an
 agent compare published results for a dataset's modality and feature/sample budgets,
 including uncertainty, failures, cost and training-data overlap. Install it in a
 compatible agent with:
