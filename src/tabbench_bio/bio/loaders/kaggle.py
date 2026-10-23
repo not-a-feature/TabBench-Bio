@@ -6,7 +6,7 @@ caches downloads under ``~/.cache/kagglehub``), loads its single tabular file, a
 it with the **curated** ``spec.target`` (no heuristic target detection). When a dataset
 ships more than one table, set ``spec.data_file`` to disambiguate.
 
-Optional dep: ``tabbench-bio[bio]`` (``kagglehub``). Imported lazily inside :meth:`fetch`.
+The default ``kagglehub`` dependency is imported lazily inside :meth:`fetch`.
 The license is taken from the curated ``spec.license`` (re-confirm the real per-dataset
 license on the Kaggle page before publishing — CC-BY-SA implies share-alike on any
 re-hosted copy).

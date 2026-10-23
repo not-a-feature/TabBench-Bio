@@ -42,7 +42,7 @@ Reuse a compatible [environment profile](../environments/README.md), or create
 
 ```text
 -r ../requirements-autogluon-fork.txt
--e .[bio,autogluon]
+-e .[autogluon]
 # Add your backend and its version constraints here.
 ```
 

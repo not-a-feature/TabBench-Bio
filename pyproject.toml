@@ -40,6 +40,18 @@ dependencies = [
     "tqdm>=4.64,<5.0",
     "threadpoolctl>=3.1,<4.0",
     "filelock>=3.32.3,<5.0",
+    "GEOparse>=2.0",
+    "biopython>=1.81",
+    "requests>=2.31",
+    "kagglehub>=0.3",
+    "openml>=0.14.1",
+    "pyarrow>=12.0,<26.0",
+    # Reproducible curation of the compact PEER protein-embedding task.
+    "lmdb>=1.4,<3.0",
+    # Molecular endpoints: ECFP4 fingerprints and Bemis-Murcko scaffold groups.
+    # Data are fetched directly from the official TDC Harvard Dataverse files;
+    # PyTDC is intentionally not required because its dependency stack is fragile.
+    "rdkit>=2024.3",
 ]
 
 [project.optional-dependencies]
@@ -89,27 +101,11 @@ models = [
     "einx",
     "transformers",
 ]
-# Dataset loaders (GEO/TCGA/Kaggle/OpenML). Only needed to (re)fetch the biological
-# datasets from their original sources; the per-source libs are imported lazily so the
-# core package never requires them.
-bio = [
-    "GEOparse>=2.0",
-    "biopython>=1.81",
-    "requests>=2.31",
-    "kagglehub>=0.3",
-    "openml>=0.14.1",
-    "pyarrow>=12.0,<26.0",
-    # Reproducible curation of the compact PEER protein-embedding task.
-    "lmdb>=1.4,<3.0",
-    # Molecular endpoints: ECFP4 fingerprints and Bemis-Murcko scaffold groups.
-    # Data are fetched directly from the official TDC Harvard Dataverse files;
-    # PyTDC is intentionally not required because its dependency stack is fragile.
-    "rdkit>=2024.3",
-]
+# Compatibility alias: dataset loaders are installed by default.
+bio = []
 full = [
     "tabbench-bio[autogluon]",
     "tabbench-bio[models]",
-    "tabbench-bio[bio]",
     "pynvml>=11.0",
 ]
 dev = [

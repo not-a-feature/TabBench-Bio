@@ -13,7 +13,7 @@ via the registry ``platform`` field (``GeoLoader(platform="GPLxxxx")`` or the
 
 The downloaded SOFT file is cached in ``destdir`` so rebuilds skip the download.
 
-Optional dep: ``tabbench-bio[bio]`` (``GEOparse``, ``biopython``). Imported lazily.
+Uses the default ``GEOparse`` and ``biopython`` dependencies, imported lazily.
 """
 
 from __future__ import annotations

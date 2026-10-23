@@ -13,7 +13,7 @@ everything else (Primary Tumor, Metastatic, ...) -> ``"Tumor"``.
 The full parsed matrix is disk-cached (``<cache_dir>/<bio_id>.pkl``) so rebuilds skip
 the multi-GB GDC download.
 
-Optional dep: ``tabbench-bio[bio]`` (``requests``). Imported lazily inside :meth:`fetch`.
+The default ``requests`` dependency is imported lazily inside :meth:`fetch`.
 Provenance: GDC open-access (NIH Genomic Data Sharing Policy); acknowledge TCGA / GDC.
 """
 
