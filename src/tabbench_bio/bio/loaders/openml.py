@@ -7,8 +7,7 @@ per-dataset ``licence`` / citation / url are captured for provenance.
 OpenML caches downloaded datasets under its own cache directory (``~/.cache/openml``
 by default), so repeated fetches do not re-download.
 
-Optional dep: ``tabbench-bio[bio]`` (``openml``). Imported lazily inside :meth:`fetch`
-so importing this package never forces it.
+The default ``openml`` dependency is imported lazily inside :meth:`fetch`.
 """
 
 from __future__ import annotations

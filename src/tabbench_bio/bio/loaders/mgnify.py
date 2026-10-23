@@ -12,7 +12,7 @@ each. Classes smaller than ``MIN_CLASS`` are dropped before labelling.
 The IPR table maps to sample metadata through two id systems: table columns are
 run/assembly accessions, resolved to sample accessions via the study's analyses.
 
-Optional dep: ``tabbench-bio[bio]`` (``requests``). Imported lazily inside the fetch path.
+The default ``requests`` dependency is imported lazily inside the fetch path.
 """
 
 from __future__ import annotations

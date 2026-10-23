@@ -9,7 +9,7 @@ feature requests, open a [GitHub issue](https://github.com/not-a-feature/TabBenc
 git clone https://github.com/not-a-feature/TabBench-Bio.git
 cd TabBench-Bio
 uv venv --python 3.13
-uv pip install -e ".[dev,bio]"
+uv pip install -e ".[dev]"
 ```
 
 This is enough for core development and the
@@ -92,6 +92,9 @@ type before submitting a long run.
 
 Run the new model in its own result directory, then merge its database with the
 benchmark. Keep existing frozen cell configurations unchanged.
+
+The package version is defined in `pyproject.toml`; `tabbench_bio.__version__`
+reads the installed package metadata.
 
 ## Checks
 

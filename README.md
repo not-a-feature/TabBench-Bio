@@ -17,10 +17,12 @@ Use Python 3.13:
 ```bash
 uv venv --python 3.13
 source .venv/bin/activate
-uv pip install "tabbench-bio[bio]"
+uv pip install tabbench-bio
 ```
 
-Before the first PyPI upload, install a built wheel with `[bio]` instead.
+Publishing is postponed. Until the first PyPI upload, install a built wheel or
+use `uv pip install -e .` from a source checkout.
+Dataset-loading dependencies are included by default.
 Missing datasets download automatically. Custom estimators need no AutoGluon or CUDA.
 
 ## Benchmark your model
@@ -60,7 +62,7 @@ still select subsets, and each run freezes its resolved dataset IDs.
 Missing datasets download automatically and are cached. Curated embedding tables
 come from checksum-verified Parquet assets in the
 [GitHub Release](https://github.com/not-a-feature/TabBench-Bio/releases/tag/v0.1.0).
-Install the `bio` extra for dataset loading; Kaggle requires `~/.kaggle/kaggle.json`.
+Kaggle requires `~/.kaggle/kaggle.json`.
 Use `--cache-dir` to select the cache or `TABBENCH_BIO_LOCAL_DIR` for local tables.
 The [contributor guide](CONTRIBUTING.md#adding-a-dataset) explains how to add and check a dataset.
 
