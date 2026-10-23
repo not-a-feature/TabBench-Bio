@@ -43,9 +43,7 @@ from sklearn.preprocessing import StandardScaler
 
 def create_model(task):
     model = (
-        LogisticRegression(max_iter=1000, random_state=0)
-        if task == "classification"
-        else Ridge()
+        LogisticRegression(max_iter=1000, random_state=0) if task == "classification" else Ridge()
     )
     return make_pipeline(
         SimpleImputer(strategy="median", keep_empty_features=True),
