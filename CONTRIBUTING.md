@@ -108,6 +108,34 @@ uv run --no-sync pytest
 
 CI runs the same checks.
 
+## Release preparation
+
+The 1.x compatibility promise covers documented Python APIs, CLI options and
+reading published schema-1 SQLite results. Breaking changes require a new major
+version. Private helpers and internal caches are not covered. Keep released
+results immutable; publish changed benchmark settings or results as a new reference.
+
+Build and validate locally before publishing:
+
+```sh
+uv build --out-dir dist/1.0.0
+uvx twine check --strict dist/1.0.0/*.whl dist/1.0.0/*.tar.gz
+```
+
+The publishing workflow is manual; preparing or building a release does not upload it.
+Before the first upload, configure pending Trusted Publishers on PyPI and TestPyPI:
+
+- Project: `tabbench-bio`; owner: `not-a-feature`; repository: `TabBench-Bio`.
+- Workflow filename: `publish.yml`.
+- GitHub environment: `pypi` or `testpypi`, matching the selected index.
+
+Require approval for the GitHub `pypi` environment. Once the release commit passes
+CI, create its matching `v1.0.0` tag and run **Publish Python package** from that tag,
+selecting `testpypi` first. Verify the installed package before selecting `pypi`.
+The workflow rejects branches and tags that differ from the package version.
+Attach the audited reference `results.sqlite` to the GitHub release before making
+it the latest release; the evaluation helper expects that asset.
+
 ## Website skill
 
 Edit the canonical skill in `skills/biomedical-tabular-model-selection/`, including

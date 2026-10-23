@@ -4,7 +4,7 @@ build-backend = "setuptools.build_meta"
 
 [project]
 name = "tabbench-bio"
-version = "0.4.0"
+version = "1.0.0"
 description = "A benchmark for machine learning on high-dimensional biological data"
 readme = "README.md"
 license = "EUPL-1.2 AND Apache-2.0"
@@ -20,7 +20,7 @@ keywords = [
     "bioinformatics", "genomics", "gene-expression", "hdlss", "biology",
 ]
 classifiers = [
-    "Development Status :: 3 - Alpha",
+    "Development Status :: 5 - Production/Stable",
     "Intended Audience :: Science/Research",
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
