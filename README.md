@@ -12,7 +12,7 @@ This repository contains the package and experiment definitions. The
 
 ## Install
 
-This release supports Python 3.13 and NumPy 2.4.x.
+Use Python 3.13:
 
 ```bash
 uv venv --python 3.13
@@ -32,8 +32,9 @@ classifier or regressor. See the [SVM example](benchmark_my_model/my_model.py).
 tabbench-bio evaluate --model my_model.py --task overall
 ```
 
-This uses the latest published reference and frozen folds, then writes
-`my_model_results/report.html`, Elo plots and CSV metrics.
+This checks the latest published reference, reuses its verified local cache or
+downloads the current database, and uses its frozen folds. It writes
+`my_model_results/report/report.html`, Elo plots and CSV metrics.
 See the [model guide](benchmark_my_model/README.md) for options.
 
 Registered models use their installed backend dependencies:

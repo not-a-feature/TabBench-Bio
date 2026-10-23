@@ -197,7 +197,7 @@ def test_pipeline_persists_audit_and_keeps_variant_separate(
     predictions.compute_predictions(debug_config)
     repository = ResultRepository.from_root(cell.parent)
     attempts = {a.model: a for a in repository.current_attempts()}
-    assert set(attempts) == {"RF", "RF-TUNED"}
+    assert set(attempts) == {"DUMMY", "RF", "RF-TUNED"}
     assert attempts["RF"].status == "pass"
     attempt = attempts["RF-TUNED"]
     assert attempt.status == ("fail" if invalid else "pass"), attempt.record["error"]
@@ -210,7 +210,7 @@ def test_pipeline_persists_audit_and_keeps_variant_separate(
         assert audit["candidates_completed"] == 2
         assert attempt.record["n_models_trained"] >= 3
         predictions.compute_predictions(debug_config)
-        assert len(ResultRepository.from_root(cell.parent).attempts()) == 2
+        assert len(ResultRepository.from_root(cell.parent).attempts()) == 3
 
 
 @pytest.mark.parametrize("first_candidate", [False, True])

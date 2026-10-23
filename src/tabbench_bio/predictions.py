@@ -40,7 +40,7 @@ from tabbench_bio.benchmark import configure_benchmark
 from tabbench_bio.config import resolve_nan_policy
 from tabbench_bio.coverage import DESIGN_SKIPS
 from tabbench_bio.dataset import TaskType
-from tabbench_bio.exclusions import materialize_exclusions
+from tabbench_bio.exclusions import materialize_dummy_skips, materialize_exclusions
 from tabbench_bio.gpu_exclusivity import (
     GpuContentionError,
     assert_exclusive_from_environment,
@@ -617,8 +617,8 @@ def compute_predictions(
     reverse : bool
         Iterate datasets in reverse order (useful for forward+reverse parallel jobs).
     num_shards, shard_index : int
-        Split the (model x dataset) grid across ``num_shards`` workers; this process runs
-        only the cells with ``cell_index % num_shards == shard_index``. Used for multi-GPU
+        Assign each dataset and all its models to one of ``num_shards`` workers using
+        its index in the original dataset roster. Used for multi-GPU
         execution — launch one worker per GPU (each pinned with ``CUDA_VISIBLE_DEVICES``)
         with the same ``num_shards`` and a distinct ``shard_index``. The cell ordering is
         deterministic, so workers partition the grid without overlap. Warm the split cache
@@ -634,6 +634,7 @@ def compute_predictions(
     config = copy.deepcopy(config)
     # Kept in frozen configs; per-model training subsampling was removed.
     assert config["subsample"] is None, "Per-model subsampling is no longer supported"
+    config["models"] = list(dict.fromkeys(["DUMMY", *config["models"]]))
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
@@ -668,6 +669,8 @@ def compute_predictions(
             }
         record.update(details)
         repository.write(record, seed=seed)
+        if model_name == "DUMMY":
+            materialize_dummy_skips(repository, [seed], config["models"], [key])
 
     cache_dir = config["cache_dir"]
     autogluon_path = (
@@ -705,7 +708,18 @@ def compute_predictions(
         _set_global_seeds(seed)
         benchmark = configure_benchmark(config)
 
+        # Assign ownership before exclusions or reversal can change dataset positions.
+        owned = [
+            (key, task)
+            for index, (key, task) in enumerate(
+                zip(benchmark._key_list, benchmark._task_type_list, strict=True)
+            )
+            if index % num_shards == shard_index
+        ]
+        benchmark._key_list = [key for key, _ in owned]
+        benchmark._task_type_list = [task for _, task in owned]
         excluded = materialize_exclusions(repository, [seed], model_names, benchmark._key_list)
+        excluded |= materialize_dummy_skips(repository, [seed], model_names, benchmark._key_list)
         if excluded:
             benchmark._task_type_list = [
                 task
@@ -717,20 +731,22 @@ def compute_predictions(
         validated_splits = set()
         if reverse:
             benchmark._key_list = list(reversed(benchmark._key_list))
+            benchmark._task_type_list = list(reversed(benchmark._task_type_list))
 
         pbar = tqdm(total=len(benchmark) * len(model_names), desc=f"Seed {seed}")
         results = []
 
-        # Deterministic grid index, reset per seed, so multi-GPU shard workers (each with
-        # the same num_shards but a distinct shard_index) partition the cells with no overlap.
-        cell_idx = -1
-        for model_name in model_names:
-            for data_train, data_test, key, task_type in benchmark:
-                cell_idx += 1
-                if num_shards > 1 and cell_idx % num_shards != shard_index:
-                    pbar.update(1)
-                    continue
+        # Keep DUMMY and every dependent model on the same shard for each split.
+        for data_train, data_test, key, task_type in benchmark:
+            for model_name in model_names:
                 pbar.set_description(f"Seed {seed} | {key} | {model_name}")
+                if model_name != "DUMMY":
+                    dummy = repository.current(seed, key, "DUMMY")
+                    assert dummy is not None, f"DUMMY must run first: {seed}/{key}"
+                    if dummy.status != "pass":
+                        materialize_dummy_skips(repository, [seed], model_names, [key])
+                        pbar.update(1)
+                        continue
 
                 if data_train is None or data_test is None:
                     record_skip(
@@ -1151,6 +1167,8 @@ def compute_predictions(
                     ground_truth=data_test[["target"]].sort_index() if passed else None,
                     log_text=log_text,
                 )
+                if model_name == "DUMMY":
+                    materialize_dummy_skips(repository, [seed], model_names, [key])
                 shutil.rmtree(log_directory)
 
                 # Free GPU memory between runs
@@ -1175,7 +1193,7 @@ def compute_predictions(
         failed = [record for record in results if record["status"] == "fail"]
         if failed:
             # A failed unit is a recorded model outcome, not a harness crash: coverage.py
-            # imputes it at its untuned parent or chance, and complete_folds excludes a target
+            # imputes it at the constant predictor, and complete_folds excludes a target
             # until all of its folds are recorded. Raising here instead aborted the whole
             # shard, so the cell's metrics never ran and every passing unit in it was
             # discarded — the ledger exists precisely so that is not the response.

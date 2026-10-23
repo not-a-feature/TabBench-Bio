@@ -4,7 +4,11 @@ import importlib.util
 import json
 import os
 import pickle
+import sqlite3
 import subprocess
+from collections import Counter
+from contextlib import closing
+from itertools import product
 from pathlib import Path
 
 from tabbench_bio.bio.cache import load_cached_raw
@@ -13,6 +17,7 @@ from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
 from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 from tabbench_bio.model_run import model_python
 from tabbench_bio.resources import resource_root
+from tabbench_bio.seeds import get_seeds
 from tabbench_bio.web_metadata import SKILL_NAME
 
 CHECKOUT = resource_root()
@@ -117,12 +122,75 @@ def check_adapter(key: str) -> list[str]:
     )
 
 
+def check_results(path: Path) -> list[str]:
+    """Check outcome presence against the datasets, folds and models stored per cell."""
+    problems = []
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as connection:
+        dataset_keys = {
+            row[0] for row in connection.execute("SELECT DISTINCT dataset FROM attempts")
+        }
+        for cell, config_json in connection.execute("SELECT cell, config_json FROM cells"):
+            rows = connection.execute(
+                "SELECT seed, dataset, model, status, reason FROM attempts WHERE cell = ? "
+                "ORDER BY CASE WHEN status='skip' AND reason IN ('benchmark_exclusion','dummy_unavailable') "
+                "THEN 2 WHEN status='pass' THEN 1 ELSE 0 END DESC, timestamp DESC, attempt_id DESC",
+                (cell,),
+            ).fetchall()
+            counts = Counter(row[:3] for row in rows)
+            present = {row[:3] for row in rows if row[3] in {"pass", "fail", "skip"}}
+            current = {}
+            for row in rows:
+                current.setdefault(row[:3], row[3:])
+            config = json.loads(config_json)
+            models = {"DUMMY", *config["models"]} | {model for _, _, model in counts}
+            datasets = {dataset for _, dataset, _ in counts}
+            for name in config["datasets_classification"] + config["datasets_regression"]:
+                name = name.replace("/", "_").replace("\\", "_")
+                # Biological tasks have one curated target; retain additional recorded targets.
+                datasets.add(f"{name}_0")
+                datasets.update(key for key in dataset_keys if key.rsplit("_", 1)[0] == name)
+            seeds = set(get_seeds(config)) | {seed for seed, _, _ in counts}
+            missing = sorted(
+                (seed, dataset, model)
+                for seed, dataset, model in product(seeds, datasets, models)
+                if (seed, dataset, model) not in present
+            )
+            duplicates = sorted((key, n) for key, n in counts.items() if n > 1)
+            gate_violations = sorted(
+                (seed, dataset, model, status)
+                for (seed, dataset, model), (status, _) in current.items()
+                if model != "DUMMY"
+                and (seed, dataset, "DUMMY") in current
+                and current[(seed, dataset, "DUMMY")][0] != "pass"
+                and status != "skip"
+            )
+            if gate_violations:
+                problems.append(
+                    f"{cell}: {len(gate_violations)} DUMMY eligibility violations; "
+                    f"other models must skip when DUMMY fails or skips; first 10: {gate_violations[:10]}"
+                )
+            if missing:
+                problems.append(
+                    f"{cell}: {len(missing)} missing split coordinates "
+                    f"(seed, dataset, model); first 10: {missing[:10]}"
+                )
+            if duplicates:
+                problems.append(
+                    f"{cell}: {len(duplicates)} duplicate split coordinates "
+                    f"({sum(n - 1 for _, n in duplicates)} extra attempts); "
+                    f"first 10 (coordinate, count): {duplicates[:10]}"
+                )
+    return problems
+
+
 def cmd_doctor(args) -> None:
     checks = [
         ("Registry and environment files", check_metadata(CHECKOUT)),
         ("Skill source and copies", check_skill(CHECKOUT, args.site_dir)),
         ("Dataset caches", check_cache(args.cache_dir)),
     ]
+    if args.results is not None:
+        checks.append(("Result split coverage", check_results(args.results)))
     checks.extend((f"Adapter {key}", check_adapter(key)) for key in args.model)
     for name, problems in checks:
         print(f"{'FAIL' if problems else 'OK'} {name}")

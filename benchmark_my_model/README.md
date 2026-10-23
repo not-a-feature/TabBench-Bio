@@ -1,111 +1,106 @@
-# Benchmark my model
+# Benchmark your model
 
-Edit `my_model.py`, then run the helper to fit your model and get an Elo leaderboard,
-figures, fold metrics and an HTML report. It uses scikit-learn directly.
-AutoGluon, its fork and CUDA are optional.
+Compare your scikit-learn estimator with the published benchmark and get an HTML
+report with rankings, plots and per-dataset results. For resumable runs and SQLite
+results you can merge into the benchmark, use the [integration guide](INTEGRATION.md).
 
-For resumable cluster jobs, per-model environment profiles and SQLite results you
-can merge with the benchmark, use the [model integration guide](INTEGRATION.md).
+## Quickstart
 
-## Install and run
-
-Use Python 3.13. Define `create_model(task)` in your model file,
-returning a cloneable classifier or regressor; see [my_model.py](my_model.py).
+From the repository root, create a Python 3.13 environment:
 
 ```sh
 uv venv --python 3.13
 source .venv/bin/activate
-uv pip install "tabbench-bio[bio]"
-tabbench-bio evaluate --model my_model.py --task overall
+uv pip install -e ".[bio]"
 ```
 
-Before the first PyPI upload, install a built wheel with `[bio]` instead.
-Open `my_model_results/report.html` after the run. The command downloads the
-latest reference, verifies its checksum and evaluates your model on frozen folds.
-Report generation shows confidence-interval progress. Choose a new output folder
-for each run with `--output`; interrupted fits cannot resume.
+On Windows, activate it with `.venv\Scripts\Activate.ps1`. Install your model's
+own dependencies in the same environment.
 
-## Add your model
-
-Replace `create_model(task)` in `my_model.py`. Return a fresh, cloneable estimator
-with `fit(X, y)` and `predict(X)`. For custom classes, inherit
-`ClassifierMixin, BaseEstimator` or `RegressorMixin, BaseEstimator`, with the mixin
-first, and expose all constructor parameters for cloning.
-
-Features arrive as NumPy arrays. Handle missing values in a pipeline, fit preprocessing
-on training data only and set random seeds explicitly. Each fold gets a fresh clone.
+Edit [my_model.py](my_model.py), then start with two datasets:
 
 ```sh
-tabbench-bio evaluate --model my_model.py \
-  --name "My classifier" --dataset OpenML-1083 --output my_classifier_results
+tabbench-bio evaluate --model benchmark_my_model/my_model.py \
+  --name SVM --dataset OpenML-1083 --dataset OpenML-1088
 ```
 
-The template selects a classifier or regressor from `task`. To try regression:
+Open `my_model_results/report/report.html`. The helper uses the latest published
+reference by default and downloads it when needed. Only your model is fitted,
+on the reference's frozen folds where DUMMY passed.
+
+## Supply your estimator
+
+Define `create_model(task)` in a Python file. It receives `"classification"` or
+`"regression"` and must return a cloneable estimator with `fit(X, y)` and `predict(X)`.
+For example:
+
+```python
+from sklearn.impute import SimpleImputer
+from sklearn.linear_model import LogisticRegression, Ridge
+from sklearn.pipeline import make_pipeline
+from sklearn.preprocessing import StandardScaler
+
+
+def create_model(task):
+    model = (
+        LogisticRegression(max_iter=1000, random_state=0) if task == "classification" else Ridge()
+    )
+    return make_pipeline(
+        SimpleImputer(strategy="median", keep_empty_features=True),
+        StandardScaler(),
+        model,
+    )
+```
+
+Features arrive as NumPy arrays. Put imputation, scaling and feature selection
+inside the pipeline so they are fitted only on training rows. Each fold gets a
+fresh clone. For custom estimator classes, inherit the appropriate scikit-learn
+classifier or regressor mixin before `BaseEstimator` and expose constructor parameters.
+
+## Choose a comparison
+
+The default is classification in `cap_10000_n100`: up to 10,000 features and 100
+training rows. Repeat `--dataset ID` to select tasks; omit it to use all datasets
+of the selected task type.
+
+To evaluate both classification and regression:
 
 ```sh
-tabbench-bio evaluate --model my_model.py \
-  --task regression --dataset OpenML-430 --output my_regressor_results
+tabbench-bio evaluate --model benchmark_my_model/my_model.py \
+  --name SVM --task overall --output results/svm-overall
 ```
 
-The helper scores `predict` output with macro-F1 or RMSE. It does not collect
-probability-based AUROC. This standalone helper uses the active environment and
-does not select registry profiles. Install your model's dependencies there with
-`uv pip install`, and set its thread and GPU parameters yourself. `--threads 2`
-limits CPU threads during fitting.
+Use `--task regression` for regression alone. Other useful options are:
 
-## Compare with published models
+- `--baseline results.sqlite` to use a particular local reference.
+- `--cell cap_2000_n100` to select another published feature/sample budget.
+- `--threads 4` to limit CPU threads during fitting.
+- `--output my_results` to choose a new output directory.
 
-The default `--baseline latest` resolves the
-[latest published release](https://github.com/not-a-feature/TabBench-Bio/releases/latest)
-on each run. Pass a
-local SQLite path to pin a particular reference or work without a release lookup.
+Missing datasets download automatically. Some sources require credentials; start
+with the public datasets in the quickstart before running the full comparison.
+The helper uses the active Python environment and does not select model profiles.
 
-```sh
-tabbench-bio evaluate --model my_model.py \
-  --baseline latest --cell cap_10000_n100 \
-  --dataset OpenML-1083 --dataset OpenML-1088 \
-  --name "My classifier" --output published_comparison
-```
+## Read and regenerate results
 
-The helper opens the database read-only, extracts the cell configuration and
-reconstructs its frozen cross-validation splits from recorded held-out targets.
-Before each fit it checks the held-out row IDs and labels. Only your model is fitted.
-Published baseline predictions are reused across every configured fold.
+The report shows Elo rankings, uncertainty, dataset scores, paired comparisons and
+coverage. RF anchors Elo at 1000. Classification uses macro-F1; regression uses
+RMSE. A dataset subset produces a ranking for that subset.
 
-Select a different published cell to change the feature or sample budget.
-Omit `--dataset` to use all classification datasets in that cell, or add
-`--task regression` for regression. Missing datasets are downloaded and cached;
-the curated embedding tables come from checksum-pinned GitHub Release assets.
-Some sources require credentials that the package does not include.
-
-Start with the two public datasets above. A subset run covers fewer targets than
-the full benchmark, and the report shows that coverage. Describe it as a subset
-comparison when reporting the ranking. Nothing is uploaded.
-
-## Read the outputs
-
-| File | Contents |
+| Output | Contents |
 |---|---|
-| `report.html` | Report linking the figure, table and results |
-| `leaderboard.png`, `leaderboard.svg` | Elo with 95% target-bootstrap intervals |
-| `leaderboard.csv` | Elo, intervals, ranks, target counts and descriptive Score |
-| `fold_metrics.csv` | New model/dataset/fold metrics and timings |
-| `metrics/` | Full comparison metrics, including any imported baselines |
-| `config.json` | Resolved configuration. Published comparisons also save frozen splits |
-| `baseline.json` | Automatically selected release, URL, local path and SHA-256 |
+| `report/report.html` | The comparison report |
+| `report/` | Ranking tables, plots and LaTeX exports |
+| `fold_metrics.csv` | Your model's scores and timings |
+| `metrics/` | Scored folds for your model and the reference models |
+| `attempts.csv` | Passed, failed and skipped outcomes |
 
-The helper writes CSV metrics rather than SQLite attempt bundles.
-Use the [registry pipeline](INTEGRATION.md) if you need results for `tabbench-bio merge`.
-
-To rank a published database without training:
+Regenerate a report from saved metrics without fitting again:
 
 ```sh
-tabbench-bio leaderboard \
-  --sqlite /path/to/results.sqlite --cell cap_10000_n100 \
-  --task classification --plot --plot-path elo.png --csv leaderboard.csv
+tabbench-bio evaluate --report-only --name SVM --output my_model_results
 ```
 
-The API and CLI use fold-level Bradley-Terry Elo with RF fixed at 1000.
-Normalised Score is a separate descriptive statistic. Elo requires RF and at least
-one comparable model. The default is 2,000 target-bootstrap rounds, matching the
-website and paper. Small target pools still provide limited uncertainty information.
+Use the same `--name`, `--task` and `--output` as the original run. Training runs
+require a new output directory and cannot resume. The [registered-model workflow](INTEGRATION.md)
+supports resumption and produces mergeable SQLite results.
