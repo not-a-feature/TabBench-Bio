@@ -27,8 +27,9 @@ Or run the full feature × sample grid sweep and build the site::
 """
 
 import importlib
+from importlib.metadata import version
 
-__version__ = "0.4.0"
+__version__ = version("tabbench-bio")
 __author__ = "Jules Kreuer (Uni Tübingen)"
 
 _public_map = {

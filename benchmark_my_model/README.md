@@ -11,7 +11,7 @@ From the repository root, create a Python 3.13 environment:
 ```sh
 uv venv --python 3.13
 source .venv/bin/activate
-uv pip install -e ".[bio]"
+uv pip install -e .
 ```
 
 On Windows, activate it with `.venv\Scripts\Activate.ps1`. Install your model's
