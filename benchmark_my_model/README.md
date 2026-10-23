@@ -24,8 +24,8 @@ tabbench-bio evaluate --model benchmark_my_model/my_model.py \
   --name SVM --dataset OpenML-1083 --dataset OpenML-1088
 ```
 
-Open `my_model_results/report/report.html`. The helper uses the latest published
-reference by default and downloads it when needed. Only your model is fitted,
+Open `my_model_results/report/report.html`. The helper checks the latest published
+reference on each run and downloads it when needed. Only your model is fitted,
 on the reference's frozen folds where DUMMY passed.
 
 ## Supply your estimator
@@ -76,6 +76,7 @@ Use `--task regression` for regression alone. Other useful options are:
 - `--cell cap_2000_n100` to select another published feature/sample budget.
 - `--threads 4` to limit CPU threads during fitting.
 - `--output my_results` to choose a new output directory.
+- `--exclude-model MODEL_ID` to omit a reference model from the report; repeat as needed.
 
 Missing datasets download automatically. Some sources require credentials; start
 with the public datasets in the quickstart before running the full comparison.
@@ -101,6 +102,7 @@ Regenerate a report from saved metrics without fitting again:
 tabbench-bio evaluate --report-only --name SVM --output my_model_results
 ```
 
-Use the same `--name`, `--task` and `--output` as the original run. Training runs
-require a new output directory and cannot resume. The [registered-model workflow](INTEGRATION.md)
-supports resumption and produces mergeable SQLite results.
+Use the same `--name`, `--task`, `--output` and any `--exclude-model` options as
+the original run. Training runs require a new output directory and cannot resume.
+The [registered-model workflow](INTEGRATION.md) supports resumption and produces
+mergeable SQLite results.
