@@ -84,7 +84,7 @@ WITH ranked_attempts AS (
         ROW_NUMBER() OVER (
             PARTITION BY cell, seed, dataset, model
             ORDER BY
-                CASE WHEN status = 'skip' AND reason = 'benchmark_exclusion' THEN 2
+                CASE WHEN status = 'skip' AND reason IN ('benchmark_exclusion', 'dummy_unavailable') THEN 2
                      WHEN status = 'pass' THEN 1 ELSE 0 END DESC,
                 timestamp DESC,
                 attempt_id DESC
@@ -392,15 +392,14 @@ class Leaderboard:
         reg_df = pd.read_csv(reg_path) if os.path.exists(reg_path) else pd.DataFrame()
         clf_df = pd.read_csv(clf_path) if os.path.exists(clf_path) else pd.DataFrame()
 
-        # Tuned failures use their untuned parent; other failed fits use chance.
+        # All failed fits use the constant predictor on the same fold.
         status = load_status(results_dir)
         with open(os.path.join(results_dir, "config.json")) as f:
             config = json.load(f)
         seeds = get_seeds(config)
-        tuning = config["model_tuning"] if "model_tuning" in config else {}
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds),
-            complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds),
+            complete_folds(impute_failures(reg_df, status), status, seeds),
+            complete_folds(impute_failures(clf_df, status), status, seeds),
         )
         leaderboard._expected_seeds = set(seeds)
         return leaderboard
@@ -424,6 +423,7 @@ class Leaderboard:
         metric_cache: str | os.PathLike[str] | None = None,
         show_progress: bool = False,
         datasets: list[str] | None = None,
+        eligible_units: set[tuple[int, str]] | None = None,
     ) -> Leaderboard:
         """Load a leaderboard directly from a published result database.
 
@@ -439,6 +439,8 @@ class Leaderboard:
 
         Pass ``datasets`` to restrict baseline metrics and frozen test identities to
         those dataset IDs before computing metrics and rankings. ``None`` loads all.
+        ``eligible_units`` restricts scoring and fold completeness to the supplied
+        ``(seed, dataset_key)`` coordinates, for example where DUMMY passed.
         """
         path = Path(sqlite_path).resolve()
         if metric_cache is not None:
@@ -480,10 +482,13 @@ class Leaderboard:
             ).fetchone()
         config = json.loads(config_json)
         seeds = get_seeds(config)
-        tuning = config["model_tuning"] if "model_tuning" in config else {}
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status, model_tuning=tuning), status, seeds),
-            complete_folds(impute_failures(clf_df, status, model_tuning=tuning), status, seeds),
+            complete_folds(
+                impute_failures(reg_df, status), status, seeds, eligible_units=eligible_units
+            ),
+            complete_folds(
+                impute_failures(clf_df, status), status, seeds, eligible_units=eligible_units
+            ),
         )
         leaderboard._reference_sqlite = path
         leaderboard._reference_config = config
@@ -631,6 +636,8 @@ class Leaderboard:
         config_path: str,
         seeds: int | None = None,
         task: str = "overall",
+        *,
+        dummy_status: dict[tuple[int, str], str] | None = None,
     ) -> pd.DataFrame:
         """Run a model through the full benchmark and add it to the leaderboard.
 
@@ -658,12 +665,17 @@ class Leaderboard:
             Filter to only regression or classification datasets when set to
             ``"regression"`` or ``"classification"``; default ``"overall"``
             runs both.
+        dummy_status : dict | None
+            Shared DUMMY outcomes keyed by ``(seed, dataset_key)``. When provided,
+            models only fit where DUMMY passed. Every requested coordinate must
+            have a recorded DUMMY outcome.
 
         Returns
         -------
         pd.DataFrame
             Per-(seed, key) metrics for the newly evaluated model, in the same
-            format as the raw metrics CSVs.
+            format as the raw metrics CSVs, with status and reason columns.
+            Gated folds have status ``skip`` and no metrics.
         """
         from tabbench_bio.benchmark import configure_benchmark
         from tabbench_bio.config import load_config
@@ -714,11 +726,20 @@ class Leaderboard:
             config["random_state"] = seed
             bench = configure_benchmark(config)
             for train_df, test_df, key, task_type in bench:
-                if train_df is None:
-                    continue
                 if task == "regression" and task_type != TaskType.Regression:
                     continue
                 if task == "classification" and task_type != TaskType.Classification:
+                    continue
+                unit = (seed, key)
+                record = {"seed": seed, "key": key, "model": model_name}
+                if dummy_status is not None:
+                    assert unit in dummy_status, f"Missing DUMMY outcome: {seed}/{key}"
+                    if dummy_status[unit] != "pass":
+                        records.append({**record, "status": "skip", "reason": "dummy_unavailable"})
+                        continue
+                if train_df is None or test_df is None or train_df.empty or test_df.empty:
+                    if dummy_status is not None:
+                        records.append({**record, "status": "skip", "reason": "empty_split"})
                     continue
                 label_col = train_df.columns[-1]
                 X_train = train_df.drop(columns=[label_col]).values
@@ -750,17 +771,19 @@ class Leaderboard:
                 t0 = time.perf_counter()
                 estimator.fit(X_train, y_train)
                 fit_s = time.perf_counter() - t0
-                fit_times.append(fit_s)
                 t1 = time.perf_counter()
                 y_pred = estimator.predict(X_test)
                 infer_s = time.perf_counter() - t1
-                infer_s_per_1k.append((infer_s / len(X_test)) * 1000)
                 metrics = compute_metrics(y_test, y_pred, task_type=task_type)
+                fit_times.append(fit_s)
+                infer_s_per_1k.append((infer_s / len(X_test)) * 1000)
                 records.append(
                     {
                         "seed": seed,
                         "key": key,
                         "model": model_name,
+                        "status": "pass",
+                        "reason": "",
                         "task_type": task_type.name,
                         "train_time_s": fit_s,
                         "inference_time_s": infer_s,
@@ -1028,7 +1051,7 @@ def _aggregate_leaderboard(per_ds: pd.DataFrame) -> pd.DataFrame:
 
     Every model is scored on the targets it actually has a result for, and ``# Targets``
     reports how many that is. Absent ``(model, key)`` pairings are **not** imputed here: a
-    fit that failed has already been imputed at its untuned parent or chance upstream
+    fit that failed has already been imputed at the constant predictor upstream
     (:func:`tabbench_bio.coverage.impute_failures`), so what remains absent is a unit the
     benchmark excluded by design — a declared input-size limit, a degenerate split, a
     duplicate grid cell. Scoring those as zero ranks the benchmark's own limits rather than

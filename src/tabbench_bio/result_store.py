@@ -360,6 +360,8 @@ class ResultRepository:
                 self.cell_config = load_config(str(config_path))
         else:
             self.cell_config = json.loads(json.dumps(config))
+        if "models" in config and "DUMMY" in config["models"]:
+            self.cell_config["models"] = list(dict.fromkeys(["DUMMY", *self.cell_config["models"]]))
         self.root.mkdir(parents=True, exist_ok=True)
         _ensure_writer(
             self.writer_path, experiment_id=self.experiment_id, bundle_writer=self.writer
@@ -460,7 +462,8 @@ class ResultRepository:
         exclusions = [
             attempt
             for attempt in attempts
-            if attempt.status == "skip" and attempt.reason == "benchmark_exclusion"
+            if attempt.status == "skip"
+            and attempt.reason in {"benchmark_exclusion", "dummy_unavailable"}
         ]
         if exclusions:
             return exclusions[-1]

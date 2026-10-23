@@ -497,6 +497,7 @@ def test_prediction_pipeline_commits_and_resumes_from_bundle(tmp_path, monkeypat
 
     class Benchmark:
         _key_list = ["toy_0"]
+        _task_type_list = [TaskType.Classification]
 
         def __len__(self):
             return 1
@@ -556,7 +557,7 @@ def test_prediction_pipeline_commits_and_resumes_from_bundle(tmp_path, monkeypat
     repository = ResultRepository.from_root(cell.parent)
     attempt = repository.current(0, "toy_0", "LR", cell=cell.name)
     assert attempt.status == "pass"
-    assert Model.fits == 1
+    assert Model.fits == 2  # DUMMY and LR each fit once; neither is refit on resume.
     assert not (cell / "seed_0").exists()
 
 

@@ -171,8 +171,9 @@ def generate_social_preview(dashboard_path: Path, output: Path) -> None:
     for y in range(84, 850, 58):
         draw.line((1016, y, 1690, y), fill="#e4e7e1", width=2)
 
-    title_font = font(SERIF_FONTS, 120)
-    draw.text((108, 262), "TabBench-Bio", font=title_font, fill=INK)
+    title = "TabBench-Bio"
+    title_font = fitted_font(draw, SERIF_FONTS, title, 104, 80, 748)
+    draw.text((116, 262), title, font=title_font, fill=INK)
     subtitle_font = font(SANS_FONTS, 48)
     draw.text((116, 410), "A living benchmark for biomedical", font=subtitle_font, fill=INK)
     draw.text((116, 470), "tabular learning.", font=subtitle_font, fill=INK)

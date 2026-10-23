@@ -49,7 +49,7 @@ def model_python(profile: str) -> str:
     executable = environment / ("Scripts/python.exe" if sys.platform == "win32" else "bin/python")
     assert executable.is_file(), (
         f"Environment {profile!r} is not installed. From {workspace}, run:\n"
-        f"uv venv .venvs/{profile} --python 3.12\n"
+        f"uv venv .venvs/{profile} --python 3.13\n"
         f'uv pip install --python "{executable}" -r environments/{profile}.txt'
     )
     return str(executable)
