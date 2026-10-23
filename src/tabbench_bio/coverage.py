@@ -122,13 +122,22 @@ def impute_failures(
 
 
 def complete_folds(
-    metrics_df: pd.DataFrame, status: pd.DataFrame, seeds: list[int]
+    metrics_df: pd.DataFrame,
+    status: pd.DataFrame,
+    seeds: list[int],
+    *,
+    eligible_units: set[tuple[int, str]] | None = None,
 ) -> pd.DataFrame:
     """Keep a ``(model, key)`` only when every scheduled, non-skipped fold has a row.
 
     *metrics_df* holds passes and imputed failures. A model with a fold still missing on a
     target is removed from that target, so every comparison on it uses the same folds.
+    When supplied, ``eligible_units`` limits both scores and required folds.
     """
+    if eligible_units is not None and not metrics_df.empty:
+        metrics_df = metrics_df.loc[
+            pd.MultiIndex.from_frame(metrics_df[["seed", "key"]]).isin(eligible_units)
+        ]
     if metrics_df.empty:
         return metrics_df
     scheduled = set(seeds)
@@ -140,6 +149,12 @@ def complete_folds(
     keep = [
         pair
         for pair, folds in present.items()
-        if scheduled - (skipped[pair] if pair in skipped.index else set()) <= folds
+        if (
+            scheduled
+            if eligible_units is None
+            else {seed for seed in scheduled if (seed, pair[1]) in eligible_units}
+        )
+        - (skipped[pair] if pair in skipped.index else set())
+        <= folds
     ]
     return metrics_df[pd.MultiIndex.from_frame(metrics_df[["model", "key"]]).isin(keep)]

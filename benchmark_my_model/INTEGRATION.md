@@ -1,44 +1,24 @@
-# Integrate a model with TabBench-Bio
+# Register a model for resumable runs
 
-## Use a Python model without a clone
+Use this workflow to run a model through the benchmark grid, resume interrupted
+jobs and merge its SQLite results with a reference. For a direct scikit-learn
+comparison and a local report, follow the [quickstart](README.md#quickstart).
 
-Most models only need a `create_model(task)` factory returning a cloneable
-scikit-learn classifier or regressor. Start from [my_model.py](my_model.py),
-which provides SVC and SVR with training-only imputation and scaling.
+Work from a source checkout with the Python 3.13 core environment active.
 
-With Python 3.13:
+## Add an adapter
 
-```bash
-uv venv --python 3.13
-source .venv/bin/activate
-uv pip install "tabbench-bio[bio]"
-tabbench-bio evaluate --model my_model.py --task overall
-```
+Create an AutoGluon adapter under [src/tabbench_bio/models](../src/tabbench_bio/models/).
+Use an existing adapter, such as [GeneICL](../src/tabbench_bio/models/geneicl.py),
+as a guide to the interface:
 
-Before the first PyPI upload, install a built wheel with `[bio]` instead.
-The command downloads missing data and the latest reference database, checks
-frozen test rows and labels, and fits only your model. Open
-`my_model_results/report.html` for the combined leaderboard and plots.
-Use `--task classification` or `--task regression` to select one task type.
+- Implement fitting and prediction for the tasks your model supports.
+- Fit preprocessing on training rows only and set random seeds.
+- Respect the supplied CPU and GPU allocation.
+- Return classification probabilities in AutoGluon's class order, or numerical
+  predictions for regression.
 
-This workflow writes CSV metrics and release provenance. It requires a fresh
-output directory and cannot resume or produce SQLite attempt bundles for merging.
-See [the model guide](README.md) for dataset selection and other options.
-
-## Register an adapter for resumable runs
-
-Adapter development requires a source checkout. Install it into your core environment:
-
-```bash
-uv pip install -e '.[bio]'
-```
-
-Add an AutoGluon adapter at `src/tabbench_bio/models/my_model.py`, using an existing
-adapter as a starting point. Fit preprocessing on training rows only, fix random
-seeds, and honour the assigned CPU and device budget. Classification probabilities
-must follow AutoGluon's class order; regression returns numerical predictions.
-
-Add its key to `MODEL_REGISTRY` in `src/tabbench_bio/model_registry.py`:
+Register the adapter in [model_registry.py](../src/tabbench_bio/model_registry.py):
 
 ```python
 "MYMODEL": ModelSpec(
@@ -50,12 +30,12 @@ Add its key to `MODEL_REGISTRY` in `src/tabbench_bio/model_registry.py`:
 ),
 ```
 
-Use `supported_tasks=("classification",)` or `max_classes` for unsupported tasks.
-`max_features` records the regular feature limit; enforce hard limits in the adapter.
-No CLI or grid edits are needed. Add the key to `configs/models/all.json` only if
-it should join the default roster. Use a new key for a different checkpoint or method.
+Use `supported_tasks=("classification",)` for a classification-only model, or
+`max_classes` for a class limit. Use a new key for a different checkpoint or method.
+Add the key to `configs/models/all.json` only if it should join the default roster;
+no CLI or grid edits are needed to run a registered key directly.
 
-### Install the backend
+## Install its environment
 
 Reuse a compatible [environment profile](../environments/README.md), or create
 `environments/my-model.txt`:
@@ -63,86 +43,91 @@ Reuse a compatible [environment profile](../environments/README.md), or create
 ```text
 -r ../requirements-autogluon-fork.txt
 -e .[bio,autogluon]
-# Your backend and version constraints
+# Add your backend and its version constraints here.
 ```
 
-Keep the AutoGluon fork, which removes the 500-feature cap for foundation models.
-From the checkout root:
+The AutoGluon fork supports the wide feature tables used by this benchmark.
+Install the profile from the repository root:
 
-```bash
+```sh
 uv venv .venvs/my-model --python 3.13
 uv pip install --python .venvs/my-model/bin/python -r environments/my-model.txt
 ```
 
-In a checkout or exported workspace, registered commands select `.venvs/<profile>/`.
-An installed package outside a workspace uses the current interpreter.
-`--python /path/to/python` overrides either choice. To export the bundled profiles
-and configurations from an installed package, use `tabbench-bio init my-benchmark`.
-The command does not install backend dependencies during a run.
+On Windows, use `.venvs/my-model/Scripts/python.exe`. Keep the core environment
+active when launching commands; the runner selects the model's environment.
+`--python /path/to/python` overrides that selection. Dependencies are not installed
+during a run.
 
-### Run and resume
+Check that the adapter imports before starting experiments:
 
-Keep the core environment active:
-
-```bash
-tabbench-bio MYMODEL --threads 8              # reference cell: up to 10,000 features and 100 training rows, five folds
-tabbench-bio MYMODEL --threads 8 --full-grid  # all 28 bundled cells
+```sh
+tabbench-bio doctor --model MYMODEL
 ```
 
-Results go to `results/mymodel/results.sqlite`. Repeat the command to resume;
-adding `--full-grid` after the reference run fills the remaining cells.
-Use `--output` for another result directory. Keep model, checkpoint, environment
-and frozen settings unchanged when resuming; changed settings require new output.
-Tuned variants use `--model-config`; see [the tuning guide](TUNING.md).
+This checks installation and importability, not predictive performance. Test every
+supported task type before committing to the full grid.
 
-One fit runs at a time on at most one GPU. A GPU model requires CUDA unless you
-explicitly select `--device cpu` and the adapter supports it. Set `--threads` to
-match your allocation: the registered command's default is 32, independent of
-scheduler allocation. Hardware and interpreter details are recorded with results.
+## Run and resume
 
-Prepare dataset credentials and checkpoint access before running. Keep the resolved
-configuration and `split_manifest.json` with the results. To reuse a reference
-manifest, copy it to the new result root and change only `experiment_id` to that
-root's name; preserve all row identities and hashes.
+Start with the reference cell, then expand to the full grid:
 
-## Compare registered results
+```sh
+tabbench-bio MYMODEL --threads 8
+tabbench-bio MYMODEL --threads 8 --full-grid
+```
 
-Registered runs need reference predictions containing RF to compute anchored Elo:
+The reference cell uses up to 10,000 features and 100 training rows, with five
+folds. DUMMY runs first on each split and gates the other model's fit. Results go
+to `results/mymodel/results.sqlite`. Repeat the command to resume completed work;
+adding `--full-grid` fills the remaining cells.
 
-```bash
-tabbench-bio merge /path/to/reference.sqlite results/mymodel/results.sqlite \
+Use `--output results/my-experiment` for a different result directory. Keep the
+model, checkpoint, environment and settings unchanged when resuming. Changed
+settings require new output. See [TUNING.md](TUNING.md) for tuned variants.
+
+Prepare dataset credentials and checkpoint access before running. Keep
+`split_manifest.json` with the results. To reuse a reference run's frozen folds,
+copy its manifest into the new result root before starting and change only
+`experiment_id` to the new root's directory name.
+
+## Merge and generate plots
+
+A model-only run needs reference predictions containing RF to compute anchored Elo:
+
+```sh
+tabbench-bio merge reference.sqlite results/mymodel/results.sqlite \
   --output results/merged/results.sqlite
+
 tabbench-bio leaderboard --sqlite results/merged/results.sqlite \
   --cell cap_10000_n100 --plot --csv leaderboard.csv
 ```
 
-The merge destination must be new. Inputs stay unchanged; incompatible settings,
-targets or conflicting successful predictions stop the merge. RF anchors Elo at
-1000. Coverage reflects completed comparable folds.
+The output database must be new. The merge checks settings and held-out targets,
+removes duplicate attempts and leaves both inputs unchanged. Conflicting results
+stop the merge. RF anchors Elo at 1000.
 
-To build the full dashboard instead:
+For an interactive dashboard, build a local preview:
 
-```bash
+```sh
 tabbench-bio leaderboard results/merged/results.sqlite --out preview --workers 4
 python -m http.server 8000 --directory preview
 ```
 
-Open `http://localhost:8000/`. Building does not publish anything. The default
-confidence intervals use 2,000 target-bootstrap rounds; `--bootstrap-rounds`
-changes that count. Keep released databases unchanged and publish later results
-as a new release. See the [main README](../README.md) for website details.
+Open `http://localhost:8000/`. Building does not publish anything. See the
+[main README](../README.md#merge-results-and-build-the-website) for the website workflow.
 
 ## Run on a cluster
 
-Use the same command within your scheduler allocation. The core environment,
-backend profile, data and output paths must be accessible on compute nodes.
-For example, within a Slurm allocation:
+Make the core environment, model environment, data and output paths available on
+the compute node. Within a Slurm allocation:
 
-```bash
+```sh
 srun /path/to/core/.venv/bin/tabbench-bio MYMODEL \
   --threads "$SLURM_CPUS_PER_TASK" --output results/my-model
 ```
 
-Request the memory, wall time and GPU required by your adapter. Run only one
-registered-model job per result directory. After a job stops, resubmit the same
-command to resume completed units. The `evaluate` workflow above does not resume.
+Request the memory, wall time and GPU your model needs. GPU adapters require CUDA
+unless they support `--device cpu`. Run one registered-model job per output
+directory, and resubmit the same command to resume. Keep `--threads` consistent
+with the experiment's resource settings.

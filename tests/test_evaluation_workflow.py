@@ -1,11 +1,13 @@
 import hashlib
+import json
 
 import numpy as np
 import pandas as pd
 import pytest
 from sklearn.dummy import DummyClassifier, DummyRegressor
 
-from tabbench_bio import benchmark, config, leaderboard
+from tabbench_bio import benchmark, config, evaluate, leaderboard
+from tabbench_bio.cli import main as cli_main
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.evaluate import main
 from tabbench_bio.result_store import ResultRepository, consolidate_results
@@ -46,11 +48,8 @@ def test_overall_evaluation_uses_the_estimator_for_each_task(monkeypatch):
     assert np.isfinite(result.loc[result.key == "reg_0", "rmse"]).all()
 
 
-@pytest.mark.parametrize("published", [False, True])
 @pytest.mark.parametrize("datasets", [["OpenML-1083"], ["OpenML-1083", "OpenML-1088"], []])
-def test_evaluation_writes_reports_and_matches_published_folds(
-    tmp_path, monkeypatch, published, datasets
-):
+def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeypatch, datasets):
     frames = pd.DataFrame({"x": range(8), "target": [0, 1] * 4})
     cell = "cap_10000_n100"
     settings = config.config_for_cell(
@@ -74,13 +73,16 @@ def test_evaluation_writes_reports_and_matches_published_folds(
     for dataset in settings["datasets_classification"]:
         for seed in (0, 1):
             truth = frames.iloc[seed * 4 : seed * 4 + 4][["target"]]
-            reference.write(
-                {"dataset": dataset + "_0", "model": "RF", "status": "pass", "reason": ""},
-                seed=seed,
-                ground_truth=truth,
-                prediction=truth,
-                probability=pd.DataFrame({0: 1 - truth.target, 1: truth.target}, index=truth.index),
-            )
+            for name in ("DUMMY", "RF"):
+                reference.write(
+                    {"dataset": dataset + "_0", "model": name, "status": "pass", "reason": ""},
+                    seed=seed,
+                    ground_truth=truth,
+                    prediction=truth,
+                    probability=pd.DataFrame(
+                        {0: 1 - truth.target, 1: truth.target}, index=truth.index
+                    ),
+                )
     database = consolidate_results(tmp_path / "reference")
     checksum = hashlib.sha256(database.read_bytes()).hexdigest()
 
@@ -106,7 +108,7 @@ def test_evaluation_writes_reports_and_matches_published_folds(
             "--name",
             "Custom <classifier>",
             "--baseline",
-            str(database) if published else "none",
+            str(database),
             *[value for dataset in datasets for value in ("--dataset", dataset)],
             "--output",
             str(output),
@@ -118,10 +120,8 @@ def test_evaluation_writes_reports_and_matches_published_folds(
     )
     metrics = pd.read_csv(output / "fold_metrics.csv")
     custom = metrics[metrics.model == "Custom <classifier>"]
-    selected = datasets or (
-        settings["datasets_classification"] if published else ["OpenML-1083", "OpenML-1088"]
-    )
-    assert len(custom) == (2 if published else 5) * len(selected)
+    selected = datasets or settings["datasets_classification"]
+    assert len(custom) == 2 * len(selected)
     expected_keys = {dataset + "_0" for dataset in selected}
     assert set(custom.key) == expected_keys
     exported = pd.read_csv(output / "metrics" / "classification_metrics.csv")
@@ -140,6 +140,171 @@ def test_evaluation_writes_reports_and_matches_published_folds(
         "metrics/classification_metrics.csv",
     ]:
         assert (output / (name if name.startswith("metrics/") else "report/" + name)).is_file()
-    if published:
-        assert (output / "split_manifest.json").is_file()
+    assert (output / "split_manifest.json").is_file()
+    assert json.loads((output / "baseline.json").read_text()) == {
+        "path": str(database.resolve()),
+        "sha256": checksum,
+    }
     assert hashlib.sha256(database.read_bytes()).hexdigest() == checksum
+
+
+@pytest.mark.parametrize("task", ["classification", "regression"])
+@pytest.mark.parametrize("outcome", ["fail", "skip", "missing"])
+@pytest.mark.parametrize("peer_outcome", ["pass", "skip"])
+@pytest.mark.parametrize("baseline_mode", ["path", "latest", "default"])
+def test_published_dummy_outcome_gates_custom_fits(
+    tmp_path, monkeypatch, task, outcome, peer_outcome, baseline_mode
+):
+    name = "OpenML-1083" if task == "classification" else "CHEMBL206"
+    cell = "cap_10000_n100"
+    settings = config.config_for_cell(
+        10000,
+        100,
+        datasets=[name] if task == "classification" else [],
+        datasets_regression=[name] if task == "regression" else [],
+        models=["DUMMY", "RF"],
+        limits={},
+        overrides={},
+        n_rep=1,
+        cv_folds=2,
+        time_limit=60,
+        out_dir=str(tmp_path / "reference" / cell),
+        cache_dir=str(tmp_path / "cache"),
+        test_size=0.2,
+        random_state=42,
+        min_samples_per_class=2,
+    )
+    frame = pd.DataFrame({"x": range(8), "target": [0, 1] * 4})
+    reference = ResultRepository(tmp_path / "reference" / cell, settings)
+    for seed in (0, 1):
+        truth = frame.iloc[seed * 4 : seed * 4 + 4][["target"]]
+        for model in ("DUMMY", "RF"):
+            if model == "DUMMY" and seed == 1 and outcome == "missing":
+                continue
+            state = outcome if model == "DUMMY" and seed == 1 else "pass"
+            if model == "RF" and seed == 1:
+                state = peer_outcome
+            passed = state == "pass"
+            reference.write(
+                {
+                    "dataset": name + "_0",
+                    "model": model,
+                    "status": state,
+                    "reason": "" if passed else "fit_error" if state == "fail" else "empty_split",
+                },
+                seed=seed,
+                prediction=truth if passed else None,
+                ground_truth=truth if passed else None,
+                probability=(
+                    pd.DataFrame({0: 1 - truth.target, 1: truth.target}, index=truth.index)
+                    if passed and task == "classification"
+                    else None
+                ),
+            )
+    # An ineligible fold has no prediction artifacts in the selected cell. Other
+    # cells retain the shared frozen identities needed to reconstruct its universe.
+    other_cell = ResultRepository(tmp_path / "reference/cap_2000_n100", settings)
+    for seed in (0, 1):
+        truth = frame.iloc[seed * 4 : seed * 4 + 4][["target"]]
+        other_cell.write(
+            {"dataset": name + "_0", "model": "RF", "status": "pass", "reason": ""},
+            seed=seed,
+            prediction=truth,
+            ground_truth=truth,
+            probability=(
+                pd.DataFrame({0: 1 - truth.target, 1: truth.target}, index=truth.index)
+                if task == "classification"
+                else None
+            ),
+        )
+    database = consolidate_results(tmp_path / "reference")
+    before = database.read_bytes()
+    fits = []
+    parent = DummyClassifier if task == "classification" else DummyRegressor
+
+    class Model(parent):
+        def fit(self, X, y):
+            fits.append(X[:, 0].tolist())
+            return super().fit(X, y)
+
+    def splits(settings):
+        seed = settings["random_state"]
+        test = frame.iloc[seed * 4 : seed * 4 + 4]
+        yield (
+            frame.drop(test.index),
+            test,
+            name + "_0",
+            (TaskType.Classification if task == "classification" else TaskType.Regression),
+        )
+
+    monkeypatch.setattr(benchmark, "configure_benchmark", splits)
+    monkeypatch.setattr(evaluate, "load_model_factory", lambda _: lambda task: Model())
+    checks = []
+
+    def latest(cache_dir):
+        checks.append(cache_dir)
+        return database, {
+            "tag": "v-test",
+            "path": str(database),
+            "sha256": hashlib.sha256(before).hexdigest(),
+        }
+
+    monkeypatch.setattr(evaluate, "latest_reference", latest)
+    reports = []
+    monkeypatch.setattr(
+        evaluate, "generate_report", lambda args, lb, cfg, status: reports.append(lb)
+    )
+    output = tmp_path / "evaluation"
+    arguments = [
+        "--task",
+        task,
+        "--dataset",
+        name,
+        "--output",
+        str(output),
+        "--cache-dir",
+        str(tmp_path / "cache"),
+    ]
+    if baseline_mode != "default":
+        arguments += ["--baseline", str(database) if baseline_mode == "path" else "latest"]
+    if outcome == "missing":
+        with pytest.raises(AssertionError, match="Reference is missing DUMMY outcomes"):
+            main(arguments)
+        assert fits == []
+        assert checks == ([] if baseline_mode == "path" else [(tmp_path / "cache").resolve()])
+        assert database.read_bytes() == before
+        return
+    main(arguments)
+    assert checks == ([] if baseline_mode == "path" else [(tmp_path / "cache").resolve()])
+    assert fits == [[4, 5, 6, 7]]
+    metrics = pd.read_csv(output / "fold_metrics.csv")
+    assert metrics.seed.tolist() == [0]
+    status = pd.read_csv(output / "attempts.csv", keep_default_na=False)
+    custom = status.loc[status.model == "My model"].set_index("seed")
+    assert custom.loc[0, "status"] == "pass"
+    assert custom.loc[1, ["status", "reason"]].tolist() == ["skip", "dummy_unavailable"]
+    scores = reports[0]._clf_metrics if task == "classification" else reports[0]._reg_metrics
+    assert set(scores.model) == {"DUMMY", "RF", "My model"}
+    assert set(scores.seed) == {0}
+    assert database.read_bytes() == before
+
+
+@pytest.mark.parametrize("baseline", ["none", "missing.sqlite"])
+@pytest.mark.parametrize("entrypoint", ["helper", "cli"])
+def test_evaluation_requires_reference_file_before_loading_model(
+    tmp_path, monkeypatch, baseline, entrypoint
+):
+    monkeypatch.chdir(tmp_path)
+    monkeypatch.setattr(
+        evaluate, "load_model_factory", lambda _: pytest.fail("No model import without a reference")
+    )
+    output = tmp_path / "evaluation"
+    arguments = ["--output", str(output)]
+    arguments += ["--baseline", baseline]
+    with pytest.raises(AssertionError, match="Reference SQLite file not found"):
+        if entrypoint == "helper":
+            main(arguments)
+        else:
+            monkeypatch.setattr("sys.argv", ["tabbench-bio", "evaluate", *arguments])
+            cli_main()
+    assert not output.exists()

@@ -8,7 +8,7 @@ feature requests, open a [GitHub issue](https://github.com/not-a-feature/TabBenc
 ```bash
 git clone https://github.com/not-a-feature/TabBench-Bio.git
 cd TabBench-Bio
-uv venv --python 3.12
+uv venv --python 3.13
 uv pip install -e ".[dev,bio]"
 ```
 

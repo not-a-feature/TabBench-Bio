@@ -386,3 +386,17 @@ def test_expected_keys_come_from_the_config():
         }
     )
     assert keys == ["ds1_0", "ds2_0", "vanished_0"]
+
+
+def test_eligible_folds_still_require_every_remaining_fold():
+    metrics = pd.DataFrame(
+        [
+            {"seed": seed, "key": "toy_0", "model": model, "f1_macro": 0.5}
+            for model, seeds in (("DUMMY", [0, 1, 2]), ("complete", [0, 1, 2]), ("incomplete", [0]))
+            for seed in seeds
+        ]
+    )
+    status = metrics[["seed", "key", "model"]].assign(status="pass", reason="")
+    kept = complete_folds(metrics, status, [0, 1, 2], eligible_units={(0, "toy_0"), (2, "toy_0")})
+    assert set(kept.model) == {"DUMMY", "complete"}
+    assert set(kept.seed) == {0, 2}

@@ -48,6 +48,12 @@ def test_latest_is_checked_again_and_unchanged_asset_is_not_downloaded(tmp_path,
     newest, metadata = releases.latest_reference(tmp_path)
     assert newest != first and newest.read_bytes() == data
     assert metadata["tag"] == "v0.4.0" and first.is_file()
+    previous = newest
+    data = b"replacement asset in the latest release"
+    release = release_record("v0.4.0", data, 41)
+    newest, metadata = releases.latest_reference(tmp_path)
+    assert newest != previous and newest.read_bytes() == data
+    assert previous.is_file() and metadata["sha256"] == hashlib.sha256(data).hexdigest()
     newest.write_bytes(b"corrupted")
     with pytest.raises(AssertionError, match="Corrupt reference cache"):
         releases.latest_reference(tmp_path)
