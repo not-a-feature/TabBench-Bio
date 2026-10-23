@@ -423,6 +423,7 @@ class Leaderboard:
         metric_cache: str | os.PathLike[str] | None = None,
         show_progress: bool = False,
         datasets: list[str] | None = None,
+        eligible_units: set[tuple[int, str]] | None = None,
     ) -> Leaderboard:
         """Load a leaderboard directly from a published result database.
 
@@ -438,6 +439,8 @@ class Leaderboard:
 
         Pass ``datasets`` to restrict baseline metrics and frozen test identities to
         those dataset IDs before computing metrics and rankings. ``None`` loads all.
+        ``eligible_units`` restricts scoring and fold completeness to the supplied
+        ``(seed, dataset_key)`` coordinates, for example where DUMMY passed.
         """
         path = Path(sqlite_path).resolve()
         if metric_cache is not None:
@@ -480,8 +483,12 @@ class Leaderboard:
         config = json.loads(config_json)
         seeds = get_seeds(config)
         leaderboard = cls(
-            complete_folds(impute_failures(reg_df, status), status, seeds),
-            complete_folds(impute_failures(clf_df, status), status, seeds),
+            complete_folds(
+                impute_failures(reg_df, status), status, seeds, eligible_units=eligible_units
+            ),
+            complete_folds(
+                impute_failures(clf_df, status), status, seeds, eligible_units=eligible_units
+            ),
         )
         leaderboard._reference_sqlite = path
         leaderboard._reference_config = config
@@ -629,6 +636,8 @@ class Leaderboard:
         config_path: str,
         seeds: int | None = None,
         task: str = "overall",
+        *,
+        dummy_status: dict[tuple[int, str], str] | None = None,
     ) -> pd.DataFrame:
         """Run a model through the full benchmark and add it to the leaderboard.
 
@@ -656,12 +665,17 @@ class Leaderboard:
             Filter to only regression or classification datasets when set to
             ``"regression"`` or ``"classification"``; default ``"overall"``
             runs both.
+        dummy_status : dict | None
+            Shared DUMMY outcomes keyed by ``(seed, dataset_key)``. When provided,
+            models only fit where DUMMY passed. Every requested coordinate must
+            have a recorded DUMMY outcome.
 
         Returns
         -------
         pd.DataFrame
             Per-(seed, key) metrics for the newly evaluated model, in the same
-            format as the raw metrics CSVs.
+            format as the raw metrics CSVs, with status and reason columns.
+            Gated folds have status ``skip`` and no metrics.
         """
         from tabbench_bio.benchmark import configure_benchmark
         from tabbench_bio.config import load_config
@@ -712,11 +726,20 @@ class Leaderboard:
             config["random_state"] = seed
             bench = configure_benchmark(config)
             for train_df, test_df, key, task_type in bench:
-                if train_df is None:
-                    continue
                 if task == "regression" and task_type != TaskType.Regression:
                     continue
                 if task == "classification" and task_type != TaskType.Classification:
+                    continue
+                unit = (seed, key)
+                record = {"seed": seed, "key": key, "model": model_name}
+                if dummy_status is not None:
+                    assert unit in dummy_status, f"Missing DUMMY outcome: {seed}/{key}"
+                    if dummy_status[unit] != "pass":
+                        records.append({**record, "status": "skip", "reason": "dummy_unavailable"})
+                        continue
+                if train_df is None or test_df is None or train_df.empty or test_df.empty:
+                    if dummy_status is not None:
+                        records.append({**record, "status": "skip", "reason": "empty_split"})
                     continue
                 label_col = train_df.columns[-1]
                 X_train = train_df.drop(columns=[label_col]).values
@@ -748,17 +771,19 @@ class Leaderboard:
                 t0 = time.perf_counter()
                 estimator.fit(X_train, y_train)
                 fit_s = time.perf_counter() - t0
-                fit_times.append(fit_s)
                 t1 = time.perf_counter()
                 y_pred = estimator.predict(X_test)
                 infer_s = time.perf_counter() - t1
-                infer_s_per_1k.append((infer_s / len(X_test)) * 1000)
                 metrics = compute_metrics(y_test, y_pred, task_type=task_type)
+                fit_times.append(fit_s)
+                infer_s_per_1k.append((infer_s / len(X_test)) * 1000)
                 records.append(
                     {
                         "seed": seed,
                         "key": key,
                         "model": model_name,
+                        "status": "pass",
+                        "reason": "",
                         "task_type": task_type.name,
                         "train_time_s": fit_s,
                         "inference_time_s": infer_s,

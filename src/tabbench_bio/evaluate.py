@@ -10,15 +10,13 @@ from contextlib import closing
 from pathlib import Path
 
 import pandas as pd
-from sklearn.dummy import DummyClassifier, DummyRegressor
-from sklearn.ensemble import RandomForestClassifier, RandomForestRegressor
 from threadpoolctl import threadpool_limits
 
 from tabbench_bio import Leaderboard
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.datasets import get_spec
 from tabbench_bio.evaluation_report import write_report
-from tabbench_bio.io_utils import atomic_write_json
+from tabbench_bio.io_utils import atomic_write_json, sha256_file
 from tabbench_bio.leaderboard import _CURRENT_SQLITE_ATTEMPTS, _open_results_sqlite, _sqlite_frame
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
 from tabbench_bio.model_registry import MODEL_DISPLAY
@@ -57,8 +55,8 @@ def reference_inputs(path, cell, output, datasets, task):
             key = dataset + "_0"
             rows = connection.execute(
                 "SELECT DISTINCT seed,ground_truth_sha256 FROM attempts "
-                "WHERE cell=? AND dataset=? AND ground_truth_sha256 IS NOT NULL",
-                (cell, key),
+                "WHERE dataset=? AND ground_truth_sha256 IS NOT NULL",
+                (key,),
             )
             for seed, digest in rows:
                 unit = (int(seed), key)
@@ -133,7 +131,7 @@ def add_arguments(parser):
     parser.add_argument(
         "--baseline",
         default="latest",
-        help="Published SQLite path, 'latest' (default: download current release), or 'none' for local smoke baselines",
+        help="Reference SQLite file, or 'latest' (default: check and cache the current release)",
     )
     parser.add_argument("--cell", default="cap_10000_n100")
     parser.add_argument("--output", type=Path, default=Path("my_model_results"))
@@ -221,11 +219,10 @@ def generate_report(args, lb, config, status):
     with threadpool_limits(limits=1):
         ranking = view.rank(args.task, show_progress=True)
         baseline = args.output / "baseline.json"
-        reference = (
-            json.loads(baseline.read_text(encoding="utf-8"))["tag"]
-            if baseline.exists()
-            else ("Local smoke baselines" if args.baseline == "none" else "Published frozen folds")
-        )
+        reference = "Published frozen folds"
+        if baseline.exists():
+            provenance = json.loads(baseline.read_text(encoding="utf-8"))
+            reference = provenance["tag"] if "tag" in provenance else provenance["path"]
         settings_path = args.output / "model.json"
         model_settings = (
             json.loads(settings_path.read_text(encoding="utf-8"))["estimator"]
@@ -274,115 +271,79 @@ def evaluate(args):
         )
         generate_report(args, Leaderboard(*frames), config, status)
         return
+    output = args.output.resolve()
+    assert not output.exists(), f"Choose a new output directory: {output}"
+    cache_dir = (args.cache_dir or default_bio_cache_dir().parent).resolve()
+    if args.baseline == "latest":
+        baseline, provenance = latest_reference(cache_dir)
+    else:
+        baseline = Path(args.baseline).resolve()
+        assert baseline.is_file(), f"Reference SQLite file not found: {baseline}"
+        provenance = {"path": str(baseline), "sha256": sha256_file(baseline)}
     factory = load_model_factory(args.model)
     model = (
         {task: factory(task) for task in ("classification", "regression")}
         if args.task == "overall"
         else factory(args.task)
     )
-    assert args.task != "overall" or args.baseline != "none", (
-        "Use a published reference for an overall comparison"
-    )
     assert args.name not in {"RF", "DUMMY"}, "Use a distinct model name"
-    output = args.output.resolve()
-    assert not output.exists(), f"Choose a new output directory: {output}"
     output.mkdir(parents=True)
     atomic_write_json(output / "model.json", {"factory": args.model, "estimator": repr(model)})
-    cache_dir = (args.cache_dir or default_bio_cache_dir().parent).resolve()
     print(f"Cache directory: {cache_dir}", flush=True)
     os.environ["TABBENCH_MODEL_CPUS"] = str(args.threads)
-    baseline = None
-    status = pd.DataFrame(columns=["seed", "key", "model", "status", "reason"])
-    if args.baseline == "latest":
-        baseline, provenance = latest_reference(cache_dir)
-        atomic_write_json(output / "baseline.json", provenance)
-    elif args.baseline != "none":
-        baseline = Path(args.baseline).resolve()
-    if baseline:
-        config = reference_inputs(baseline, args.cell, output, args.dataset, args.task)
-        lb = Leaderboard.from_sqlite(
-            baseline,
-            cell=args.cell,
-            metric_cache=cache_dir / "fold_metrics.sqlite",
-            show_progress=True,
-            datasets=config["datasets_classification"] + config["datasets_regression"],
+    atomic_write_json(output / "baseline.json", provenance)
+    config = reference_inputs(baseline, args.cell, output, args.dataset, args.task)
+    selected_keys = {
+        name + "_0" for name in config["datasets_classification"] + config["datasets_regression"]
+    }
+    with closing(_open_results_sqlite(baseline)) as connection:
+        status = pd.DataFrame(
+            [
+                (row[0], row[1], row[2], row[3], row[4])
+                for row in connection.execute(_CURRENT_SQLITE_ATTEMPTS, (args.cell,))
+                if row[1] in selected_keys
+            ],
+            columns=["seed", "key", "model", "status", "reason"],
         )
-        selected_keys = {
-            name + "_0"
-            for name in config["datasets_classification"] + config["datasets_regression"]
-        }
-        with closing(_open_results_sqlite(baseline)) as connection:
-            status = pd.DataFrame(
-                [
-                    (row[0], row[1], row[2], row[3], row[4])
-                    for row in connection.execute(_CURRENT_SQLITE_ATTEMPTS, (args.cell,))
-                    if row[1] in selected_keys
-                ],
-                columns=["seed", "key", "model", "status", "reason"],
-            )
-    else:
-        assert args.task == "classification" or args.dataset, (
-            "Choose a regression dataset with --dataset"
-        )
-        datasets = args.dataset or ["OpenML-1083", "OpenML-1088"]
-        config = {
-            "datasets_classification": datasets if args.task == "classification" else [],
-            "datasets_regression": datasets if args.task == "regression" else [],
-            "models": ["DUMMY", "RF"],
-            "test_size": 0.2,
-            "random_state": 42,
-            "n_repetitions": 1,
-            "cv_folds": 5,
-            "min_samples_per_class": 10,
-            "group_regression_splits": False,
-            "bio_max_features": 10000,
-            "max_classes": None,
-            "train_subsample": 100,
-            "model_limits": {},
-            "model_overrides": {},
-            "autogluon_time_limit": 3600,
-            "autogluon_presets": "medium_quality",
-            "optimize": False,
-            "ensemble": False,
-            "num_hpo_trials": 0,
-            "subsample": None,
-            "nan_policy": None,
-            "exclude_keys": [],
-            "exclude_datasets": [],
-            "exclude_targets": [],
-        }
-        lb = Leaderboard(pd.DataFrame(), pd.DataFrame())
+    dummy_status = {
+        (row.seed, row.key): row.status
+        for row in status.loc[status["model"] == "DUMMY"].itertuples(index=False)
+    }
+    required = {(seed, key) for seed in get_seeds(config) for key in selected_keys}
+    assert required <= dummy_status.keys(), (
+        f"Reference is missing DUMMY outcomes: {sorted(required - dummy_status.keys())}"
+    )
+    eligible_units = {unit for unit, outcome in dummy_status.items() if outcome == "pass"}
+    lb = Leaderboard.from_sqlite(
+        baseline,
+        cell=args.cell,
+        metric_cache=cache_dir / "fold_metrics.sqlite",
+        show_progress=True,
+        datasets=config["datasets_classification"] + config["datasets_regression"],
+        eligible_units=eligible_units,
+    )
     config["output_dir"] = str(output / args.cell)
     config["cache_dir"] = str(cache_dir)
     config_path = output / "config.json"
     atomic_write_json(config_path, config)
-    frames = []
-    if not baseline:
-        dummy = (
-            DummyClassifier(strategy="prior") if args.task == "classification" else DummyRegressor()
-        )
-        forest_class = (
-            RandomForestClassifier if args.task == "classification" else RandomForestRegressor
-        )
-        forest = forest_class(n_estimators=100, random_state=0, n_jobs=args.threads)
-        for name, baseline_model in [("DUMMY", dummy), ("RF", forest)]:
-            print(f"Evaluating {name} on all configured folds...", flush=True)
-            with threadpool_limits(limits=args.threads):
-                frame = lb.evaluate_and_add(name, baseline_model, str(config_path), task=args.task)
-            frames.append(frame)
-        lb._added_models.clear()
-    print(f"Evaluating {args.name} on all configured folds...", flush=True)
+    print(f"Evaluating {args.name} on DUMMY-eligible folds...", flush=True)
     with threadpool_limits(limits=args.threads):
-        frames.append(lb.evaluate_and_add(args.name, model, str(config_path), task=args.task))
-    metrics = pd.concat(frames, ignore_index=True)
+        outcomes = lb.evaluate_and_add(
+            args.name, model, str(config_path), task=args.task, dummy_status=dummy_status
+        )
+    status = pd.concat(
+        [status, outcomes[["seed", "key", "model", "status", "reason"]]], ignore_index=True
+    )
+    status.to_csv(output / "attempts.csv", index=False)
+    metrics = outcomes.loc[outcomes["status"] == "pass"]
     metrics.to_csv(output / "fold_metrics.csv", index=False)
     (output / "metrics").mkdir()
     for task, frame in [("classification", lb._clf_metrics), ("regression", lb._reg_metrics)]:
         if not frame.empty:
             frame.to_csv(output / "metrics" / f"{task}_metrics.csv", index=False)
-    passed = metrics[["seed", "key", "model"]].assign(status="pass", reason="")
-    status = pd.concat([status, passed], ignore_index=True)
-    status.to_csv(output / "attempts.csv", index=False)
+    assert not metrics.loc[metrics["model"] == args.name].empty, (
+        "No DUMMY-eligible splits completed"
+    )
     generate_report(args, lb, config, status)
 
 
