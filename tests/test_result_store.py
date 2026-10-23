@@ -497,6 +497,7 @@ def test_prediction_pipeline_commits_and_resumes_from_bundle(tmp_path, monkeypat
 
     class Benchmark:
         _key_list = ["toy_0"]
+        _task_type_list = [TaskType.Classification]
 
         def __len__(self):
             return 1

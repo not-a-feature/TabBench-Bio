@@ -4,80 +4,19 @@ from contextlib import nullcontext
 import pandas as pd
 import pytest
 
-from scripts.apply_dummy_gate import apply_dummy_gate
 from tabbench_bio import predictions
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.doctor import check_results
 from tabbench_bio.exclusions import materialize_dummy_skips
-from tabbench_bio.leaderboard import _metrics_from_sqlite
-from tabbench_bio.result_store import ResultRepository
-
-
-def test_gate_overrides_successes_preserves_history_and_is_idempotent(tmp_path):
-    config = {
-        "models": ["RF", "DUMMY"],
-        "datasets_classification": [],
-        "datasets_regression": ["toy"],
-        "cv_folds": 3,
-        "n_repetitions": 1,
-        "random_state": 42,
-    }
-    repository = ResultRepository(tmp_path / "experiment/cap_10000", config)
-    truth = pd.DataFrame({"target": [0.0, 1.0]})
-    for seed, status in enumerate(["fail", "skip", "pass"]):
-        repository.write(
-            {
-                "dataset": "toy_0",
-                "model": "DUMMY",
-                "status": status,
-                "reason": "fit_error"
-                if status == "fail"
-                else "empty_split"
-                if status == "skip"
-                else "",
-            },
-            seed=seed,
-            prediction=truth if status == "pass" else None,
-            ground_truth=truth if status == "pass" else None,
-        )
-        repository.write(
-            {
-                "dataset": "toy_0",
-                "model": "RF",
-                "status": "pass" if seed == 0 else "fail",
-                "reason": "" if seed == 0 else "fit_error",
-            },
-            seed=seed,
-            prediction=truth if seed == 0 else None,
-            ground_truth=truth if seed == 0 else None,
-        )
-    before = repository.writer_path.read_bytes()
-    migrated = tmp_path / "migrated.sqlite"
-    report = apply_dummy_gate(repository.writer_path, migrated)
-    assert report["added_skips"] == 3
-    assert repository.writer_path.read_bytes() == before
-    assert any("DUMMY eligibility" in problem for problem in check_results(repository.writer_path))
-    assert not any("DUMMY eligibility" in problem for problem in check_results(migrated))
-    assert apply_dummy_gate(migrated, tmp_path / "again.sqlite")["added_skips"] == 0
-    materialize_dummy_skips(repository, [0, 1, 2], ["DUMMY", "RF"], ["toy_0"])
-    for seed in [0, 1]:
-        assert all(
-            repository.current(seed, "toy_0", model).status == "skip" for model in config["models"]
-        )
-    assert repository.current(2, "toy_0", "RF").status == "fail"
-    assert len(repository.attempts()) == 9
-    materialize_dummy_skips(repository, [0, 1, 2], config["models"], ["toy_0"])
-    assert len(repository.attempts()) == 9
-    with sqlite3.connect(repository.writer_path) as connection:
-        reg, _, status = _metrics_from_sqlite(connection, repository.cell)
-    assert set(reg["seed"]) == {2}
-    assert set(status[status.seed.isin([0, 1])].status) == {"skip"}
+from tabbench_bio.result_store import ResultRepository, consolidate_results
 
 
 @pytest.mark.parametrize("failure", [None, "fit_error", "time_limit"])
 @pytest.mark.parametrize("shards", [1, 2])
+@pytest.mark.parametrize("reverse", [False, True])
+@pytest.mark.parametrize("worker_order", ["forward", "backward"])
 def test_runner_executes_dummy_first_and_gates_all_peers(
-    tmp_path, monkeypatch, debug_config, failure, shards
+    tmp_path, monkeypatch, debug_config, failure, shards, reverse, worker_order
 ):
     cell = tmp_path / "experiment/cap_2000_n20"
     debug_config.update(
@@ -85,20 +24,23 @@ def test_runner_executes_dummy_first_and_gates_all_peers(
         models=["RF"],
         dataset_names_classification=[],
         dataset_names_regression=["toy"],
+        datasets_classification=[],
+        datasets_regression=["toy"],
+        cv_folds=2,
     )
     frame = pd.DataFrame({"feature": range(6), "target": [0.0, 1.0, 0.0, 1.0, 0.0, 1.0]})
     calls = []
 
     class Benchmark:
-        _key_list = [f"toy_{index}" for index in range(shards)]
-        _task_type_list = [TaskType.Regression] * shards
+        _key_list = [f"toy_{index}" for index in range(2 * shards)]
+        _task_type_list = [TaskType.Classification] * shards + [TaskType.Regression] * shards
 
         def __len__(self):
             return len(self._key_list)
 
         def __iter__(self):
-            for key in self._key_list:
-                yield frame.iloc[:4], frame.iloc[4:], key, TaskType.Regression
+            for key, task in zip(self._key_list, self._task_type_list, strict=True):
+                yield frame.iloc[:4], frame.iloc[4:], key, task
 
         def training_groups(self, key, data):
             return None
@@ -121,6 +63,9 @@ def test_runner_executes_dummy_first_and_gates_all_peers(
         def predict(self, data):
             return data[["target"]]
 
+        def predict_proba(self, data):
+            return pd.DataFrame({0: 1 - data.target, 1: data.target}, index=data.index)
+
         def get_fit_stats(self):
             return {}
 
@@ -129,16 +74,67 @@ def test_runner_executes_dummy_first_and_gates_all_peers(
     monkeypatch.setattr(predictions, "_time_budget", lambda seconds: nullcontext())
     monkeypatch.setattr(predictions, "_set_global_seeds", lambda seed: None)
     monkeypatch.setattr(predictions, "_cleanup_model", lambda model: None)
-    for shard in range(shards):
-        predictions.compute_predictions(debug_config, num_shards=shards, shard_index=shard)
-    predictions.compute_predictions(debug_config)
+    workers = range(shards) if worker_order == "forward" else reversed(range(shards))
+    for shard in workers:
+        with monkeypatch.context() as worker:
+            worker.setenv("TABBENCH_WRITER_ID", f"worker-{shard}")
+            predictions.compute_predictions(
+                debug_config, num_shards=shards, shard_index=shard, reverse=reverse
+            )
     repository = ResultRepository.from_root(cell.parent, cell=cell.name)
     if failure is None:
-        assert calls == ["DUMMY", "RF"] * shards
+        assert calls == ["DUMMY", "RF"] * (4 * shards)
         assert all(a.status == "pass" for a in repository.current_attempts())
+        for attempt in repository.current_attempts():
+            expected = (
+                "classification" if int(attempt.dataset.split("_")[1]) < shards else "regression"
+            )
+            assert attempt.record["task_type"] == expected
     else:
-        assert calls == ["DUMMY"] * shards
-        assert all(a.status == "skip" for a in repository.current_attempts())
-        assert all(a.reason == "dummy_unavailable" for a in repository.current_attempts())
-        assert len(repository.attempts()) == 3 * shards
-        assert repository.attempts()[0].status == "fail"
+        assert calls == ["DUMMY"] * (4 * shards)
+        assert all(
+            a.status == ("fail" if a.model == "DUMMY" else "skip")
+            for a in repository.current_attempts()
+        )
+        assert all(
+            a.reason == "dummy_unavailable"
+            for a in repository.current_attempts()
+            if a.model != "DUMMY"
+        )
+    assert len(repository.attempts()) == 8 * shards
+    for bundle in repository.bundle_paths():
+        shard = int(bundle.stem.removeprefix("worker-"))
+        with sqlite3.connect(bundle) as connection:
+            assert set(connection.execute("SELECT DISTINCT dataset FROM attempts")) == {
+                (f"toy_{shard}",),
+                (f"toy_{shard + shards}",),
+            }
+    assert check_results(consolidate_results(cell.parent)) == []
+    before = [a.attempt_id for a in repository.attempts()]
+    for shard in reversed(range(shards)):
+        with monkeypatch.context() as worker:
+            worker.setenv("TABBENCH_WRITER_ID", f"worker-{shard}")
+            predictions.compute_predictions(
+                debug_config, num_shards=shards, shard_index=shard, reverse=not reverse
+            )
+    repository.reload()
+    assert [a.attempt_id for a in repository.attempts()] == before
+
+
+@pytest.mark.parametrize("status", ["pass", "fail"])
+def test_dummy_gate_rejects_preexisting_peer_attempts(tmp_path, status):
+    repository = ResultRepository(tmp_path, {"models": ["DUMMY", "RF"]})
+    repository.write(
+        {"dataset": "toy_0", "model": "DUMMY", "status": "fail", "reason": "fit_error"}, seed=0
+    )
+    truth = pd.DataFrame({"target": [0.0, 1.0]})
+    repository.write(
+        {"dataset": "toy_0", "model": "RF", "status": status, "reason": "fit_error"},
+        seed=0,
+        prediction=truth if status == "pass" else None,
+        ground_truth=truth if status == "pass" else None,
+    )
+    before = repository.writer_path.read_bytes()
+    with pytest.raises(AssertionError, match="Model attempted without a passing DUMMY"):
+        materialize_dummy_skips(repository, [0], ["DUMMY", "RF"], ["toy_0"])
+    assert repository.writer_path.read_bytes() == before

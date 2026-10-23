@@ -127,17 +127,19 @@ def test_evaluation_writes_reports_and_matches_published_folds(
     exported = pd.read_csv(output / "metrics" / "classification_metrics.csv")
     assert set(exported.key) == expected_keys
     assert set(exported[exported.model == "RF"].key) == expected_keys
-    ranking = pd.read_csv(output / "leaderboard.csv")
+    ranking = pd.read_csv(output / "report" / "leaderboard.csv")
     assert set(ranking["# Targets"]) == {len(selected)}
     assert np.allclose(custom.f1_macro, 1 / 3)
-    assert "Custom &lt;classifier&gt;" in (output / "report.html").read_text(encoding="utf-8")
+    assert "Custom &lt;classifier&gt;" in (output / "report" / "report.html").read_text(
+        encoding="utf-8"
+    )
     for name in [
         "leaderboard.csv",
         "leaderboard.png",
         "leaderboard.svg",
         "metrics/classification_metrics.csv",
     ]:
-        assert (output / name).is_file()
+        assert (output / (name if name.startswith("metrics/") else "report/" + name)).is_file()
     if published:
         assert (output / "split_manifest.json").is_file()
     assert hashlib.sha256(database.read_bytes()).hexdigest() == checksum

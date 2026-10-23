@@ -617,8 +617,8 @@ def compute_predictions(
     reverse : bool
         Iterate datasets in reverse order (useful for forward+reverse parallel jobs).
     num_shards, shard_index : int
-        Split the (model x dataset) grid across ``num_shards`` workers; this process runs
-        only the cells with ``cell_index % num_shards == shard_index``. Used for multi-GPU
+        Assign each dataset and all its models to one of ``num_shards`` workers using
+        its index in the original dataset roster. Used for multi-GPU
         execution — launch one worker per GPU (each pinned with ``CUDA_VISIBLE_DEVICES``)
         with the same ``num_shards`` and a distinct ``shard_index``. The cell ordering is
         deterministic, so workers partition the grid without overlap. Warm the split cache
@@ -708,6 +708,16 @@ def compute_predictions(
         _set_global_seeds(seed)
         benchmark = configure_benchmark(config)
 
+        # Assign ownership before exclusions or reversal can change dataset positions.
+        owned = [
+            (key, task)
+            for index, (key, task) in enumerate(
+                zip(benchmark._key_list, benchmark._task_type_list, strict=True)
+            )
+            if index % num_shards == shard_index
+        ]
+        benchmark._key_list = [key for key, _ in owned]
+        benchmark._task_type_list = [task for _, task in owned]
         excluded = materialize_exclusions(repository, [seed], model_names, benchmark._key_list)
         excluded |= materialize_dummy_skips(repository, [seed], model_names, benchmark._key_list)
         if excluded:
@@ -721,16 +731,14 @@ def compute_predictions(
         validated_splits = set()
         if reverse:
             benchmark._key_list = list(reversed(benchmark._key_list))
+            benchmark._task_type_list = list(reversed(benchmark._task_type_list))
 
         pbar = tqdm(total=len(benchmark) * len(model_names), desc=f"Seed {seed}")
         results = []
 
         # Keep DUMMY and every dependent model on the same shard for each split.
-        for dataset_index, (data_train, data_test, key, task_type) in enumerate(benchmark):
+        for data_train, data_test, key, task_type in benchmark:
             for model_name in model_names:
-                if dataset_index % num_shards != shard_index:
-                    pbar.update(1)
-                    continue
                 pbar.set_description(f"Seed {seed} | {key} | {model_name}")
                 if model_name != "DUMMY":
                     dummy = repository.current(seed, key, "DUMMY")
