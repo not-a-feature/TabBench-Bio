@@ -159,14 +159,15 @@ def check_results(path: Path) -> list[str]:
             gate_violations = sorted(
                 (seed, dataset, model, status)
                 for (seed, dataset, model), (status, _) in current.items()
-                if (seed, dataset, "DUMMY") in current
+                if model != "DUMMY"
+                and (seed, dataset, "DUMMY") in current
                 and current[(seed, dataset, "DUMMY")][0] != "pass"
                 and status != "skip"
             )
             if gate_violations:
                 problems.append(
                     f"{cell}: {len(gate_violations)} DUMMY eligibility violations; "
-                    f"every model must skip when DUMMY fails or skips; first 10: {gate_violations[:10]}"
+                    f"other models must skip when DUMMY fails or skips; first 10: {gate_violations[:10]}"
                 )
             if missing:
                 problems.append(

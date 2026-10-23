@@ -332,7 +332,7 @@ def test_tuned_failure_scores_match_sqlite_and_dashboard_without_crossing_cells(
             ("classification", "f1_macro", leaderboard._clf_metrics),
             ("regression", "rmse", leaderboard._reg_metrics),
         ):
-            expected = table.query("model == 'RF'").sort_values(["seed", "key"])[metric].tolist()
+            expected = table.query("model == 'DUMMY'").sort_values(["seed", "key"])[metric].tolist()
             assert (
                 table.query("model == 'SEARCH'").sort_values(["seed", "key"])[metric].tolist()
                 == expected

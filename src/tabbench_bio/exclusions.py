@@ -35,7 +35,7 @@ def dummy_skip_record(source_id, source, model, tuning):
 
 
 def materialize_dummy_skips(repository, seeds, models, keys) -> set[str]:
-    """Exclude every model when the matching DUMMY outcome is a failure or skip."""
+    """Skip unattempted peers when the matching DUMMY outcome is a failure or skip."""
     excluded = set()
     tuning = (
         repository.cell_config["model_tuning"] if "model_tuning" in repository.cell_config else {}
@@ -46,9 +46,14 @@ def materialize_dummy_skips(repository, seeds, models, keys) -> set[str]:
             if dummy is None or dummy.status == "pass":
                 continue
             excluded.add(key)
-            for model in dict.fromkeys(["DUMMY", *models]):
+            for model in dict.fromkeys(models):
+                if model == "DUMMY":
+                    continue
                 prior = repository.current(seed, key, model)
-                if prior is not None and prior.status == "skip":
+                if prior is not None:
+                    assert prior.status == "skip", (
+                        f"Model attempted without a passing DUMMY: {seed}/{key}/{model}"
+                    )
                     continue
                 repository.write(
                     dummy_skip_record(dummy.attempt_id, dummy.record, model, tuning), seed=seed

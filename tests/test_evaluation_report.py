@@ -144,18 +144,20 @@ def test_report_only_does_not_load_estimator_or_reference(tmp_path, monkeypatch,
         task,
     ]
     main(arguments)
-    report = (tmp_path / "report.html").read_text(encoding="utf-8")
+    report = (tmp_path / "report" / "report.html").read_text(encoding="utf-8")
     assert "BASE-TUNED" in report and "New &lt;model&gt;" in report
     assert 'src="data:image/svg+xml;base64,' in report
     assert "<a " not in report and 'src="leaderboard.svg"' not in report
-    successful = pd.read_csv(tmp_path / f"paired_successful_{selected_task}.csv").set_index("model")
+    successful = pd.read_csv(
+        tmp_path / "report" / f"paired_successful_{selected_task}.csv"
+    ).set_index("model")
     assert successful.loc["BASE-TUNED", "datasets"] == 1
     before = saved_metrics.read_bytes()
     main(arguments + ["--exclude-model", "BASE-TUNED"])
-    report = (tmp_path / "report.html").read_text(encoding="utf-8")
+    report = (tmp_path / "report" / "report.html").read_text(encoding="utf-8")
     assert "TUNED" not in report and "excluded" not in report.lower()
     assert saved_metrics.read_bytes() == before
     if task == "overall":
         assert "Macro-F1" in report and "RMSE" in report
-        assert pd.read_csv(tmp_path / "dataset_scores_classification.csv").shape[0] == 2
-        assert pd.read_csv(tmp_path / "dataset_scores_regression.csv").shape[0] == 2
+        assert pd.read_csv(tmp_path / "report" / "dataset_scores_classification.csv").shape[0] == 2
+        assert pd.read_csv(tmp_path / "report" / "dataset_scores_regression.csv").shape[0] == 2
