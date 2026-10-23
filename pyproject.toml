@@ -25,18 +25,17 @@ classifiers = [
     "Intended Audience :: Developers",
     "Operating System :: OS Independent",
     "Programming Language :: Python :: 3",
-    "Programming Language :: Python :: 3.11",
-    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
     "Topic :: Scientific/Engineering :: Artificial Intelligence",
 ]
-requires-python = ">=3.11,<3.13"
+requires-python = ">=3.13,<3.14"
 dependencies = [
-    "numpy==1.26.4",
-    "pandas>=1.4,<3.0",
-    "scikit-learn==1.9.0",
+    "numpy==2.4.*",
+    "pandas>=2.2.3,<3.0",
+    "scikit-learn==1.9.*",
     "scipy>=1.10,<2.0",
-    "matplotlib>=3.5,<4.0",
+    "matplotlib>=3.9,<4.0",
     "pillow>=9.0",
     "tqdm>=4.64,<5.0",
     "threadpoolctl>=3.1,<4.0",
@@ -47,7 +46,7 @@ dependencies = [
 # Separate from models: TabPFN-Wide 0.3 requires tabpfn==8.0.3.
 tabpfn35 = [
     "tabbench-bio[autogluon]",
-    "torch==2.13.0",
+    "torch==2.13.*",
     "tabpfn==9.0.0",
     "tabpfn-extensions>=0.4.0",
     "nvidia-ml-py>=12.0",
@@ -66,7 +65,8 @@ models = [
     "imodels>=2.0.4",
     "tabpfn>=8.0.3",
     "pytabkit>=1.7.3",
-    "tabdpt>=1.1.12",
+    # The pinned AutoGluon fork's Turbo checkpoint requires the 1.2 architecture.
+    "tabdpt>=1.2,<1.3",
     # TabPFN-Wide: wide-dataset TabPFN variants (keys "TABPFN-WIDE" and
     # "TABPFN-WIDE-5K-NE3"). v0.3 pins tabpfn==8.0.3.
     "tabpfnwide>=0.3.0",
@@ -151,7 +151,7 @@ tabbench_bio = [
 
 [tool.black]
 line-length = 100
-target-version = ["py311", "py312"]
+target-version = ["py313"]
 
 [tool.isort]
 profile = "black"
@@ -160,7 +160,7 @@ known_first_party = ["tabbench_bio"]
 
 [tool.ruff]
 line-length = 100
-target-version = "py311"
+target-version = "py313"
 extend-exclude = ["src/tabbench_bio/web"]
 
 [tool.ruff.lint]
@@ -173,7 +173,7 @@ ignore = [
 ]
 
 [tool.mypy]
-python_version = "3.11"
+python_version = "3.13"
 warn_return_any = true
 warn_unused_configs = true
 ignore_missing_imports = true
