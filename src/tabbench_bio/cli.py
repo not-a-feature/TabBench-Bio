@@ -237,7 +237,7 @@ def cmd_info(_args):
     print("A benchmark for ML on high-dimensional biological data (GEO/TCGA/Kaggle/OpenML).")
     print()
     print("  Source: https://github.com/not-a-feature/TabBench-Bio")
-    print('  Install: pip install "tabbench-bio[bio]"')
+    print("  Install: pip install tabbench-bio")
     print("  Create a workspace: tabbench-bio init my-benchmark")
 
 
