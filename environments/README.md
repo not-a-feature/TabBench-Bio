@@ -27,7 +27,7 @@ different versions of the `tabpfn` package, so they use separate profiles.
 Install a profile from the repository root, replacing `standard` with its name:
 
 ```bash
-uv venv .venvs/standard --python 3.12
+uv venv .venvs/standard --python 3.13
 uv pip install --python .venvs/standard/bin/python -r environments/standard.txt
 ```
 
@@ -76,7 +76,7 @@ are MIT licensed.
 Install and run on PowerShell:
 
 ```powershell
-uv venv .venvs/geneicl --python 3.12
+uv venv .venvs/geneicl --python 3.13
 uv pip install --python .venvs/geneicl/Scripts/python.exe -r environments/geneicl.txt
 tabbench-bio GENEICL
 ```
