@@ -9,6 +9,7 @@ from tabbench_bio.io_utils import download_file, sha256_file
 
 _REPOSITORY = "not-a-feature/TabBench-Bio"
 _LATEST = f"https://api.github.com/repos/{_REPOSITORY}/releases/latest"
+LATEST_RESULTS_URL = f"https://github.com/{_REPOSITORY}/releases/latest/download/results.sqlite"
 
 
 def latest_reference(cache_dir: Path) -> tuple[Path, dict]:

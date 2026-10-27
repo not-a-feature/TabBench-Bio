@@ -58,9 +58,10 @@ def build_llms_text(dashboard: dict[str, object], project_url: str) -> str:
     sqlite_export = next(row for row in dashboard["raw_exports"] if row["format"] == "sqlite3")
     sqlite_url = sqlite_export["path"] or "https://github.com/not-a-feature/TabBench-Bio/releases/"
     sqlite_line = (
-        f"- [Canonical results SQLite]({sqlite_url}): "
-        f"{int(sqlite_export['records']):,} attempts, "
-        f"SHA-256 `{sqlite_export['sha256']}`"
+        f"- [Latest released results SQLite]({sqlite_url}). "
+        f"The website snapshot used {int(sqlite_export['records']):,} attempts "
+        f"and a database with SHA-256 `{sqlite_export['sha256']}`; "
+        "the latest release may differ. Check the GitHub release asset digest before downloading."
     )
     return f"""# TabBench-Bio
 
@@ -235,10 +236,13 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
         for item in metadata["distribution"]
         if item["encodingFormat"] == "application/vnd.sqlite3"
     )
+    download["contentUrl"] = sqlite_url
+    # The website snapshot can differ from the moving latest-release asset.
+    download.pop("sha256", None)
     metadata_text = (
-        structured[2]
-        .replace(json.dumps(download["contentUrl"]), json.dumps(sqlite_url))
-        .replace(json.dumps(download["sha256"]), json.dumps(sqlite_export["sha256"]))
+        "\n    "
+        + json.dumps(metadata, indent=2, ensure_ascii=False).replace("\n", "\n    ")
+        + "\n  "
     )
     html = html[: structured.start(2)] + metadata_text + html[structured.end(2) :]
     index.write_text(html, encoding="utf-8")
