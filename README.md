@@ -1,4 +1,4 @@
-# TabBench-Bio
+# <img src="https://tabbench-bio.eu/assets/favicon.svg" alt="TabBench-Bio logo" width="24" height="24"> TabBench-Bio
 
 [Website](https://tabbench-bio.eu) · [GitHub](https://github.com/not-a-feature/TabBench-Bio) · [Codeberg](https://codeberg.org/not_a_feature/TabBench-Bio)
 
