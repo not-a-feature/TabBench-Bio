@@ -159,7 +159,6 @@ def cmd_leaderboard(args):
             workers=args.workers,
             n_boot=args.bootstrap_rounds,
             reference_cell=args.reference_cell,
-            results_url=args.results_url,
         )
         for option in dashboard["cell_options"]:
             cell = option["id"]
@@ -419,11 +418,6 @@ def main():
     lb_p.add_argument(
         "--reference-cell",
         help="Website reference cell (default: cap_10000_n100, or first available)",
-    )
-    lb_p.add_argument(
-        "--results-url",
-        default="",
-        help="Optional URL of this exact database for the website download link",
     )
     lb_source.add_argument("--results-dir", help="Pipeline results directory")
     lb_source.add_argument("--sqlite", help="Published TabBench Bio results.sqlite file")

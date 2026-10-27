@@ -25,6 +25,7 @@ from tabbench_bio.model_registry import (
     MODEL_REGISTRY,
     REGULAR_MAX_FEATURES,
 )
+from tabbench_bio.releases import LATEST_RESULTS_URL
 from tabbench_bio.resources import resource_root
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.social_preview import write_social_preview
@@ -874,7 +875,6 @@ def build_website(
     workers=1,
     n_boot=DEFAULT_N_BOOT,
     reference_cell=None,
-    results_url="",
 ):
     """Write the deployable static website and return its dashboard and strict metrics."""
     assert workers > 0 and n_boot > 0
@@ -981,11 +981,11 @@ def build_website(
         "raw_exports": [
             {
                 "name": "Results SQLite",
-                "path": results_url
-                or "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.4.0/results.sqlite",
+                "path": LATEST_RESULTS_URL,
                 "records": attempt_count,
                 "bytes": database.stat().st_size,
                 "sha256": sha256_file(database),
+                "metadata_scope": "website_snapshot",
                 "source": database.name,
                 "format": "sqlite3",
                 "available": True,

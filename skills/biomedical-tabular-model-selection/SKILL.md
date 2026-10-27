@@ -39,8 +39,6 @@ For regression or individual datasets, follow the index entry's `scores_file`
 relative to `https://tabbench-bio.eu/data/datasets/`. Read `scores[].values` and
 `metrics[].better` (`high` or `low`). These are Strict dataset scores, not per-fold
 observations or paired significance tests. Do not guess hashed filenames.
-For deeper analysis, use the SQLite entry in `raw_exports` after checking its
-`available`, URL, size and checksum.
 
 ### Example lookup
 

@@ -1320,10 +1320,16 @@ function renderFailures() {
 
 function renderRawFiles() {
   byId("raw-files").innerHTML = DATA.raw_exports.map((file) => {
-    const unit = file.format === "sqlite3" ? "attempts" : "records";
-    const detail = `${number(file.records)} ${unit} · ${bytes(file.bytes)}`;
+    if (file.format === "sqlite3") {
+      return `
+        <a class="data-file" href="https://github.com/not-a-feature/TabBench-Bio/releases/latest/download/results.sqlite">
+          <span><strong>${escapeHtml(file.name)}</strong><span>Download from the latest GitHub release</span></span>
+          <b aria-hidden="true">↓</b>
+        </a>`;
+    }
+    const detail = `${number(file.records)} records · ${bytes(file.bytes)}`;
     const releasesUrl = `${DATA.meta.github_url.replace(/\/$/, "")}/releases/`;
-    const path = file.path || (file.format === "sqlite3" ? releasesUrl : "");
+    const path = file.path || "";
     const isReleasesPage = path.replace(/\/$/, "") === releasesUrl.replace(/\/$/, "");
     if (file.available === false && !isReleasesPage) {
       return `
