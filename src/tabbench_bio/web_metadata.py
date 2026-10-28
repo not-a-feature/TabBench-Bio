@@ -4,6 +4,7 @@ import json
 import re
 from collections import Counter
 from pathlib import Path
+from urllib.parse import urlencode
 from xml.sax.saxutils import escape
 
 from tabbench_bio.resources import resource_root
@@ -217,6 +218,39 @@ def write_home_summary(site_dir: Path, dashboard: dict) -> None:
     path.write_text(html, encoding="utf-8")
 
 
+def write_dataset_registry_summary(site_dir: Path) -> None:
+    """Expose the registry and its detail links to clients without JavaScript."""
+    registry = json.loads((site_dir / "data/datasets/index.json").read_text(encoding="utf-8"))
+    rows = []
+    for dataset in sorted(registry["datasets"], key=lambda row: row["display_name"].casefold()):
+        detail = "dataset.html?" + urlencode({"id": dataset["dataset_id"]})
+        cells = [
+            f'<a class="dataset-name dataset-link" href="{escape(detail)}">'
+            f"{escape(dataset['display_name'])}</a>"
+            f'<span class="dataset-id">{escape(dataset["dataset_id"])}</span>',
+            escape(dataset["modality"]),
+            escape(dataset["target"]),
+            escape(dataset["task"]),
+            escape(dataset["source"]),
+            f'<a class="dataset-open" href="{escape(detail)}">Explore →</a>',
+        ]
+        rows.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>")
+    path = site_dir / "datasets.html"
+    html = path.read_text(encoding="utf-8")
+    for element_id, tag, content in (
+        ("dataset-table", "tbody", "\n".join(rows)),
+        ("dataset-result-count", "span", f"{len(rows)} of {len(rows)} datasets"),
+    ):
+        html, count = re.subn(
+            rf'(<{tag}\b[^>]*\bid="{element_id}"[^>]*>).*?(</{tag}>)',
+            lambda match: match[1] + content + match[2],
+            html,
+            flags=re.S,
+        )
+        assert count == 1, (element_id, count)
+    path.write_text(html, encoding="utf-8")
+
+
 def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     index = site_dir / "index.html"
     html = index.read_text(encoding="utf-8")
@@ -231,9 +265,10 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     structured = re.search(r'(<script type="application/ld\+json">)(.*?)(</script>)', html, re.S)
     assert structured is not None, "Missing dataset metadata"
     metadata = json.loads(structured[2])
+    results = next(item for item in metadata["@graph"] if item["@type"] == "Dataset")
     download = next(
         item
-        for item in metadata["distribution"]
+        for item in results["distribution"]
         if item["encodingFormat"] == "application/vnd.sqlite3"
     )
     download["contentUrl"] = sqlite_url
@@ -246,6 +281,7 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     )
     html = html[: structured.start(2)] + metadata_text + html[structured.end(2) :]
     index.write_text(html, encoding="utf-8")
+    write_dataset_registry_summary(site_dir)
     skill = resource_root() / "skills" / SKILL_NAME
     (site_dir / "skill.md").write_bytes(skill.joinpath("SKILL.md").read_bytes())
     project_url = "https://" + dashboard["meta"]["domain"]

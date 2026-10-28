@@ -2,6 +2,7 @@
 
 import hashlib
 import json
+import re
 import shutil
 from pathlib import Path
 
@@ -180,6 +181,27 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         f'<strong id="model-count">{payload["meta"]["configured_model_count"]:,}</strong>' in home
     )
     assert "podium-place-1" in home
+    metadata = json.loads(
+        re.search(r'<script type="application/ld\+json">(.*?)</script>', home, re.S)[1]
+    )
+    entities = {item["@type"]: item for item in metadata["@graph"]}
+    assert set(entities) == {"WebSite", "WebPage", "Dataset"}
+    assert entities["WebPage"]["isPartOf"]["@id"] == entities["WebSite"]["@id"]
+    assert entities["WebPage"]["mainEntity"]["@id"] == entities["Dataset"]["@id"]
+    download = next(
+        item
+        for item in entities["Dataset"]["distribution"]
+        if item["encodingFormat"] == "application/vnd.sqlite3"
+    )
+    assert download["contentUrl"] == next(
+        row["path"] for row in parsed["raw_exports"] if row["format"] == "sqlite3"
+    )
+    registry_html = (output / "datasets.html").read_text(encoding="utf-8")
+    assert f"{len(payload['datasets'])} of {len(payload['datasets'])} datasets" in registry_html
+    for dataset in payload["datasets"]:
+        assert dataset["display_name"] in registry_html
+    web_metadata.write_dataset_registry_summary(output)
+    assert (output / "datasets.html").read_text(encoding="utf-8") == registry_html
     web_metadata.write_home_summary(output, parsed)
     assert (output / "index.html").read_text(encoding="utf-8") == home
     assert (output / "models.html").is_file()
@@ -194,6 +216,7 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
             "robots.txt",
             "sitemap.xml",
             "index.html",
+            "datasets.html",
             "og.png",
         }:
             relative = asset.relative_to(dashboard.PACKAGE_ROOT / "web")
