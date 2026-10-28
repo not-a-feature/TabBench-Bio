@@ -179,6 +179,20 @@ npx skills add https://tabbench-bio.eu/skill.md
 This downloads the Markdown skill. A browsing agent can also read the
 [hosted version](https://tabbench-bio.eu/skill.md) directly.
 
+### Search and agent discovery
+
+Website builds render the dataset registry into HTML and generate `llms.txt`,
+`robots.txt`, the sitemap and linked `WebSite`, `WebPage` and results `Dataset`
+metadata. Edit templates in `src/tabbench_bio/web/` and the generator in
+`src/tabbench_bio/web_metadata.py`; rebuild before publishing the `website` submodule.
+
+After publishing, submit `https://tabbench-bio.eu/sitemap.xml` in Google Search Console,
+inspect the canonical homepage and request indexing. Check the rendered HTML and
+structured data with Google's Rich Results Test. Monitor impressions and clicks for
+tabular learning, biological data and biomedical benchmark queries in Search Console;
+code changes alone cannot establish why a page ranks poorly or guarantee rankings.
+Keep the canonical website linked from the paper, repository and relevant project profiles.
+
 ### Dataset cache consistency
 
 Raw dataset caches record a SHA-256 fingerprint of data-affecting registry fields

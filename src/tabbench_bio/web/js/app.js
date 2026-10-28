@@ -1478,6 +1478,17 @@ function initializeModelVisibility() {
   });
 }
 
+function initializeCodeCopy() {
+  document.querySelectorAll(".code-copy").forEach((button) => {
+    button.addEventListener("click", () => {
+      navigator.clipboard.writeText(document.getElementById(button.dataset.copyTarget).textContent).then(() => {
+        button.textContent = "Copied";
+        window.setTimeout(() => { button.textContent = "Copy"; }, 1800);
+      }, showLoadError);
+    });
+  });
+}
+
 async function main() {
   initializeTheme();
   const page = document.body.dataset.page;
@@ -1495,6 +1506,7 @@ async function main() {
   }
   initializeModelVisibility();
   if (page === "home") {
+    initializeCodeCopy();
     await charting;
     Object.assign(DATA, DATA.analysis_views.strict);
     initializeMeta();
