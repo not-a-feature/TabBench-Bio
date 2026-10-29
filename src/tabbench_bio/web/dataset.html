@@ -16,7 +16,7 @@
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20261001-compact-controls">
-  <link rel="stylesheet" href="dataset-explorer.css?v=20261029-toolbar-button">
+  <link rel="stylesheet" href="dataset-explorer.css?v=20261029-toolbar-align">
 </head>
 
 <body data-page="dataset">
@@ -42,9 +42,8 @@
       <header class="dataset-page-heading">
         <p class="eyebrow" id="detail-modality">Dataset</p>
         <h1 id="detail-title">Loading dataset…</h1>
-        <p id="detail-id" class="dataset-id"></p>
       </header>
-      <div class="dataset-context"><span id="detail-task" class="tag"></span><span>Target: <strong
+      <div class="dataset-context"><span id="detail-task" class="tag"></span><span id="detail-id" class="tag"></span><span>Target: <strong
             id="detail-target"></strong></span><a id="detail-source" class="source-link" target="_blank"
           rel="noreferrer">Source ↗</a></div>
       <section class="results-toolbar dataset-toolbar" aria-label="Operating point">
