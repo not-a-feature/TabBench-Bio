@@ -16,7 +16,7 @@
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20261001-compact-controls">
-  <link rel="stylesheet" href="dataset-explorer.css?v=20261029-toolbar">
+  <link rel="stylesheet" href="dataset-explorer.css?v=20261029-toolbar-button">
 </head>
 
 <body data-page="dataset">
@@ -48,15 +48,11 @@
             id="detail-target"></strong></span><a id="detail-source" class="source-link" target="_blank"
           rel="noreferrer">Source ↗</a></div>
       <section class="results-toolbar dataset-toolbar" aria-label="Operating point">
-        <div class="analysis-view-control">
-          <div class="analysis-view-options">
-            <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show
-              all models</button>
-          </div>
-          <p class="analysis-view-note">Mean cross-validation scores for this dataset. Each score comes from the
-            requested feature- and sample-cap cell, and failed fits use the constant predictor.</p>
-        </div>
+        <p class="analysis-view-note">Mean cross-validation scores for this dataset. Each score comes from the
+          requested feature- and sample-cap cell, and failed fits use the constant predictor.</p>
         <div class="controls">
+          <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show
+            all models</button>
           <label>Metric<select id="detail-metric" aria-label="Dataset metric"></select></label>
           <label>Feature cap<select id="detail-cap" aria-label="Dataset feature cap"></select></label>
           <label>Training samples<select id="detail-samples" aria-label="Dataset training samples"></select></label>
