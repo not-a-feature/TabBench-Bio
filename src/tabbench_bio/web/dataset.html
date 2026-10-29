@@ -16,7 +16,7 @@
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20261001-compact-controls">
-  <link rel="stylesheet" href="dataset-explorer.css?v=20261012-control-alignment">
+  <link rel="stylesheet" href="dataset-explorer.css?v=20261029-toolbar">
 </head>
 
 <body data-page="dataset">
@@ -47,21 +47,30 @@
       <div class="dataset-context"><span id="detail-task" class="tag"></span><span>Target: <strong
             id="detail-target"></strong></span><a id="detail-source" class="source-link" target="_blank"
           rel="noreferrer">Source ↗</a></div>
-      <section class="dataset-operating-controls" aria-label="Operating point">
-        <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show all
-          models</button>
-        <label>Metric<select id="detail-metric" aria-label="Dataset metric"></select></label>
-        <label>Feature cap<select id="detail-cap" aria-label="Dataset feature cap"></select></label>
-        <label>Training samples<select id="detail-samples" aria-label="Dataset training samples"></select></label>
-        <p>Mean cross-validation scores<br>Strict analysis</p>
+      <section class="results-toolbar dataset-toolbar" aria-label="Operating point">
+        <div class="analysis-view-control">
+          <div class="analysis-view-options">
+            <button id="show-all-models" class="button model-visibility-control" type="button" aria-pressed="false">Show
+              all models</button>
+          </div>
+          <p class="analysis-view-note">Mean cross-validation scores for this dataset. Each score comes from the
+            requested feature- and sample-cap cell, and failed fits use the constant predictor.</p>
+        </div>
+        <div class="controls">
+          <label>Metric<select id="detail-metric" aria-label="Dataset metric"></select></label>
+          <label>Feature cap<select id="detail-cap" aria-label="Dataset feature cap"></select></label>
+          <label>Training samples<select id="detail-samples" aria-label="Dataset training samples"></select></label>
+        </div>
       </section>
       <p id="detail-loading" role="status">Loading model results…</p>
       <div class="dataset-plots">
         <section class="panel dataset-plot-panel" aria-labelledby="dataset-ranking-title">
-          <div class="dataset-chart-heading">
-            <p class="panel-kicker">At this operating point</p>
-            <h2 id="dataset-ranking-title">Model comparison</h2>
-            <p id="detail-point"></p>
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">At this operating point</p>
+              <h2 id="dataset-ranking-title">Model comparison</h2>
+              <p id="detail-point"></p>
+            </div>
           </div>
           <p id="detail-point-empty" class="dataset-empty" hidden>No scores at this operating point. Select another
             feature or sample budget.</p>
@@ -70,10 +79,14 @@
             metric.</p>
         </section>
         <section class="panel dataset-plot-panel" aria-labelledby="dataset-budget-title">
-          <div class="dataset-chart-heading">
-            <p class="panel-kicker">Across sample budgets</p>
-            <h2 id="dataset-budget-title">Learning curves</h2><label class="dataset-model-filter">Models<select
-                id="detail-models" aria-label="Learning curve models"></select></label>
+          <div class="panel-head">
+            <div>
+              <p class="panel-kicker">Across sample budgets</p>
+              <h2 id="dataset-budget-title">Learning curves</h2>
+            </div>
+            <div class="controls">
+              <label>Models<select id="detail-models" aria-label="Learning curve models"></select></label>
+            </div>
           </div>
           <div id="dataset-budget-chart" role="img" aria-label="Model scores across training-sample budgets"></div>
           <p id="detail-budget-note" class="dataset-chart-note"></p>

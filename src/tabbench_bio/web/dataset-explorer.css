@@ -4,8 +4,8 @@
 .dataset-page-heading > p { color: var(--muted); max-width: 80ch; margin-block: 8px; }
 .dataset-page-heading .eyebrow { color: var(--accent); }
 .dataset-filters { display: grid; grid-template-columns: minmax(210px, 2fr) repeat(4, minmax(135px, 1fr)); gap: 14px; align-items: end; }
-.dataset-filters label, .dataset-operating-controls label, .dataset-model-filter { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; color: var(--muted); }
-.dataset-filters input, .dataset-filters select, .dataset-operating-controls select, .dataset-model-filter select { width: 100%; min-width: 0; font-size: 0.9rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--surface); }
+.dataset-filters label { display: flex; flex-direction: column; gap: 6px; font-size: 0.875rem; color: var(--muted); }
+.dataset-filters input, .dataset-filters select { width: 100%; min-width: 0; font-size: 0.9rem; padding: 10px 12px; border: 1px solid var(--line); border-radius: 6px; color: var(--ink); background: var(--surface); }
 .dataset-registry-status { display: flex; align-items: center; justify-content: space-between; margin-block: 18px 12px; font-size: 0.875rem; color: var(--muted); }
 .dataset-reset { background: transparent; border: 0; padding: 8px 0 8px 14px; color: var(--accent); cursor: pointer; text-decoration: underline; text-underline-offset: 4px; }
 .dataset-registry-table table { font-size: 0.875rem; }
@@ -21,15 +21,10 @@
 .dataset-context { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin: -8px 0 26px; font-size: 0.875rem; color: var(--muted); }
 .dataset-context .tag { font-size: 0.8rem; }
 .dataset-context .source-link { text-transform: none; font-size: 0.875rem; }
-.dataset-operating-controls { display: grid; grid-template-columns: repeat(3, minmax(150px, 1fr)) auto; gap: 20px; padding: 20px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); align-items: end; margin-bottom: 24px; }
-.dataset-operating-controls .model-visibility-control { align-self: end; }
-.dataset-operating-controls select { min-height: 44px; }
-.dataset-operating-controls p { color: var(--muted); font-size: 0.8rem; margin: 0 0 6px; line-height: 1.6; }
+.dataset-toolbar { margin-top: 0; align-items: end; }
 .dataset-plots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
-.dataset-chart-heading { padding: 22px 22px 0; }
-.dataset-chart-heading h2 { margin: 4px 0 8px; font-size: 1.55rem; font-weight: 500; }
-.dataset-chart-heading > p:not(.panel-kicker) { font-size: 0.8rem; color: var(--muted); line-height: 1.5; min-height: 38px; }
-.dataset-model-filter { margin-top: 12px; max-width: 270px; }
+.dataset-plot-panel h2 { margin: 0; font-family: var(--serif); font-size: 1.55rem; font-weight: 500; letter-spacing: -0.025em; }
+.dataset-plot-panel .panel-head p:not(.panel-kicker) { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
 .dataset-chart-note { color: var(--muted); font-size: 0.8rem; line-height: 1.6; padding: 0 22px 20px; margin: 0; }
 #dataset-budget-chart { height: 500px; }
 .dataset-exact-scores { margin-top: 24px; border: 1px solid var(--line); border-radius: 10px; background: var(--surface); padding: 16px 20px; }
@@ -45,12 +40,10 @@
 }
 @media (max-width: 720px) {
   .dataset-explorer { padding-top: 24px; }
-  .dataset-filters, .dataset-operating-controls { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
-  .dataset-operating-controls { padding: 14px; }
-  .dataset-chart-heading { padding-inline: 14px; }
+  .dataset-filters { grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
   .dataset-registry-table table { min-width: 800px; }
   .dataset-context { gap: 10px 16px; }
 }
 
-.dataset-operating-controls, .dataset-exact-scores { border-radius: 6px; }
-.dataset-filters input, .dataset-filters select, .dataset-operating-controls select, .dataset-model-filter select { border-radius: 4px; }
+.dataset-exact-scores { border-radius: 6px; }
+.dataset-filters input, .dataset-filters select { border-radius: 4px; }

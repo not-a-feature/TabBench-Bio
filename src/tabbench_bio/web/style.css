@@ -553,12 +553,11 @@ footer { padding-block: 42px; border-top: 1px solid var(--line); }
 
 .leader-card, .panel, .run-strip, .citation-card { border-radius: 8px; }
 .page-link, .agent-access, .table-wrap, .analytics-consent,
-.dataset-operating-controls, .dataset-exact-scores { border-radius: 6px; }
+.dataset-exact-scores { border-radius: 6px; }
 .button, .agent-access-link, .dataset-performance-table-wrap,
 .data-file, .load-error, .agent-access-mark { border-radius: 5px; }
 .controls select, .search-label input, .checkbox-row, .details-button,
-.dataset-filters input, .dataset-filters select,
-.dataset-operating-controls select, .dataset-model-filter select { border-radius: 4px; }
+.dataset-filters input, .dataset-filters select { border-radius: 4px; }
 .podium-contender { min-height: 112px; padding-bottom: 12px; }
 .podium-model strong { font-size: .88rem; line-height: 1.2; white-space: normal; }
 .podium-model span { font-size: .65rem; white-space: normal; line-height: 1.3; margin-top: 4px; }
