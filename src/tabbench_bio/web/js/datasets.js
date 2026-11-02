@@ -134,6 +134,7 @@ async function initializeDatasetDetail() {
   const back = new URLSearchParams(params);
   ["id", "metric", "p", "n"].forEach(key => back.delete(key));
   byId("dataset-back").href = `datasets.html${back.size ? `?${back}` : ""}`;
+  document.querySelector('link[rel="canonical"]').href = new URL(detailPageUrl("dataset", ACTIVE_DATASET.dataset_id), location.href).href;
   document.title = `${ACTIVE_DATASET.display_name} · TabBench-Bio`;
   byId("detail-title").textContent = ACTIVE_DATASET.display_name;
   byId("detail-id").textContent = ACTIVE_DATASET.dataset_id;

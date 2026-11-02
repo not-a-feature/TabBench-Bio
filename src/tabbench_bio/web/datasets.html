@@ -17,7 +17,7 @@
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20260927-tuned-layout">
-  <link rel="stylesheet" href="dataset-explorer.css?v=20260914-corners">
+  <link rel="stylesheet" href="dataset-explorer.css?v=20261102-model-copy">
 </head>
 
 <body data-page="datasets">
@@ -39,7 +39,10 @@
     <header class="dataset-page-heading">
       <p class="eyebrow">Dataset explorer</p>
       <h1>Datasets</h1>
-      <p>Find biomedical datasets by name, modality, task, or source.</p>
+      <p>Browse classification and regression datasets spanning gene expression, DNA methylation, metagenomics,
+        molecular properties, genomic prediction, and sequence-derived embeddings. Each dataset page identifies the
+        prediction target and data source, and compares model scores and learning curves across feature counts and
+        training-sample budgets.</p>
     </header>
     <section aria-label="Find datasets">
       <div class="dataset-filters">
@@ -77,16 +80,15 @@
         <div class="footer-copy"><strong>TabBench-Bio</strong><a
             href="https://uni-tuebingen.de/fakultaeten/mathematisch-naturwissenschaftliche-fakultaet/fachbereiche/informatik/lehrstuehle/methods-in-medical-informatics/"
             target="_blank" rel="noreferrer">Methods in Medical Informatics, University of Tübingen <span
-              aria-hidden="true">↗</span></a><span>Maintained by <a href="https://juleskreuer.eu/" target="_blank"
-              rel="noreferrer">Jules Kreuer <span aria-hidden="true">↗</span></a></span></div>
+              aria-hidden="true">↗</span></a><span>Maintained by Jules Kreuer</span></div>
       </div>
       <div class="footer-links"><a href="imprint.html">Imprint &amp; Privacy</a></div>
     </div>
   </footer>
   <div id="load-error" class="load-error" hidden></div>
   <script src="js/analytics.js?v=20260908-optout"></script>
-  <script src="js/datasets.js?v=20260922-dataset-details"></script>
-  <script src="js/app.js?v=20261008-model-visibility-3"></script>
+  <script src="js/datasets.js?v=20261102-query-details"></script>
+  <script src="js/app.js?v=20261102-model-copy"></script>
 </body>
 
 </html>

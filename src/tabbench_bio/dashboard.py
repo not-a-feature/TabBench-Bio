@@ -167,7 +167,11 @@ def load_model_registry(configs=()) -> dict[str, dict]:
                     f"Conflicting tuning parent: {key}"
                 )
             else:
-                registry[key] = {"key": key, "base_model": spec["base_model"]}
+                registry[key] = {
+                    "key": key,
+                    "base_model": spec["base_model"],
+                    "source_url": registry[spec["base_model"]]["source_url"],
+                }
             tuning = {name: value for name, value in spec.items() if name != "base_model"}
             if "autogluon_time_limit" in config:
                 tuning["budget_seconds"] = config["autogluon_time_limit"]
@@ -180,7 +184,7 @@ def load_model_registry(configs=()) -> dict[str, dict]:
 
 
 def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
-    entry = registry[model_id] if model_id in registry else {}
+    entry = registry[model_id] if model_id in registry else {"source_url": None}
     parent = entry["base_model"] if "base_model" in entry else None
     family_id = parent or model_id
     parent_entry = registry[parent] if parent in registry else {}
@@ -191,6 +195,7 @@ def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
         "id": model_id,
         "display": f"{display} (tuned)" if parent else display,
         "tuned_from": parent,
+        "source_url": entry["source_url"],
         "tuning": entry["tuning"] if "tuning" in entry else None,
         "category": category,
         "color": CATEGORY_COLORS[category] if category in CATEGORY_COLORS else "#64748b",

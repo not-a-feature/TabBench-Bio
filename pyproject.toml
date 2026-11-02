@@ -142,7 +142,7 @@ build_py = "build_support.BuildPy"
 
 [tool.setuptools.package-data]
 tabbench_bio = [
-    "bio/data/*.json", "web/*", "web/.nojekyll", "web/js/*", "web/assets/*", "web/assets/fonts/*",
+    "bio/data/*.json", "web/*", "web/.nojekyll", "web/.well-known/*", "web/js/*", "web/assets/*", "web/assets/fonts/*",
 ]
 
 [tool.black]

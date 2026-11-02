@@ -8,6 +8,9 @@ let CHARTS_READY = false;
 
 const SCRIPT_LOADS = new Map();
 const TRAINING_OVERLAP_NOTE = "Part of the benchmark training data was used in the training process of this model.";
+function detailPageUrl(kind, identifier) {
+  return `${kind}.html?${new URLSearchParams({[kind === "model" ? "model" : "id"]: identifier})}`;
+}
 function hasTrainingOverlap(model) { return DATA.models[model.model_id || model.id].training_data_overlap === true; }
 function modelLabel(model) { return model.display + (hasTrainingOverlap(model) ? " †" : ""); }
 function overlapTooltip(model) { return hasTrainingOverlap(model) ? "<br>† " + TRAINING_OVERLAP_NOTE : ""; }
@@ -422,12 +425,60 @@ function renderModelTuning(model) {
   panel.innerHTML = `<summary>Grid parameters</summary><p>Each row adds a separate set of candidates. Values within a row are crossed; unspecified parameters keep their benchmark defaults. The budget may end before every candidate is tried.</p>${tables}`;
 }
 
+function initializeModelOverview() {
+  const table = byId("model-table");
+  const rows = Array.from(table.rows);
+  const search = byId("model-search");
+  const family = byId("model-family");
+  const sort = byId("model-sort");
+  const families = [...new Set(rows.map(row => row.cells[1].textContent))].sort();
+  setOptions(family, ["", ...families], "", value => value || "All families");
+  const update = () => {
+    const query = search.value.trim().toLowerCase();
+    let visible = 0;
+    rows.sort((a, b) => {
+      const column = sort.value === "family" ? 1 : 0;
+      const order = a.cells[column].textContent.localeCompare(b.cells[column].textContent)
+        || a.cells[0].textContent.localeCompare(b.cells[0].textContent);
+      return sort.value === "name-desc" ? -order : order;
+    }).forEach(row => {
+      row.hidden = !row.textContent.toLowerCase().includes(query)
+        || (family.value !== "" && row.cells[1].textContent !== family.value);
+      if (!row.hidden) visible++;
+      table.appendChild(row);
+    });
+    byId("model-result-count").textContent = `${visible} of ${rows.length} models`;
+  };
+  search.addEventListener("input", update);
+  family.addEventListener("change", update);
+  sort.addEventListener("change", update);
+  byId("model-reset").addEventListener("click", () => {
+    search.value = ""; family.value = ""; sort.value = "name"; update();
+  });
+  update();
+}
+
 function renderModelCard() {
   const modelId = byId("model-card-model").value;
   const comparatorId = byId("model-card-comparator").value;
   const comparator = DATA.models[comparatorId];
   const featureCap = budgetValue(byId("model-card-cap").value);
   const model = DATA.models[modelId];
+  if (!Object.hasOwn(model, "source_url")) throw new Error(`Missing source_url for model ${modelId}`);
+  const sourceLink = byId("model-card-source");
+  sourceLink.hidden = !model.source_url;
+  if (model.source_url) sourceLink.href = model.source_url;
+  else sourceLink.removeAttribute("href");
+  const params = new URLSearchParams(location.search);
+  params.set("model", modelId);
+  params.set("compare", comparatorId);
+  params.set("p", byId("model-card-cap").value);
+  history.replaceState(null, "", `${location.pathname}?${params}`);
+  document.title = `${model.display} · TabBench-Bio`;
+  byId("model-page-title").textContent = model.display;
+  const description = `${model.display} (${model.category}) on TabBench-Bio: compare biomedical benchmark performance and failure rates across feature and training-sample budgets.`;
+  document.querySelector('meta[name="description"]').content = description;
+  document.querySelector('link[rel="canonical"]').href = new URL(detailPageUrl("model", modelId), location.href).href;
   const domains = DATA.domains.filter((domain) => domain !== "all");
   const cells = DATA.cell_options
     .filter((cell) => sameBudget(cell.feature_cap, featureCap))
@@ -521,10 +572,11 @@ function initializeModelCard() {
   const modelSelect = byId("model-card-model");
   const capSelect = byId("model-card-cap");
   const comparatorSelect = byId("model-card-comparator");
+  const params = new URLSearchParams(location.search);
+  const requestedModel = params.get("model");
   const modelIds = Object.keys(DATA.models)
-    .filter((modelId) => !EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON"))
+    .filter((modelId) => modelId === requestedModel || (!EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON")))
     .sort((left, right) => DATA.models[left].display.localeCompare(DATA.models[right].display));
-  const requestedModel = new URLSearchParams(location.search).get("model");
   const defaultModel = modelIds.includes(requestedModel) ? requestedModel : DATA.reference
     .filter((row) => modelIds.includes(row.model_id))
     .sort((left, right) => right.Elo - left.Elo)[0].model_id;
@@ -532,8 +584,8 @@ function initializeModelCard() {
     .sort((left, right) => budgetSortValue(left) - budgetSortValue(right));
   const reference = DATA.cell_options.find((cell) => cell.id === DATA.meta.reference_cell);
   setOptions(modelSelect, modelIds, modelIds.includes(modelSelect.value) ? modelSelect.value : defaultModel, (modelId) => DATA.models[modelId].display);
-  setOptions(comparatorSelect, modelIds, comparatorSelect.value || "RF", (modelId) => DATA.models[modelId].display);
-  setOptions(capSelect, caps, reference.feature_cap, capLabel);
+  setOptions(comparatorSelect, modelIds, comparatorSelect.value || params.get("compare") || "RF", (modelId) => DATA.models[modelId].display);
+  setOptions(capSelect, caps, capSelect.value || params.get("p") || reference.feature_cap, capLabel);
   const ticks = [-1000, -300, 0, 300, 1000];
   byId("model-card-scale-ticks").innerHTML = ticks.map((value) => {
     const label = value === -1000 ? "≤−1,000" : value === 1000 ? "≥+1,000" : value > 0 ? `+${value}` : String(value).replace("-", "−");
@@ -760,7 +812,7 @@ function renderElo() {
     chart.on("plotly_click", event => {
       const point = event.points[0];
       const modelId = point.data.ids?.[point.pointNumber];
-      if (modelId && DATA.models[modelId]) location.href = `models.html?model=${encodeURIComponent(modelId)}`;
+      if (modelId && DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
     });
   });
   const referenceNote = spec.autogluon ? " · solid line: AutoGluon 1 h reference" : "";
@@ -1116,12 +1168,12 @@ function renderCost(prefix, force = false) {
     chart.on("plotly_click", event => {
       const point = event.points[0];
       const modelId = point.data.ids?.[point.pointNumber];
-      if (modelId && DATA.models[modelId]) location.href = `models.html?model=${encodeURIComponent(modelId)}`;
+      if (modelId && DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
     });
     chart.removeAllListeners("plotly_clickannotation");
     chart.on("plotly_clickannotation", event => {
       const modelId = event.annotation.name;
-      if (DATA.models[modelId]) location.href = `models.html?model=${encodeURIComponent(modelId)}`;
+      if (DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
     });
     chart.removeAllListeners("plotly_restyle");
     chart.on("plotly_restyle", () => {
@@ -1446,7 +1498,7 @@ function initializeTheme() {
     updateThemeButton();
     if (CHARTS_READY && document.body.dataset.page === "home") { renderCharts(); renderComposition(); }
     if (document.body.dataset.page === "dataset") renderDatasetCharts();
-    if (document.body.dataset.page === "models" && DATA) renderFailures();
+    if (document.body.dataset.page === "model" && DATA) renderFailures();
   });
 }
 
@@ -1471,7 +1523,7 @@ function initializeModelVisibility() {
     if (page === "home") {
       renderReferencePodium();
       renderCharts();
-    } else if (page === "models") initializeModelCard();
+    } else if (page === "model") initializeModelCard();
     else if (page === "dataset") {
       renderDatasetCharts();
     }
@@ -1493,6 +1545,12 @@ async function main() {
   initializeTheme();
   const page = document.body.dataset.page;
   if (page === "changelog" || page === "imprint" || page === "citation") return;
+  if (page === "models") {
+    const params = new URLSearchParams(location.search);
+    if (params.has("model")) location.replace(`model.html?${params}`);
+    else initializeModelOverview();
+    return;
+  }
   const charting = page === "home" ? loadExternalScript("assets/plotly-cartesian.min.js", "Plotly") : Promise.resolve();
   const response = await fetch(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json", { cache: "no-cache" });
   if (!response.ok) throw new Error(`Could not load benchmark data (HTTP ${response.status})`);
@@ -1500,7 +1558,7 @@ async function main() {
   restoreModelMetadata(DATA);
   EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
   const linkedModel = new URLSearchParams(location.search).get("model");
-  if (page === "models" && DATA.models[linkedModel] && (EXCLUDED.has(linkedModel) || linkedModel === "AUTOGLUON")) {
+  if (page === "model" && DATA.models[linkedModel] && (EXCLUDED.has(linkedModel) || linkedModel === "AUTOGLUON")) {
     SHOW_ALL_MODELS = true;
     EXCLUDED = new Set();
   }
@@ -1546,7 +1604,7 @@ async function main() {
         }
       });
     });
-  } else if (page === "models") {
+  } else if (page === "model") {
     Object.assign(DATA, DATA.analysis_views.strict);
     await loadExternalScript("assets/plotly-cartesian.min.js", "Plotly");
     initializeModelCard();
