@@ -1,85 +1,120 @@
 [
   {
-    "key": "DUMMY"
+    "key": "DUMMY",
+    "source_url": "https://github.com/scikit-learn/scikit-learn"
   },
   {
-    "key": "CAT"
+    "key": "CAT",
+    "source_url": "https://github.com/catboost/catboost"
   },
   {
-    "key": "GBM"
+    "key": "GBM",
+    "source_url": "https://github.com/lightgbm-org/LightGBM"
   },
   {
-    "key": "KNN"
+    "key": "KNN",
+    "source_url": "https://github.com/scikit-learn/scikit-learn"
   },
   {
-    "key": "LR"
+    "key": "LR",
+    "source_url": "https://github.com/scikit-learn/scikit-learn"
   },
   {
-    "key": "RF"
+    "key": "RF",
+    "source_url": "https://github.com/scikit-learn/scikit-learn"
   },
   {
-    "key": "XGB"
+    "key": "XGB",
+    "source_url": "https://github.com/dmlc/xgboost"
   },
   {
-    "key": "XT"
+    "key": "XT",
+    "source_url": "https://github.com/scikit-learn/scikit-learn"
   },
   {
-    "key": "NN_TORCH"
+    "key": "NN_TORCH",
+    "source_url": "https://github.com/autogluon/autogluon"
   },
   {
-    "key": "REALMLP"
+    "key": "REALMLP",
+    "source_url": "https://github.com/dholzmueller/pytabkit"
   },
   {
-    "key": "TABM"
+    "key": "TABM",
+    "source_url": "https://github.com/yandex-research/tabm"
   },
   {
     "_doc": "Advisory post-cap features x train-row observations from the 2026-08 full-grid run. None are enforced: every legacy OOM/model-limit cell is retried under the new memory handling, and only a newly observed OOM triggers sample fallback. MITRA's fixed 8k allocation and TabPFN-Wide's inference batching have changed; TabFM's observed fit boundary is not treated as certain either.",
     "key": "MITRA",
     "max_cells": 32000000,
     "memory_prior_version": 1,
-    "enforce_memory_prior": false
+    "enforce_memory_prior": false,
+    "source_url": "https://github.com/autogluon/autogluon"
   },
   {
-    "key": "REALTABPFN-V2"
+    "key": "REALTABPFN-V2",
+    "source_url": "https://github.com/PriorLabs/TabPFN"
   },
   {
-    "key": "REALTABPFN-V2.5"
+    "key": "REALTABPFN-V2.5",
+    "source_url": "https://github.com/PriorLabs/TabPFN"
   },
   {
-    "key": "TABPFN-V3"
+    "key": "TABPFN-V3",
+    "source_url": "https://github.com/PriorLabs/TabPFN"
   },
   {
-    "key": "TABPFN-V3.5"
+    "key": "TABPFN-V3.5",
+    "source_url": "https://github.com/PriorLabs/TabPFN"
   },
   {
     "key": "TABPFN-WIDE",
     "max_cells": 54000000,
     "memory_prior_version": 1,
-    "enforce_memory_prior": false
+    "enforce_memory_prior": false,
+    "source_url": "https://github.com/not-a-feature/TabPFN-Wide"
   },
   {
     "_doc": "Regular wide-v2-5k checkpoint with a three-member inference ensemble and the checkpoint-native one-feature grouping.",
-    "key": "TABPFN-WIDE-5K-NE3"
+    "key": "TABPFN-WIDE-5K-NE3",
+    "source_url": "https://github.com/not-a-feature/TabPFN-Wide"
   },
   {
     "key": "TABFM",
     "max_cells": 8500000,
     "memory_prior_version": 1,
-    "enforce_memory_prior": false
+    "enforce_memory_prior": false,
+    "source_url": "https://github.com/google-research/tabfm"
   },
   {
-    "key": "TABDPT"
+    "key": "TABDPT",
+    "source_url": "https://github.com/layer6ai-labs/TabDPT-inference"
   },
   {
-    "key": "TABICL"
+    "key": "TABICL",
+    "source_url": "https://github.com/soda-inria/tabicl"
   },
   {
-    "key": "GENEICL"
+    "key": "GENEICL",
+    "source_url": "https://github.com/BoevaLab/GeneICL"
+  },
+  {
+    "key": "CAUSILO",
+    "source_url": "https://github.com/nums-ai/causilo"
+  },
+  {
+    "key": "KUMO-TABULAR-MEDIUM",
+    "source_url": "https://github.com/NVIDIA/structured-data-models"
+  },
+  {
+    "key": "LIMIX-2",
+    "source_url": "https://github.com/limix-ldm-ai/LimiX"
   },
   {
     "_doc": "AutoML reference, not a ranked peer: runs AutoGluon's native extreme preset without overriding its portfolio, under the benchmark's one-hour per-unit time limit.",
     "key": "AUTOGLUON",
     "presets": "extreme",
-    "ensemble": true
+    "ensemble": true,
+    "source_url": "https://github.com/autogluon/autogluon"
   }
 ]

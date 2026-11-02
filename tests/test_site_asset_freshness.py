@@ -27,13 +27,35 @@ def test_tuned_model_metadata_preserves_family(parent):
     assert tuned["category"] == base["category"]
     assert tuned["color"] == base["color"]
     assert tuned["display"] == f"{base['display']} (tuned)"
+    assert tuned["source_url"] == base["source_url"]
+    assert tuned["source_url"].startswith("https://github.com/")
+
+
+def test_source_metadata_can_override_parent_or_be_unavailable():
+    registry = dashboard.load_model_registry()
+    registry["CUSTOM-SEARCH"] = {
+        "base_model": "RF",
+        "source_url": "https://github.com/example/custom",
+    }
+    assert (
+        dashboard.model_meta("CUSTOM-SEARCH", registry)["source_url"]
+        == "https://github.com/example/custom"
+    )
+    assert dashboard.model_meta("UNKNOWN", registry)["source_url"] is None
+    del registry["CUSTOM-SEARCH"]["source_url"]
+    with pytest.raises(KeyError, match="source_url"):
+        dashboard.model_meta("CUSTOM-SEARCH", registry)
 
 
 def test_model_metadata_uses_registry_flags_and_custom_parent():
     registry = dashboard.load_model_registry()
     assert dashboard.model_meta("TABDPT", registry)["training_data_overlap"] is True
     registry["TABDPT"]["training_data_overlap"] = False
-    registry["CUSTOM-SEARCH"] = {"base_model": "RF", "training_data_overlap": True}
+    registry["CUSTOM-SEARCH"] = {
+        "base_model": "RF",
+        "training_data_overlap": True,
+        "source_url": "https://github.com/scikit-learn/scikit-learn",
+    }
     assert dashboard.model_meta("TABDPT", registry)["training_data_overlap"] is False
     custom = dashboard.model_meta("CUSTOM-SEARCH", registry)
     assert custom["tuned_from"] == "RF"
@@ -58,7 +80,16 @@ def test_installed_registry_is_loaded_without_a_source_checkout(tmp_path, monkey
     directory = package / "_resources/configs/models"
     directory.mkdir(parents=True)
     (directory / "custom.json").write_text(
-        json.dumps([{"key": "CUSTOM", "base_model": "RF", "training_data_overlap": True}])
+        json.dumps(
+            [
+                {
+                    "key": "CUSTOM",
+                    "base_model": "RF",
+                    "training_data_overlap": True,
+                    "source_url": "https://github.com/scikit-learn/scikit-learn",
+                }
+            ]
+        )
     )
     monkeypatch.setattr(resources, "__file__", str(package / "resources.py"))
     registry = dashboard.load_model_registry()
@@ -217,6 +248,7 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
             "sitemap.xml",
             "index.html",
             "datasets.html",
+            "models.html",
             "og.png",
         }:
             relative = asset.relative_to(dashboard.PACKAGE_ROOT / "web")

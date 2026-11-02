@@ -3,6 +3,7 @@
 import json
 import re
 from collections import Counter
+from html import unescape
 from pathlib import Path
 from urllib.parse import urlencode
 from xml.sax.saxutils import escape
@@ -139,18 +140,31 @@ Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBenc
 """
 
 
-def build_sitemap(site_dir: Path, project_url: str, last_modified: str) -> str:
+def sitemap_urls(site_dir: Path, project_url: str) -> list[str]:
     project_url = project_url.rstrip("/")
     paths = [
-        "" if path.name == "index.html" else path.name for path in sorted(site_dir.glob("*.html"))
+        "" if path.name == "index.html" else path.name
+        for path in sorted(site_dir.glob("*.html"))
+        if path.name not in {"dataset.html", "model.html"}
     ]
     paths += ["llms.txt", "skill.md", "CITATION.cff", "CITATION.bib"]
+    for overview, pattern in (
+        ("models.html", r'href="(model\.html\?model=[^"]+)"'),
+        ("datasets.html", r'href="(dataset\.html\?id=[^"]+)"'),
+    ):
+        paths += list(
+            dict.fromkeys(
+                unescape(url)
+                for url in re.findall(pattern, (site_dir / overview).read_text(encoding="utf-8"))
+            )
+        )
+    return [f"{project_url}/{path}" for path in paths]
+
+
+def build_sitemap(site_dir: Path, project_url: str, last_modified: str) -> str:
     urls = "\n".join(
-        "  <url>\n"
-        f"    <loc>{escape(f'{project_url}/{path}')}</loc>\n"
-        f"    <lastmod>{last_modified}</lastmod>\n"
-        "  </url>"
-        for path in paths
+        f"  <url>\n    <loc>{escape(url)}</loc>\n    <lastmod>{last_modified}</lastmod>\n  </url>"
+        for url in sitemap_urls(site_dir, project_url)
     )
     return (
         '<?xml version="1.0" encoding="UTF-8"?>\n'
@@ -158,6 +172,21 @@ def build_sitemap(site_dir: Path, project_url: str, last_modified: str) -> str:
         '<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">\n'
         f"{urls}\n"
         "</urlset>\n"
+    )
+
+
+def write_sitemaps(site_dir: Path, project_url: str, last_modified: str) -> None:
+    project_url = project_url.rstrip("/")
+    (site_dir / "robots.txt").write_text(
+        f"User-agent: *\nAllow: /\n\nSitemap: {project_url}/sitemap.xml\n"
+        f"Sitemap: {project_url}/sitemap.txt\n",
+        encoding="utf-8",
+    )
+    (site_dir / "sitemap.xml").write_text(
+        build_sitemap(site_dir, project_url, last_modified), encoding="utf-8"
+    )
+    (site_dir / "sitemap.txt").write_text(
+        "\n".join(sitemap_urls(site_dir, project_url)) + "\n", encoding="utf-8"
     )
 
 
@@ -251,6 +280,38 @@ def write_dataset_registry_summary(site_dir: Path) -> None:
     path.write_text(html, encoding="utf-8")
 
 
+def write_model_registry_summary(site_dir: Path, dashboard: dict) -> None:
+    """Expose the model registry and its detail links without JavaScript."""
+    model_rows = []
+    for identifier, model in sorted(
+        dashboard["models"].items(), key=lambda item: item[1]["display"].casefold()
+    ):
+        detail = "model.html?" + urlencode({"model": identifier})
+        source_url = model["source_url"]
+        source_link = (
+            f'<a class="dataset-open" href="{escape(source_url, {chr(34): "&quot;"})}" '
+            'target="_blank" rel="noreferrer">Source ↗</a>'
+            if source_url
+            else "—"
+        )
+        model_rows.append(
+            f'<tr><td><a href="{escape(detail)}">{escape(model["display"])}</a></td>'
+            f"<td>{escape(model['category'])}</td><td>{escape(identifier)}</td>"
+            f"<td>{source_link}</td>"
+            f'<td><a class="dataset-open" href="{escape(detail)}">Explore →</a></td></tr>'
+        )
+    path = site_dir / "models.html"
+    html = path.read_text(encoding="utf-8")
+    html, count = re.subn(
+        r'(<tbody id="model-table">).*?(</tbody>)',
+        lambda match: match[1] + "\n".join(model_rows) + match[2],
+        html,
+        flags=re.S,
+    )
+    assert count == 1
+    path.write_text(html, encoding="utf-8")
+
+
 def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     index = site_dir / "index.html"
     html = index.read_text(encoding="utf-8")
@@ -285,11 +346,6 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     skill = resource_root() / "skills" / SKILL_NAME
     (site_dir / "skill.md").write_bytes(skill.joinpath("SKILL.md").read_bytes())
     project_url = "https://" + dashboard["meta"]["domain"]
+    write_model_registry_summary(site_dir, dashboard)
     (site_dir / "llms.txt").write_text(build_llms_text(dashboard, project_url), encoding="utf-8")
-    (site_dir / "robots.txt").write_text(
-        f"User-agent: *\nAllow: /\n\nSitemap: {project_url}/sitemap.xml\n", encoding="utf-8"
-    )
-    (site_dir / "sitemap.xml").write_text(
-        build_sitemap(site_dir, project_url, dashboard["meta"]["snapshot_utc"][:10]),
-        encoding="utf-8",
-    )
+    write_sitemaps(site_dir, project_url, dashboard["meta"]["snapshot_utc"][:10])

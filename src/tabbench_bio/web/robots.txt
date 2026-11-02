@@ -2,3 +2,4 @@ User-agent: *
 Allow: /
 
 Sitemap: https://tabbench-bio.eu/sitemap.xml
+Sitemap: https://tabbench-bio.eu/sitemap.txt

@@ -1,0 +1,4 @@
+Contact: https://tabbench-bio.eu/imprint.html
+Expires: 2027-11-01T23:59:59Z
+Canonical: https://tabbench-bio.eu/.well-known/security.txt
+Preferred-Languages: en, de

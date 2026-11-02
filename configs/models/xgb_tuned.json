@@ -86,6 +86,7 @@
           ]
         }
       ]
-    }
+    },
+    "source_url": "https://github.com/dmlc/xgboost"
   }
 ]

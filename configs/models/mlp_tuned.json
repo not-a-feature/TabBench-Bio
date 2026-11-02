@@ -13,6 +13,7 @@
       "grid": [
         {"num_layers": [2, 4], "hidden_size": [64, 128], "learning_rate": [0.0003, 0.001], "dropout_prob": [0.0, 0.2]}
       ]
-    }
+    },
+    "source_url": "https://github.com/autogluon/autogluon"
   }
 ]
