@@ -28,6 +28,7 @@ body[data-page="models"] .dataset-filters { grid-template-columns: minmax(210px,
 .model-toolbar { grid-template-columns: minmax(0, 1fr); }
 .dataset-toolbar .model-visibility-control { align-self: end; height: 38px; min-height: 38px; padding-block: 0; }
 .dataset-plots { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: 22px; align-items: start; }
+body[data-page="model"] .dataset-plots { grid-template-columns: minmax(0, 1fr); }
 .dataset-plot-panel h2 { margin: 0; font-family: var(--serif); font-size: 1.55rem; font-weight: 500; letter-spacing: -0.025em; }
 .dataset-plot-panel .panel-head p:not(.panel-kicker) { margin: 6px 0 0; font-size: 0.8rem; color: var(--muted); line-height: 1.5; }
 .dataset-chart-note { color: var(--muted); font-size: 0.8rem; line-height: 1.6; padding: 0 22px 20px; margin: 0; }
