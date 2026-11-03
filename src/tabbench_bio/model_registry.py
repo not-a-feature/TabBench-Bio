@@ -56,6 +56,22 @@ MODEL_REGISTRY = {
         environment="kumo",
         adapter="tabbench_bio.models.kumo_tabular:KumoTabularMediumModel",
     ),
+    "SELDON": ModelSpec(
+        display="Seldon",
+        category="Tabular Foundation",
+        device="gpu",
+        environment="seldon",
+        adapter="tabbench_bio.models.seldon:SeldonModel",
+        supported_tasks=("classification",),
+    ),
+    "SELDON-MINI": ModelSpec(
+        display="Seldon-Mini",
+        category="Tabular Foundation",
+        device="gpu",
+        environment="seldon",
+        adapter="tabbench_bio.models.seldon:SeldonMiniModel",
+        supported_tasks=("classification",),
+    ),
     "LIMIX-2": ModelSpec(
         display="LimiX2",
         category="Tabular Foundation",
