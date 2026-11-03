@@ -18,6 +18,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
 | `kumo` | Kumo Tabular Medium, with pinned SDM source and checkpoint revisions |
+| `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.2.3 and pinned checkpoint revisions |
 
 The model registry in `src/tabbench_bio/model_registry.py` declares these assignments.
 The roster in `configs/models/all.json` selects benchmark models; explicit per-run
@@ -55,6 +56,28 @@ eight sequential ensemble members, and uncached attention using training-only pr
 selection is removed; the benchmark's feature cells still apply. Other released
 preprocessing remains unchanged. Code is Apache-2.0; weights are OpenMDW-1.1.
 Run with `tabbench-bio KUMO-TABULAR-MEDIUM` after installing the `kumo` profile.
+
+`SELDON` (213.5M parameters) and `SELDON-MINI` (27.4M) use the released
+[Neuralk classifiers](https://pypi.org/project/neuralk-oss/) in the `seldon` profile.
+They keep their packaged eight- and four-member ensembles respectively, including
+the packaged categorical shuffling and other preprocessing. The internal 500-column
+selection is removed and the context limit is raised when needed to retain all
+benchmark-selected training rows. Feature and sample budgets come from the benchmark.
+Regression tasks are skipped; classification above 10 classes uses the backend's
+native error-correcting output codes. Each checkpoint is pinned to a Hub revision.
+Code is Apache-2.0; weights use the Neuralk Seldon License. Accept the terms on
+[Seldon](https://huggingface.co/Neuralk-AI/seldon) and
+[Seldon-Mini](https://huggingface.co/Neuralk-AI/seldon-mini), then authenticate with
+`hf auth login` before the first run. Downloads use the Hugging Face cache.
+
+```powershell
+uv venv .venvs/seldon --python 3.13
+uv pip install --python .venvs/seldon/Scripts/python.exe -r environments/seldon.txt
+tabbench-bio SELDON
+tabbench-bio SELDON-MINI
+```
+
+Use `--full-grid` for all feature/sample cells, or `--device cpu` for CPU execution.
 
 `GENEICL` uses [GeneICL](https://github.com/BoevaLab/GeneICL)'s default
 `trm_segmented8_s0.pt` checkpoint for classification and regression, with the optional

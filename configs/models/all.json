@@ -131,6 +131,16 @@
     "description": "Kumo Tabular, by NVIDIA, learns from synthetic tables before it is applied to a new dataset. It builds representations of columns and rows, then uses labelled examples as context for classification or regression; this benchmark uses the medium-sized model."
   },
   {
+    "key": "SELDON",
+    "source_url": "https://huggingface.co/Neuralk-AI/seldon",
+    "description": "Seldon, by Neuralk-AI, is a 213.5-million-parameter transformer pretrained only on synthetic tables. It compresses cells into row representations and uses labelled training rows as context for classification without updating its weights. This benchmark keeps its released eight-member inference ensemble and lets the benchmark control feature and sample budgets."
+  },
+  {
+    "key": "SELDON-MINI",
+    "source_url": "https://huggingface.co/Neuralk-AI/seldon-mini",
+    "description": "Seldon-Mini is Neuralk-AI's 27.4-million-parameter classification model, pretrained only on synthetic tables. It uses labelled examples as context without updating its weights. This benchmark keeps its released four-member inference ensemble and lets the benchmark control feature and sample budgets."
+  },
+  {
     "key": "LIMIX-2",
     "source_url": "https://github.com/limix-ldm-ai/LimiX",
     "description": "LimiX-2 is pretrained on synthetic tables generated from causal models. It learns relationships between features and targets through masked prediction, then uses labelled rows as context to predict classes or numerical values in a new table."

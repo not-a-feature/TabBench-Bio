@@ -1,0 +1,5 @@
+# Seldon and Seldon-Mini share the released inference backend.
+-r ../requirements-autogluon-fork.txt
+-e .[bio,autogluon]
+neuralk-oss==0.2.3
+torch==2.13.*

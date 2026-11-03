@@ -47,6 +47,20 @@ def test_aliases_and_checkpoint_overrides():
     assert spec.adapter == MODEL_REGISTRY["TABPFN-WIDE"].adapter
 
 
+@pytest.mark.parametrize("key", ["SELDON", "SELDON-MINI"])
+def test_seldon_is_a_full_classification_roster_entry(key):
+    root = Path(__file__).resolve().parents[1]
+    roster = json.loads((root / "configs/models/all.json").read_text())
+    assert any(row["key"] == key for row in roster)
+    spec = MODEL_REGISTRY[key]
+    assert spec.environment == "seldon"
+    assert spec.category == "Tabular Foundation"
+    assert spec.supported_tasks == ("classification",)
+    assert key in CLASSIFICATION_ONLY_MODELS
+    assert spec.max_features is None and spec.max_classes is None
+    assert not spec.hidden and not spec.training_data_overlap
+
+
 @pytest.mark.parametrize("key", ["LIMIX-2", "GENEICL"])
 def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config, key):
     from unittest.mock import Mock
