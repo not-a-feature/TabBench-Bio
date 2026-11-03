@@ -5,7 +5,7 @@
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description"
-    content="Benchmark tabular learning on high-dimensional biological and biomedical data. Compare classical models, neural networks and tabular foundation models.">
+    content="Which models perform best on biological data? Compare machine learning methods for gene expression and other biomedical tables with TabBench-Bio.">
   <meta name="theme-color" content="#f4f5f1">
   <link rel="canonical" href="https://tabbench-bio.eu/">
   <link rel="alternate" type="application/vnd.sqlite3"
@@ -20,14 +20,14 @@
   <meta property="og:url" content="https://tabbench-bio.eu/">
   <meta property="og:title" content="TabBench-Bio">
   <meta property="og:description"
-    content="Benchmark tabular learning on high-dimensional biological and biomedical data. Compare classical models, neural networks and tabular foundation models.">
+    content="Which models perform best on biological data? Compare machine learning methods for gene expression and other biomedical tables with TabBench-Bio.">
   <meta property="og:image" content="https://tabbench-bio.eu/assets/og.png?v=426ed14dd8069be4">
   <meta property="og:image:width" content="1732">
   <meta property="og:image:height" content="908">
   <meta name="twitter:card" content="summary_large_image">
   <meta name="twitter:title" content="TabBench-Bio">
   <meta name="twitter:description"
-    content="Benchmark tabular learning on high-dimensional biological and biomedical data. Compare classical models, neural networks and tabular foundation models.">
+    content="Which models perform best on biological data? Compare machine learning methods for gene expression and other biomedical tables with TabBench-Bio.">
   <meta name="twitter:image" content="https://tabbench-bio.eu/assets/og.png?v=426ed14dd8069be4">
   <script type="application/ld+json">
     {
@@ -39,7 +39,7 @@
           "url": "https://tabbench-bio.eu/",
           "name": "TabBench-Bio",
           "alternateName": "TabBench Bio",
-          "description": "Benchmark tabular learning on high-dimensional biological and biomedical data. Compare classical models, neural networks and tabular foundation models.",
+          "description": "Which models perform best on biological data? Compare machine learning methods for gene expression and other biomedical tables with TabBench-Bio.",
           "inLanguage": "en",
           "sameAs": [
             "https://github.com/not-a-feature/TabBench-Bio"
@@ -50,84 +50,17 @@
           "@id": "https://tabbench-bio.eu/#webpage",
           "url": "https://tabbench-bio.eu/",
           "name": "TabBench-Bio",
-          "description": "Benchmark tabular learning on high-dimensional biological and biomedical data. Compare classical models, neural networks and tabular foundation models.",
+          "description": "Which models perform best on biological data? Compare machine learning methods for gene expression and other biomedical tables with TabBench-Bio.",
           "isPartOf": {
             "@id": "https://tabbench-bio.eu/#website"
           },
-          "mainEntity": {
-            "@id": "https://tabbench-bio.eu/#results"
-          },
-          "inLanguage": "en"
-        },
-        {
-          "@type": "Dataset",
-          "name": "TabBench-Bio benchmark results",
-          "description": "Tabular learning benchmark results on high-dimensional biological and biomedical data across controlled feature and sample budgets.",
-          "url": "https://tabbench-bio.eu/#explore",
-          "isAccessibleForFree": true,
-          "citation": "Kreuer, J.; Ouaari, S.; Hellmig, J.; Braitinger, J.; Pfeifer, N. (2026). TabBench-Bio: A Living Benchmark for Machine Learning on High-Dimensional Biomedical Tables. arXiv:2609.07441. https://doi.org/10.48550/arXiv.2609.07441",
-          "creator": [
-            {
-              "@type": "Person",
-              "name": "Jules Kreuer",
-              "sameAs": "https://orcid.org/0000-0002-7305-833X"
-            },
-            {
-              "@type": "Person",
-              "name": "Julia Hellmig"
-            },
-            {
-              "@type": "Person",
-              "name": "Julius Braitinger"
-            },
-            {
-              "@type": "Person",
-              "name": "Sofiane Ouaari",
-              "sameAs": "https://orcid.org/0009-0000-0942-3796"
-            },
-            {
-              "@type": "Person",
-              "name": "Nico Pfeifer",
-              "sameAs": "https://orcid.org/0000-0002-4647-8566"
-            }
-          ],
-          "distribution": [
-            {
-              "@type": "DataDownload",
-              "name": "Results SQLite",
-              "encodingFormat": "application/vnd.sqlite3",
-              "contentUrl": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.4.0/results.sqlite",
-              "sha256": "10d5b3e2b1e4c492b32e1d54a113b897fc8da04595e91db4c34f9d68b5f4ee43"
-            },
-            {
-              "@type": "DataDownload",
-              "name": "Dataset metadata",
-              "encodingFormat": "application/json",
-              "contentUrl": "https://tabbench-bio.eu/data/datasets/index.json"
-            },
-            {
-              "@type": "DataDownload",
-              "name": "Reference Elo leaderboard",
-              "encodingFormat": "application/json",
-              "contentUrl": "https://tabbench-bio.eu/data/leaderboard.json"
-            },
-            {
-              "@type": "DataDownload",
-              "name": "Citation metadata",
-              "encodingFormat": "text/x-citation-cff",
-              "contentUrl": "https://tabbench-bio.eu/CITATION.cff"
-            }
-          ],
-          "@id": "https://tabbench-bio.eu/#results",
-          "mainEntityOfPage": {
-            "@id": "https://tabbench-bio.eu/#webpage"
-          },
+          "inLanguage": "en",
           "keywords": [
-            "tabular learning",
-            "biological data",
-            "biomedical machine learning",
-            "high-dimensional low-sample-size",
-            "tabular foundation models"
+            "biological data model comparison",
+            "machine learning for gene expression",
+            "biomedical tabular learning",
+            "tabular foundation models",
+            "high-dimensional low-sample-size learning"
           ]
         }
       ]
@@ -426,6 +359,12 @@
         across gene expression, DNA methylation, metagenomics, molecular properties, genomic prediction,
         and sequence-derived embeddings. Browse the <a href="datasets.html">biological dataset registry</a>
         for individual tasks and data sources.</p>
+      <h3>Which machine learning models perform best on my biomedical data?</h3>
+      <p>The best-performing model depends on the modality, number of training samples, feature
+        budget and evaluation metric. Use the <a href="#explore">interactive leaderboard</a> to compare models at the
+        operating point closest to your data (select modality, sample and feature count), and check uncertainty
+        intervals and failure rates alongside the rankings. This should be a good starting point for model selection.
+      </p>
       <h3>How are models compared?</h3>
       <p>Each result belongs to an operating point: a feature cap (2,000, 10,000, 25,000 or all features) and a
         training-sample budget (20 to 1,000 rows, or the full training split). Every model is fitted on the same
@@ -440,7 +379,8 @@
         to your own data. In the Strict view, failed fits are scored as the constant baseline and count against
         the model. The Adaptive and Failures-omitted views are sensitivity analyses. Compare classical
         baselines, neural networks, AutoML and tabular foundation models in the
-        <a href="#explore">interactive leaderboard</a> and the <a href="models.html">model comparisons</a>.</p>
+        <a href="#explore">interactive leaderboard</a> and the <a href="models.html">model comparisons</a>.
+      </p>
       <h3>How do I benchmark my own model?</h3>
       <p>Define <code>create_model(task)</code> in a Python file. It should return a cloneable scikit-learn
         classifier or regressor, with imputation, scaling and feature selection inside the pipeline.
@@ -455,8 +395,9 @@
             </div>
             <div class="citation-actions">
               <button class="button code-copy" type="button" data-copy-target="run-code">Copy</button>
-              <a class="button" href="https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/README.md" target="_blank" rel="noreferrer">Guide <span
-                  aria-hidden="true">↗</span></a>
+              <a class="button"
+                href="https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/README.md"
+                target="_blank" rel="noreferrer">Guide <span aria-hidden="true">↗</span></a>
             </div>
           </div>
           <pre class="citation-code"><code id="run-code">pip install tabbench-bio
@@ -470,8 +411,9 @@ tabbench-bio evaluate --model my_model.py --task overall</code></pre>
             </div>
             <div class="citation-actions">
               <button class="button code-copy" type="button" data-copy-target="model-code">Copy</button>
-              <a class="button" href="https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/README.md" target="_blank" rel="noreferrer">Guide <span
-                  aria-hidden="true">↗</span></a>
+              <a class="button"
+                href="https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/README.md"
+                target="_blank" rel="noreferrer">Guide <span aria-hidden="true">↗</span></a>
             </div>
           </div>
           <pre class="citation-code"><code id="model-code">from sklearn.impute import SimpleImputer

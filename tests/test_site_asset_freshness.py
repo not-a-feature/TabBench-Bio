@@ -216,16 +216,13 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         re.search(r'<script type="application/ld\+json">(.*?)</script>', home, re.S)[1]
     )
     entities = {item["@type"]: item for item in metadata["@graph"]}
-    assert set(entities) == {"WebSite", "WebPage", "Dataset"}
+    assert set(entities) == {"WebSite", "WebPage"}
     assert entities["WebPage"]["isPartOf"]["@id"] == entities["WebSite"]["@id"]
-    assert entities["WebPage"]["mainEntity"]["@id"] == entities["Dataset"]["@id"]
-    download = next(
-        item
-        for item in entities["Dataset"]["distribution"]
-        if item["encodingFormat"] == "application/vnd.sqlite3"
-    )
-    assert download["contentUrl"] == next(
-        row["path"] for row in parsed["raw_exports"] if row["format"] == "sqlite3"
+    assert "mainEntity" not in entities["WebPage"]
+    sqlite_url = next(row["path"] for row in parsed["raw_exports"] if row["format"] == "sqlite3")
+    assert (
+        re.search(r'<link rel="alternate" type="application/vnd.sqlite3"\s+href="([^"]+)"', home)[1]
+        == sqlite_url
     )
     registry_html = (output / "datasets.html").read_text(encoding="utf-8")
     assert f"{len(payload['datasets'])} of {len(payload['datasets'])} datasets" in registry_html

@@ -323,24 +323,6 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
         html,
     )
     assert count == 1, "Expected one SQLite alternate link"
-    structured = re.search(r'(<script type="application/ld\+json">)(.*?)(</script>)', html, re.S)
-    assert structured is not None, "Missing dataset metadata"
-    metadata = json.loads(structured[2])
-    results = next(item for item in metadata["@graph"] if item["@type"] == "Dataset")
-    download = next(
-        item
-        for item in results["distribution"]
-        if item["encodingFormat"] == "application/vnd.sqlite3"
-    )
-    download["contentUrl"] = sqlite_url
-    # The website snapshot can differ from the moving latest-release asset.
-    download.pop("sha256", None)
-    metadata_text = (
-        "\n    "
-        + json.dumps(metadata, indent=2, ensure_ascii=False).replace("\n", "\n    ")
-        + "\n  "
-    )
-    html = html[: structured.start(2)] + metadata_text + html[structured.end(2) :]
     index.write_text(html, encoding="utf-8")
     write_dataset_registry_summary(site_dir)
     skill = resource_root() / "skills" / SKILL_NAME
