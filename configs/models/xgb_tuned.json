@@ -87,6 +87,7 @@
         }
       ]
     },
-    "source_url": "https://github.com/dmlc/xgboost"
+    "source_url": "https://github.com/dmlc/xgboost",
+    "description": "This variant uses the same XGBoost tree boosting model, with settings selected from a small grid on a holdout drawn only from the training data. The grid varies tree depth, learning rate, feature sampling and regularization before refitting the selected configuration."
   }
 ]

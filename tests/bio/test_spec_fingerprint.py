@@ -128,6 +128,8 @@ def test_interrupted_pickle_write_preserves_previous_cache(tmp_path, monkeypatch
     [
         {"notes": "new notes"},
         {"display_name": "New name"},
+        {"description": "A clearer explanation of the prediction task."},
+        {"source_url": "https://example.org/dataset-overview"},
         {"license": "EUPL-1.2"},
         {"enabled": False},
         {"data_type": "Other"},

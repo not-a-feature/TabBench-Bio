@@ -9,8 +9,8 @@ let DATASET_SCORES = [];
 function sourceLabel(source) { return SOURCE_LABELS[source] || source; }
 function datasetLink(datasetId) {
   const params = new URLSearchParams(window.location.search);
-  params.set("id", datasetId);
-  return `dataset.html?${params}`;
+  params.delete("id");
+  return `${detailPageUrl("dataset", datasetId)}${params.size ? `?${params}` : ""}`;
 }
 
 function filteredDatasetRows() {
@@ -124,27 +124,26 @@ function renderDatasetCharts() {
   Plotly.react(byId("dataset-budget-chart"), traces, baseLayout({height: 500, margin: {l: 72, r: 24, t: 25, b: 160}, xaxis: axes({title: "Training-sample cap", type: "category", categoryorder: "array", categoryarray: cells.map(option => sampleLabel(option.n_train))}), yaxis: axes({title: `${metric.label} ${metric.better === "low" ? "↓" : "↑"}`}), legend: {orientation: "h", x: 0, y: -0.3, font: {size: 12}}, hovermode: "closest"}), PLOT_CONFIG);
   byId("detail-budget-note").textContent = `${capLabel(featureCap)} features · ${group === "top" ? "Top five at the selected operating point, plus Random Forest." : "Click legend entries to show or hide models."} Full uses all available training samples.`;
   byId("dataset-score-head").innerHTML = `<tr><th>Model</th>${ACTIVE_DATASET.metrics.map(item => `<th>${escapeHtml(item.label)} ${item.better === "low" ? "↓" : "↑"}</th>`).join("")}</tr>`;
-  byId("dataset-score-body").innerHTML = rows.map(row => `<tr${row.model_id === "RF" ? ' class="dataset-baseline-row"' : ""}><td>${escapeHtml(DATA.models[row.model_id].display)}${row.model_id === "RF" ? ' <span class="tag">Baseline</span>' : ""}</td>${ACTIVE_DATASET.metrics.map(item => `<td>${Number.isFinite(row.values[item.key]) ? row.values[item.key].toFixed(3) : "—"}</td>`).join("")}</tr>`).join("");
+  byId("dataset-score-body").innerHTML = rows.map(row => `<tr${row.model_id === "RF" ? ' class="dataset-baseline-row"' : ""}><td><a href="${escapeHtml(detailPageUrl("model", row.model_id))}">${escapeHtml(DATA.models[row.model_id].display)}</a>${row.model_id === "RF" ? ' <span class="tag">Baseline</span>' : ""}</td>${ACTIVE_DATASET.metrics.map(item => `<td>${Number.isFinite(row.values[item.key]) ? row.values[item.key].toFixed(3) : "—"}</td>`).join("")}</tr>`).join("");
 }
 
 async function initializeDatasetDetail() {
   const params = new URLSearchParams(location.search);
-  ACTIVE_DATASET = DATA.datasets.find(dataset => dataset.dataset_id === params.get("id"));
+  ACTIVE_DATASET = DATA.datasets.find(dataset => dataset.dataset_id === (document.body.dataset.entityId || params.get("id")));
   if (!ACTIVE_DATASET) { byId("detail-not-found").hidden = false; byId("dataset-detail-content").hidden = true; return; }
   const back = new URLSearchParams(params);
   ["id", "metric", "p", "n"].forEach(key => back.delete(key));
-  byId("dataset-back").href = `datasets.html${back.size ? `?${back}` : ""}`;
-  document.querySelector('link[rel="canonical"]').href = new URL(detailPageUrl("dataset", ACTIVE_DATASET.dataset_id), location.href).href;
-  document.title = `${ACTIVE_DATASET.display_name} · TabBench-Bio`;
+  byId("dataset-back").href = `${siteUrl("datasets/")}${back.size ? `?${back}` : ""}`;
   byId("detail-title").textContent = ACTIVE_DATASET.display_name;
   byId("detail-id").textContent = ACTIVE_DATASET.dataset_id;
   byId("detail-modality").textContent = ACTIVE_DATASET.modality;
   byId("detail-task").textContent = ACTIVE_DATASET.problem_type === "binary" ? "Binary classification" : ACTIVE_DATASET.task;
+  byId("detail-license").textContent = `Licence: ${ACTIVE_DATASET.license || "Not specified"}`;
   byId("detail-target").textContent = ACTIVE_DATASET.target;
   byId("detail-source").textContent = `${sourceLabel(ACTIVE_DATASET.source)} ↗`;
   byId("detail-source").hidden = !ACTIVE_DATASET.source_url;
   if (ACTIVE_DATASET.source_url) byId("detail-source").href = ACTIVE_DATASET.source_url;
-  const response = await fetch(`data/datasets/${ACTIVE_DATASET.scores_file}`);
+  const response = await fetch(siteUrl(`data/datasets/${ACTIVE_DATASET.scores_file}`));
   if (!response.ok) throw new Error("Could not load dataset scores");
   const payload = await response.json();
   if (payload.dataset_id !== ACTIVE_DATASET.dataset_id) throw new Error("Dataset score identifier mismatch");

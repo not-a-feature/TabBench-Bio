@@ -104,6 +104,8 @@ class BioDatasetSpec:
         Canonical source URL for provenance.
     citation : str | None
         Dataset citation for provenance.
+    description : str | None
+        Short public explanation of the measurements and prediction task.
     data_file : str | None
         Kaggle-only: which table to load when a dataset ships more than one.
     embedding_column : str | None
@@ -143,6 +145,7 @@ class BioDatasetSpec:
     license: str | None = None
     source_url: str | None = None
     citation: str | None = None
+    description: str | None = None
     data_file: str | None = None
     embedding_column: str | None = None
     group_column: str | None = None
@@ -225,7 +228,7 @@ def _registry_path() -> Path:
 def load_specs(path: str | Path | None = None) -> dict[str, BioDatasetSpec]:
     """Load and validate dataset specs from a registry JSON into a ``bio_id -> spec`` map."""
     path = Path(path) if path is not None else _registry_path()
-    with open(path) as f:
+    with open(path, encoding="utf-8") as f:
         entries = json.load(f)
     if not isinstance(entries, list):
         raise ValueError(f"{path}: bio dataset registry must be a JSON array of objects.")

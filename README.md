@@ -182,9 +182,9 @@ This downloads the Markdown skill. A browsing agent can also read the
 ### Search and agent discovery
 
 Website builds render the dataset registry into HTML and generate `llms.txt`,
-`robots.txt`, the sitemap and linked `WebSite`, `WebPage` and results `Dataset`
-metadata. Edit templates in `src/tabbench_bio/web/` and the generator in
-`src/tabbench_bio/web_metadata.py`; rebuild before publishing the `website` submodule.
+`robots.txt`, the sitemap and linked `WebSite` and `WebPage` metadata. Edit templates in `src/tabbench_bio/web/` and
+the generators in `src/tabbench_bio/web_metadata.py` and `src/tabbench_bio/static_pages.py`;
+rebuild before publishing the `website` submodule.
 
 After publishing, submit `https://tabbench-bio.eu/sitemap.xml` in Google Search Console,
 inspect the canonical homepage and request indexing. Check the rendered HTML and

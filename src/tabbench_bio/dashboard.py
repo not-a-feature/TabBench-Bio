@@ -143,6 +143,13 @@ def write_dashboard_payload(path: Path, dashboard: dict) -> None:
         write_json(path.parent / filename, view)
         payload["analysis_view_files"][name] = f"data/{filename}"
     write_json(path, payload)
+    active = {Path(relative).name for relative in payload["analysis_view_files"].values()}
+    for previous in path.parent.glob("analysis-*.json"):
+        if (
+            re.fullmatch(r"analysis-(adaptive|conditional)-[0-9a-f]{16}\.json", previous.name)
+            and previous.name not in active
+        ):
+            previous.unlink()
 
 
 def load_model_registry(configs=()) -> dict[str, dict]:
@@ -196,6 +203,7 @@ def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
         "display": f"{display} (tuned)" if parent else display,
         "tuned_from": parent,
         "source_url": entry["source_url"],
+        "description": entry.get("description", parent_entry.get("description")),
         "tuning": entry["tuning"] if "tuning" in entry else None,
         "category": category,
         "color": CATEGORY_COLORS[category] if category in CATEGORY_COLORS else "#64748b",
@@ -415,6 +423,10 @@ def write_dataset_explorer(
             "datasets": registry,
         },
     )
+    active = {dataset["scores_file"] for dataset in registry}
+    for previous in output_dir.glob("*.json"):
+        if re.fullmatch(r"[0-9a-f]{16}\.json", previous.name) and previous.name not in active:
+            previous.unlink()
 
 
 def _domain_elo_task(

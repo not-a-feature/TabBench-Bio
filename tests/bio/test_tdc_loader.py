@@ -72,11 +72,14 @@ def test_tdc_dispatch_is_lazy_and_curated():
         "TDC-LD50-Zhu",
     ],
 )
-def test_tdc_fetch_uses_registry_source_and_shared_cache(tmp_path, monkeypatch, bio_id):
+@pytest.mark.parametrize("mirror", [False, True])
+def test_tdc_fetch_uses_registry_source_and_shared_cache(tmp_path, monkeypatch, bio_id, mirror):
     payload = b"Drug\tY\nCCO\t0\nCCN\t1\n"
     spec = replace(
         get_spec(bio_id),
-        download_url="https://example.org/mirror/endpoint.tab",
+        download_url="https://example.org/mirror/endpoint.tab"
+        if mirror
+        else get_spec(bio_id).download_url,
         download_sha256=hashlib.sha256(payload).hexdigest(),
     )
     calls = []
@@ -96,3 +99,8 @@ def test_tdc_fetch_uses_registry_source_and_shared_cache(tmp_path, monkeypatch, 
     assert raw.problem_type == spec.problem_type
     assert raw.source_url == spec.source_url and raw.citation == spec.citation
     assert raw.metadata["source_sha256"] == spec.download_sha256
+    assert raw.metadata["download_url"] == spec.download_url
+    if not mirror:
+        assert raw.metadata["dataverse_file_id"] == int(spec.download_url.rsplit("/", 1)[1])
+    else:
+        assert "dataverse_file_id" not in raw.metadata

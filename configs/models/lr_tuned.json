@@ -23,6 +23,7 @@
         }
       ]
     },
-    "source_url": "https://github.com/scikit-learn/scikit-learn"
+    "source_url": "https://github.com/scikit-learn/scikit-learn",
+    "description": "This is the same linear model as LR: logistic regression for classification and ridge regression for continuous targets. A small predefined grid selects regularization strength on a training-only holdout, then the selected model is refitted on the full training fold."
   }
 ]

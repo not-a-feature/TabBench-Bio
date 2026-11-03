@@ -25,6 +25,7 @@
         }
       ]
     },
-    "source_url": "https://github.com/scikit-learn/scikit-learn"
+    "source_url": "https://github.com/scikit-learn/scikit-learn",
+    "description": "This uses the same Random Forest as RF, combining trees for classification or regression. A small predefined grid selects the number of candidate features per split and minimum leaf size on a training-only holdout, then the selected model is refitted on the full training fold."
   }
 ]

@@ -3,12 +3,11 @@
 import json
 import re
 from collections import Counter
-from html import unescape
 from pathlib import Path
-from urllib.parse import urlencode
 from xml.sax.saxutils import escape
 
 from tabbench_bio.resources import resource_root
+from tabbench_bio.static_pages import detail_url, write_static_pages
 
 SKILL_NAME = "biomedical-tabular-model-selection"
 
@@ -109,7 +108,8 @@ Download the Markdown file directly; no repository clone is needed.
 ## Primary pages
 
 - [Benchmark and interactive results]({project_url}/)
-- [Dataset registry]({project_url}/datasets.html)
+- [Dataset registry]({project_url}/datasets/)
+- [Model registry]({project_url}/models/)
 - [Artifact browser]({project_url}/artifacts.html)
 - [Manuscript]({paper_url})
 
@@ -145,19 +145,16 @@ def sitemap_urls(site_dir: Path, project_url: str) -> list[str]:
     paths = [
         "" if path.name == "index.html" else path.name
         for path in sorted(site_dir.glob("*.html"))
-        if path.name not in {"dataset.html", "model.html"}
+        if path.name not in {"dataset.html", "model.html", "datasets.html", "models.html"}
     ]
     paths += ["llms.txt", "skill.md", "CITATION.cff", "CITATION.bib"]
-    for overview, pattern in (
-        ("models.html", r'href="(model\.html\?model=[^"]+)"'),
-        ("datasets.html", r'href="(dataset\.html\?id=[^"]+)"'),
-    ):
-        paths += list(
-            dict.fromkeys(
-                unescape(url)
-                for url in re.findall(pattern, (site_dir / overview).read_text(encoding="utf-8"))
-            )
-        )
+    for kind in ("models", "datasets"):
+        directory = site_dir / kind
+        paths += [kind + "/"]
+        paths += [
+            f"{kind}/{slug}/"
+            for slug in json.loads((directory / ".generated-pages.json").read_text())
+        ]
     return [f"{project_url}/{path}" for path in paths]
 
 
@@ -252,7 +249,14 @@ def write_dataset_registry_summary(site_dir: Path) -> None:
     registry = json.loads((site_dir / "data/datasets/index.json").read_text(encoding="utf-8"))
     rows = []
     for dataset in sorted(registry["datasets"], key=lambda row: row["display_name"].casefold()):
-        detail = "dataset.html?" + urlencode({"id": dataset["dataset_id"]})
+        detail = detail_url("dataset", dataset["dataset_id"])
+        source_url = dataset.get("source_url")
+        source = (
+            f'<a class="source-link" href="{escape(source_url, {chr(34): "&quot;"})}" '
+            f'target="_blank" rel="noreferrer">{escape(dataset["source"])} ↗</a>'
+            if source_url
+            else escape(dataset["source"])
+        )
         cells = [
             f'<a class="dataset-name dataset-link" href="{escape(detail)}">'
             f"{escape(dataset['display_name'])}</a>"
@@ -260,7 +264,7 @@ def write_dataset_registry_summary(site_dir: Path) -> None:
             escape(dataset["modality"]),
             escape(dataset["target"]),
             escape(dataset["task"]),
-            escape(dataset["source"]),
+            source,
             f'<a class="dataset-open" href="{escape(detail)}">Explore →</a>',
         ]
         rows.append("<tr>" + "".join(f"<td>{cell}</td>" for cell in cells) + "</tr>")
@@ -286,7 +290,7 @@ def write_model_registry_summary(site_dir: Path, dashboard: dict) -> None:
     for identifier, model in sorted(
         dashboard["models"].items(), key=lambda item: item[1]["display"].casefold()
     ):
-        detail = "model.html?" + urlencode({"model": identifier})
+        detail = detail_url("model", identifier)
         source_url = model["source_url"]
         source_link = (
             f'<a class="dataset-open" href="{escape(source_url, {chr(34): "&quot;"})}" '
@@ -329,5 +333,6 @@ def write_agent_metadata(site_dir: Path, dashboard: dict) -> None:
     (site_dir / "skill.md").write_bytes(skill.joinpath("SKILL.md").read_bytes())
     project_url = "https://" + dashboard["meta"]["domain"]
     write_model_registry_summary(site_dir, dashboard)
+    write_static_pages(site_dir, dashboard, project_url)
     (site_dir / "llms.txt").write_text(build_llms_text(dashboard, project_url), encoding="utf-8")
     write_sitemaps(site_dir, project_url, dashboard["meta"]["snapshot_utc"][:10])

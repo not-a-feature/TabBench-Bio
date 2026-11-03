@@ -11,9 +11,27 @@
       "seed": 42,
       "search_fraction": 0.8,
       "grid": [
-        {"num_layers": [2, 4], "hidden_size": [64, 128], "learning_rate": [0.0003, 0.001], "dropout_prob": [0.0, 0.2]}
+        {
+          "num_layers": [
+            2,
+            4
+          ],
+          "hidden_size": [
+            64,
+            128
+          ],
+          "learning_rate": [
+            0.0003,
+            0.001
+          ],
+          "dropout_prob": [
+            0.0,
+            0.2
+          ]
+        }
       ]
     },
-    "source_url": "https://github.com/autogluon/autogluon"
+    "source_url": "https://github.com/autogluon/autogluon",
+    "description": "This variant uses AutoGluon's PyTorch multilayer perceptron, selecting its depth, hidden layer width, learning rate and dropout from a small grid. Selection uses a holdout drawn only from the training data, followed by a refit of the selected configuration."
   }
 ]

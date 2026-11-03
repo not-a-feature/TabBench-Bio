@@ -15,6 +15,7 @@ from __future__ import annotations
 
 from pathlib import Path
 from typing import TYPE_CHECKING
+from urllib.parse import urlsplit
 
 import numpy as np
 import pandas as pd
@@ -222,10 +223,15 @@ class TdcLoader:
         metadata.update(
             {
                 "endpoint": endpoint_name,
-                "dataverse_file_id": int(spec.source_url.rsplit("/", 1)[1]),
+                "download_url": spec.download_url,
                 "source_sha256": spec.download_sha256,
             }
         )
+        download = urlsplit(spec.download_url)
+        if download.hostname == "dataverse.harvard.edu" and download.path.startswith(
+            "/api/access/datafile/"
+        ):
+            metadata["dataverse_file_id"] = int(download.path.rsplit("/", 1)[1])
         return BioRawDataset(
             bio_id=spec.bio_id,
             X=X,
