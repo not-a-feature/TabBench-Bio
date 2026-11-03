@@ -73,7 +73,7 @@
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20261028-code-cards">
   <script defer src="js/analytics.js?v=20260908-optout"></script>
-  <script defer src="js/app.js?v=20261102-model-copy"></script>
+  <script defer src="js/app.js?v=20261103-static-pages"></script>
 </head>
 
 <body data-page="home">
@@ -84,7 +84,7 @@
     </a>
     <nav aria-label="Primary navigation">
       <a href="#explore">Explore</a>
-      <a href="datasets.html">Datasets</a><a href="models.html">Models</a>
+      <a href="/datasets/">Datasets</a><a href="/models/">Models</a>
       <a href="artifacts.html">Artifacts</a>
       <a href="changelog.html">Changelog</a>
       <a id="nav-github" href="https://github.com/not-a-feature/TabBench-Bio">GitHub</a>
@@ -357,7 +357,7 @@
       <p>Biological tables often contain many more features than labelled samples, a setting known as
         high-dimensional, low-sample-size (HDLSS) learning. TabBench-Bio evaluates classification and regression
         across gene expression, DNA methylation, metagenomics, molecular properties, genomic prediction,
-        and sequence-derived embeddings. Browse the <a href="datasets.html">biological dataset registry</a>
+        and sequence-derived embeddings. Browse the <a href="/datasets/">biological dataset registry</a>
         for individual tasks and data sources.</p>
       <h3>Which machine learning models perform best on my biomedical data?</h3>
       <p>The best-performing model depends on the modality, number of training samples, feature
@@ -379,7 +379,7 @@
         to your own data. In the Strict view, failed fits are scored as the constant baseline and count against
         the model. The Adaptive and Failures-omitted views are sensitivity analyses. Compare classical
         baselines, neural networks, AutoML and tabular foundation models in the
-        <a href="#explore">interactive leaderboard</a> and the <a href="models.html">model comparisons</a>.
+        <a href="#explore">interactive leaderboard</a> and the <a href="/models/">model comparisons</a>.
       </p>
       <h3>How do I benchmark my own model?</h3>
       <p>Define <code>create_model(task)</code> in a Python file. It should return a cloneable scikit-learn
@@ -451,8 +451,8 @@ def create_model(task):
           </div>
         </div>
         <nav class="page-links" aria-label="Benchmark resources">
-          <a class="page-link" href="models.html"><span>Models</span><b aria-hidden="true">→</b></a>
-          <a class="page-link" href="datasets.html"><span>Datasets</span><b aria-hidden="true">→</b></a>
+          <a class="page-link" href="/models/"><span>Models</span><b aria-hidden="true">→</b></a>
+          <a class="page-link" href="/datasets/"><span>Datasets</span><b aria-hidden="true">→</b></a>
           <a class="page-link" href="artifacts.html"><span>Artifacts</span><b aria-hidden="true">→</b></a>
           <a class="page-link" href="changelog.html"><span>Changelog</span><b aria-hidden="true">→</b></a>
           <a class="page-link" href="citation.html"><span>Citation</span><b aria-hidden="true">→</b></a>

@@ -29,6 +29,8 @@ def test_tuned_model_metadata_preserves_family(parent):
     assert tuned["display"] == f"{base['display']} (tuned)"
     assert tuned["source_url"] == base["source_url"]
     assert tuned["source_url"].startswith("https://github.com/")
+    assert base["description"]
+    assert tuned["description"]
 
 
 def test_source_metadata_can_override_parent_or_be_unavailable():
@@ -42,9 +44,19 @@ def test_source_metadata_can_override_parent_or_be_unavailable():
         == "https://github.com/example/custom"
     )
     assert dashboard.model_meta("UNKNOWN", registry)["source_url"] is None
+    assert (
+        dashboard.model_meta("CUSTOM-SEARCH", registry)["description"]
+        == registry["RF"]["description"]
+    )
+    assert dashboard.model_meta("UNKNOWN", registry)["description"] is None
     del registry["CUSTOM-SEARCH"]["source_url"]
     with pytest.raises(KeyError, match="source_url"):
         dashboard.model_meta("CUSTOM-SEARCH", registry)
+
+
+def test_all_registered_models_have_public_descriptions():
+    for identifier, entry in dashboard.load_model_registry().items():
+        assert entry["description"] and len(entry["description"].split()) >= 20, identifier
 
 
 def test_model_metadata_uses_registry_flags_and_custom_parent():
@@ -279,8 +291,16 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
     assert (tmp_path / "site.cache/fold_metrics.sqlite").is_file()
     assert not list(output.rglob("*.sqlite"))
     (output / "assets/og.png").write_bytes(b"stale social card")
+    stale_analysis = output / "data/analysis-adaptive-0000000000000000.json"
+    stale_dataset = output / "data/datasets/0000000000000000.json"
+    unrelated = output / "data/notes.json"
+    for path in (stale_analysis, stale_dataset, unrelated):
+        path.write_text("{}")
     dashboard.build_website(database, output, n_boot=8)
     assert (output / "assets/og.png").read_bytes() == social_image
+    assert not stale_analysis.exists()
+    assert not stale_dataset.exists()
+    assert unrelated.exists()
 
     # Installed wheels must generate the same skill without a source checkout.
     installed = tmp_path / "installed/tabbench_bio/_resources/skills" / skill.name

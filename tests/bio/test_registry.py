@@ -19,6 +19,24 @@ def test_bundled_registry_loads_and_validates():
     assert specs["OpenML-1138"].source == "openml"
 
 
+def test_active_datasets_have_public_descriptions():
+    for spec in load_specs().values():
+        if spec.enabled:
+            assert spec.description and len(spec.description.split()) >= 20, spec.bio_id
+
+
+def test_dataset_source_links_are_overviews_separate_from_downloads():
+    from tabbench_bio.dashboard import dataset_source_url
+
+    for spec in load_specs().values():
+        if spec.enabled:
+            source = spec.source_url or dataset_source_url(spec.source, spec.fetch_id)
+            assert source and source.startswith("https://"), spec.bio_id
+            assert source != spec.download_url, spec.bio_id
+            assert "/api/access/datafile/" not in source, spec.bio_id
+            assert not source.endswith((".csv", ".csv.gz", ".parquet", ".zip")), spec.bio_id
+
+
 def test_curated_datasets_enabled_and_safe_sources_present():
     runnable = ds.runnable_specs()
     by_source = {s.source for s in runnable}

@@ -9,7 +9,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "OVA_Uterus: gene-expression microarray, uterus vs other tissue. HDLSS (1545x10935)."
+    "notes": "OVA_Uterus: gene-expression microarray, uterus vs other tissue. HDLSS (1545x10935).",
+    "description": "These microarray gene expression profiles come from human tumor samples collected by the Expression Project for Oncology and assembled in GEMLeR. The benchmark predicts whether a sample comes from the uterus or from another tissue."
   },
   {
     "bio_id": "TCGA-TCGA-BRCA_Gene-Expression-Quantification",
@@ -21,7 +22,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "NIH Genomic Data Sharing Policy (GDC open-access)",
-    "notes": "BRCA RNA-seq (STAR-Counts tpm_unstranded, GENCODE v36). Target: tumor vs normal (~1118 tumor / 113 normal). HDLSS (~1231x60660); capped at build."
+    "notes": "BRCA RNA-seq (STAR-Counts tpm_unstranded, GENCODE v36). Target: tumor vs normal (~1118 tumor / 113 normal). HDLSS (~1231x60660); capped at build.",
+    "description": "RNA sequencing measures gene expression in breast tissue samples from The Cancer Genome Atlas breast cancer project. The benchmark uses normalized expression values to predict whether each sample is labelled as tumor or normal tissue."
   },
   {
     "bio_id": "GEO-GSE10893",
@@ -32,7 +34,8 @@
     "target": "subtype",
     "problem_type": "multiclass",
     "enabled": true,
-    "notes": "Breast cancer microarray. Multi-platform series; pinned to GPL8864 (the only platform carrying subtype labels, ~180 samples). Target: intrinsic subtype (~7 classes). ~109365 probes -> capped."
+    "notes": "Breast cancer microarray. Multi-platform series; pinned to GPL8864 (the only platform carrying subtype labels, ~180 samples). Target: intrinsic subtype (~7 classes). ~109365 probes -> capped.",
+    "description": "Microarray measurements record gene expression in human breast tissue samples from a study of breast cancer subtypes. The benchmark uses the GPL8864 subset to predict the intrinsic subtype recorded for each sample."
   },
   {
     "bio_id": "kaggle-drsaeedmohsen-eeghumanemotiondataset2021",
@@ -65,7 +68,8 @@
     "target": "sample_type",
     "problem_type": "binary",
     "enabled": true,
-    "notes": "HNSC RNA-seq (STAR-Counts tpm_unstranded). Target: tumor vs normal. HDLSS; capped at build."
+    "notes": "HNSC RNA-seq (STAR-Counts tpm_unstranded). Target: tumor vs normal. HDLSS; capped at build.",
+    "description": "RNA sequencing measures gene expression in tissue samples from The Cancer Genome Atlas head and neck squamous cell carcinoma project. The benchmark uses normalized expression values to predict whether each sample is labelled as tumor or normal tissue."
   },
   {
     "bio_id": "TCGA-TCGA-LUAD_Gene-Expression-Quantification",
@@ -132,7 +136,8 @@
     "problem_type": "regression",
     "enabled": true,
     "license": "Public",
-    "notes": "riboflavin: Bacillus subtilis riboflavin (vitamin B2) production rate from gene expression. Canonical HDLSS regression (Buhlmann/DSM, OpenML id 46983): n=71 x p=4088 log-scaled genes, response 'x' (log-scaled production rate)."
+    "notes": "riboflavin: Bacillus subtilis riboflavin (vitamin B2) production rate from gene expression. Canonical HDLSS regression (Buhlmann/DSM, OpenML id 46983): n=71 x p=4088 log-scaled genes, response 'x' (log-scaled production rate).",
+    "description": "This dataset pairs gene expression measurements in the bacterium Bacillus subtilis with its production of riboflavin, also called vitamin B2. The benchmark predicts the logarithmically scaled riboflavin production rate from logarithmically scaled gene expression values."
   },
   {
     "bio_id": "OpenML-1458",
@@ -145,7 +150,8 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC BY 4.0",
-    "notes": "ARCENE cancer-versus-normal classification from serum mass spectrometry (UCI doi:10.24432/C58P55; pinned OpenML dataset 1458). Uses the 200 publicly labeled training and validation patients with 10000 features: 7000 real mass-spectral abundance features plus 3000 synthetic distractor probes. The original 700 challenge-test targets remain withheld and are excluded."
+    "notes": "ARCENE cancer-versus-normal classification from serum mass spectrometry (UCI doi:10.24432/C58P55; pinned OpenML dataset 1458). Uses the 200 publicly labeled training and validation patients with 10000 features: 7000 real mass-spectral abundance features plus 3000 synthetic distractor probes. The original 700 challenge-test targets remain withheld and are excluded.",
+    "description": "ARCENE combines mass spectrometry measurements of protein abundance in human serum with synthetic distractor features added for a feature selection challenge. The task is to distinguish cancer samples from normal samples using the publicly labelled data."
   },
   {
     "bio_id": "local-GABBA_Evo2-VEP",
@@ -175,7 +181,9 @@
     "enabled": true,
     "redistributable": true,
     "license": "Source terms apply; redistribution authorized by dataset curator",
-    "notes": "BRCA variant-effect prediction from Evo2-7b embeddings (layer blocks.26.mlp.l3). Per row: concat of mean-pooled reference and variant sequence embeddings (4096+4096=8192-d), stored as float32 columns embedding_0..embedding_8191 in compressed Parquet. Values preserve the original CSV's six-decimal float32 representation. Target y=func.class (FUNC/LOF/INT). 3893x8192; built by scripts/generate_brca_embeddings.py."
+    "notes": "BRCA variant-effect prediction from Evo2-7b embeddings (layer blocks.26.mlp.l3). Per row: concat of mean-pooled reference and variant sequence embeddings (4096+4096=8192-d), stored as float32 columns embedding_0..embedding_8191 in compressed Parquet. Values preserve the original CSV's six-decimal float32 representation. Target y=func.class (FUNC/LOF/INT). 3893x8192; built by scripts/generate_brca_embeddings.py.",
+    "description": "BRCA sequence variants are represented by Evo2 embeddings of their reference and altered DNA sequences, averaged over each sequence and joined together. The target assigns each variant to its recorded functional-effect class: FUNC, LOF, or INT.",
+    "source_url": "https://github.com/not-a-feature/TabBench-Bio/releases/tag/v0.1.0"
   },
   {
     "bio_id": "local-BRCA_DNABERT2-VEP",
@@ -218,7 +226,9 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC BY 4.0",
-    "notes": "FusionAI gene-fusion-breakpoint classification from the published Nucleotide Transformer v2 500M multi-species layer-20 middle-token embeddings (Zenodo 18713246). The two 1024-d partner embeddings are concatenated into 2048 features for 51859 rows (25956 fusion-positive, 25903 pseudo-negative). Only NT middle embeddings are fetched from the multi-model archive. Connected components of rows sharing an exact partner embedding are kept within folds. Negatives are pseudo-fusions assembled from genes not known to participate in fusions, so performance must be interpreted as discrimination under this benchmark construction rather than prospective breakpoint detection."
+    "notes": "FusionAI gene-fusion-breakpoint classification from the published Nucleotide Transformer v2 500M multi-species layer-20 middle-token embeddings (Zenodo 18713246). The two 1024-d partner embeddings are concatenated into 2048 features for 51859 rows (25956 fusion-positive, 25903 pseudo-negative). Only NT middle embeddings are fetched from the multi-model archive. Connected components of rows sharing an exact partner embedding are kept within folds. Negatives are pseudo-fusions assembled from genes not known to participate in fusions, so performance must be interpreted as discrimination under this benchmark construction rather than prospective breakpoint detection.",
+    "description": "Each row pairs DNA sequences around two candidate gene-fusion breakpoints, represented by concatenated Nucleotide Transformer v2 embeddings. The task distinguishes fusion-positive pairs from constructed pseudo-fusions, whose partner genes were not known to participate in fusions.",
+    "source_url": "https://doi.org/10.5281/zenodo.18713246"
   },
   {
     "bio_id": "local-DeepLoc2-Fungi-ESM2",
@@ -234,7 +244,9 @@
     "enabled": true,
     "redistributable": true,
     "license": "DeepLoc 2.0 source terms; ESM-2 model MIT; redistribution authorized by dataset curator",
-    "notes": "Complete fungal subset of the official DeepLoc 2.0 Swiss-Prot training/validation data: 5841 unique proteins (1306 membrane-associated, 4535 soluble). Features are 1280-d residue-mean-pooled ESM-2 650M embeddings (facebook/esm2_t33_650M_UR50D, pinned revision); long proteins are pooled across non-overlapping chunks without dropping residues. The five published homology partitions are retained as groups so homologous partitions cannot cross folds. Built by scripts/generate_protein_embeddings.py."
+    "notes": "Complete fungal subset of the official DeepLoc 2.0 Swiss-Prot training/validation data: 5841 unique proteins (1306 membrane-associated, 4535 soluble). Features are 1280-d residue-mean-pooled ESM-2 650M embeddings (facebook/esm2_t33_650M_UR50D, pinned revision); long proteins are pooled across non-overlapping chunks without dropping residues. The five published homology partitions are retained as groups so homologous partitions cannot cross folds. Built by scripts/generate_protein_embeddings.py.",
+    "description": "Fungal proteins from the DeepLoc 2.0 training and validation collection are represented by ESM-2 sequence embeddings, averaged across amino-acid residues. The task classifies each protein as membrane-associated or soluble using the source annotations.",
+    "source_url": "https://services.healthtech.dtu.dk/services/DeepLoc-2.0/"
   },
   {
     "bio_id": "local-PEER-BetaLactamase-ESM2",
@@ -250,7 +262,9 @@
     "enabled": true,
     "redistributable": true,
     "license": "PEER/TorchDrug source terms; ESM-2 model MIT; redistribution authorized by dataset curator",
-    "notes": "PEER TEM-1 beta-lactamase activity task: 5198 unique first-order mutants spanning every one of 286 residue positions. Features are 1280-d residue-mean-pooled ESM-2 650M embeddings (facebook/esm2_t33_650M_UR50D, pinned revision). The sole mutated residue position is retained as the group so alternative amino acids at one site cannot cross folds. Continuous target scaled_effect1 has 3805 unique values. Built by scripts/generate_protein_embeddings.py."
+    "notes": "PEER TEM-1 beta-lactamase activity task: 5198 unique first-order mutants spanning every one of 286 residue positions. Features are 1280-d residue-mean-pooled ESM-2 650M embeddings (facebook/esm2_t33_650M_UR50D, pinned revision). The sole mutated residue position is retained as the group so alternative amino acids at one site cannot cross folds. Continuous target scaled_effect1 has 3805 unique values. Built by scripts/generate_protein_embeddings.py.",
+    "description": "Single-amino-acid mutants of TEM-1 beta-lactamase are represented by ESM-2 embeddings averaged across the protein sequence. The regression target is each mutant's scaled experimental activity value from the PEER benchmark.",
+    "source_url": "https://github.com/DeepGraphLearning/PEER_Benchmark"
   },
   {
     "bio_id": "OpenML-1083",
@@ -262,7 +276,8 @@
     "problem_type": "multiclass",
     "enabled": true,
     "license": "Public",
-    "notes": "mouseType: OpenML dataset. multiclass, 7 classes. HDLSS (214x45101)."
+    "notes": "mouseType: OpenML dataset. multiclass, 7 classes. HDLSS (214x45101).",
+    "description": "This dataset contains normalized gene expression measurements from DNA microarrays in the RSCTC 2010 challenge collection. The benchmark predicts one of seven supplied sample classes, although the OpenML documentation does not explain their biological meaning."
   },
   {
     "bio_id": "OpenML-1106",
@@ -274,7 +289,8 @@
     "problem_type": "multiclass",
     "enabled": true,
     "license": "Public",
-    "notes": "GCM: OpenML dataset. multiclass, 14 classes. HDLSS (190x16063)."
+    "notes": "GCM: OpenML dataset. multiclass, 14 classes. HDLSS (190x16063).",
+    "description": "Microarrays measure gene expression in human tumor samples spanning several cancer types. This benchmark predicts which of fourteen tumor classes a sample belongs to, using the class labels supplied with the Global Cancer Map dataset."
   },
   {
     "bio_id": "OpenML-1137",
@@ -286,7 +302,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "AP_Colon_Kidney: OpenML dataset. binary, 2 classes. HDLSS (546x10935)."
+    "notes": "AP_Colon_Kidney: OpenML dataset. binary, 2 classes. HDLSS (546x10935).",
+    "description": "These microarray gene expression profiles come from human tumor samples collected by the Expression Project for Oncology and assembled in GEMLeR. The benchmark predicts whether each sample comes from colon or kidney tissue."
   },
   {
     "bio_id": "OpenML-430",
@@ -298,7 +315,8 @@
     "problem_type": "regression",
     "enabled": true,
     "license": "Public",
-    "notes": "mtp2: OpenML dataset. regression. HDLSS (274x1142)."
+    "notes": "mtp2: OpenML dataset. regression. HDLSS (274x1142).",
+    "description": "The mtp2 dataset represents drug-like molecules with numerical molecular descriptors calculated using Adriana.Code. Its regression target, stored as oz1143, is the compound's melting point, drawn from a study of molecular structure and the melting behavior of solid drugs."
   },
   {
     "bio_id": "OpenML-1084",
@@ -310,7 +328,8 @@
     "problem_type": "multiclass",
     "enabled": true,
     "license": "Public",
-    "notes": "BurkittLymphoma: OpenML dataset. multiclass, 3 classes. HDLSS (220x22283)."
+    "notes": "BurkittLymphoma: OpenML dataset. multiclass, 3 classes. HDLSS (220x22283).",
+    "description": "The BurkittLymphoma dataset contains normalized gene expression measurements from DNA microarrays. The benchmark predicts one of three supplied lymphoma sample classes; OpenML identifies these only by numeric labels and does not document the distinctions between them."
   },
   {
     "bio_id": "OpenML-1088",
@@ -322,7 +341,8 @@
     "problem_type": "multiclass",
     "enabled": true,
     "license": "Public",
-    "notes": "variousCancers_final: OpenML dataset. multiclass, 9 classes. HDLSS (383x54675)."
+    "notes": "variousCancers_final: OpenML dataset. multiclass, 9 classes. HDLSS (383x54675).",
+    "description": "The variousCancers_final dataset contains normalized microarray gene expression measurements from the RSCTC 2010 challenge collection. The benchmark predicts the supplied cancer sample class, but the OpenML documentation does not name the individual classes."
   },
   {
     "bio_id": "OpenML-1129",
@@ -358,7 +378,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "AP_Ovary_Lung: OpenML dataset. binary, 2 classes. HDLSS (324x10935)."
+    "notes": "AP_Ovary_Lung: OpenML dataset. binary, 2 classes. HDLSS (324x10935).",
+    "description": "These microarray gene expression profiles come from human tumor samples collected by the Expression Project for Oncology and assembled in GEMLeR. The benchmark predicts whether each sample comes from ovary or lung tissue."
   },
   {
     "bio_id": "OpenML-1131",
@@ -442,7 +463,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (674x17026)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (674x17026).",
+    "description": "Skin microbiome data from a study that sequenced both virus-like particles and total microbial communities. The benchmark uses MGnify InterPro functional-abundance profiles to predict the recorded sex of the human host."
   },
   {
     "bio_id": "MGYS00005628",
@@ -490,7 +512,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'isolation source', 2 classes. HDLSS (264x16690)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'isolation source', 2 classes. HDLSS (264x16690).",
+    "description": "Assembled Human Microbiome Project sequences from samples collected across several body sites in healthy adults. The benchmark uses MGnify InterPro functional-abundance profiles to predict each sample's recorded isolation source."
   },
   {
     "bio_id": "MGYS00005285",
@@ -502,7 +525,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (438x12705)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (438x12705).",
+    "description": "Gut microbiome data from a study of type 2 diabetes, reassembled and annotated by MGnify. The benchmark uses InterPro functional-abundance profiles of the microbial community to predict recorded host sex."
   },
   {
     "bio_id": "MGYS00006282",
@@ -514,7 +538,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (256x12968)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (256x12968).",
+    "description": "Gut microbiome sequencing from a dietary intervention study involving cholesterol-lowering vegetable oils, reassembled by MGnify. The benchmark uses InterPro functional-abundance profiles of microbial communities to predict recorded host sex."
   },
   {
     "bio_id": "MGYS00002425",
@@ -526,7 +551,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (394x12651)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes. HDLSS (394x12651).",
+    "description": "Gut microbiome sequencing from preterm infants, reassembled and annotated by MGnify. InterPro functional-abundance profiles summarize microbial protein functions, and the benchmark uses these profiles to predict recorded host sex."
   },
   {
     "bio_id": "MGYS00005791",
@@ -598,7 +624,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'environment (biome)', 2 classes. HDLSS (218x13394)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'environment (biome)', 2 classes. HDLSS (218x13394).",
+    "description": "Microbiome sequencing from a study of antibiotic resistance exchange in resource-poor Latin American settings, reassembled by MGnify. The benchmark uses InterPro functional-abundance profiles to predict the recorded environmental biome of each sample."
   },
   {
     "bio_id": "MGYS00001255",
@@ -610,7 +637,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes (122 male, 30 female). HDLSS (152x14103)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'host sex', 2 classes (122 male, 30 female). HDLSS (152x14103).",
+    "description": "Human fecal microbiome samples from a study of HIV infection, originally described as 16S rRNA sequencing. The benchmark uses MGnify InterPro functional-abundance profiles to predict recorded host sex."
   },
   {
     "bio_id": "MGYS00001056",
@@ -622,7 +650,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'isolation source', 2 classes. HDLSS (306x15268)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'isolation source', 2 classes. HDLSS (306x15268).",
+    "description": "Microbial functional profiles from Human Microbiome Project samples collected across several body sites in healthy adults. The benchmark uses MGnify InterPro abundances to predict the recorded isolation source of each sample."
   },
   {
     "bio_id": "MGYS00005379",
@@ -634,7 +663,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "Public",
-    "notes": "MGnify IPR functional profile. Target metadata field 'environment (material)', 2 classes. HDLSS (1450x14826)."
+    "notes": "MGnify IPR functional profile. Target metadata field 'environment (material)', 2 classes. HDLSS (1450x14826).",
+    "description": "Microbial functional profiles from the Gene-Environment Interactions at the Skin Surface project. The benchmark uses MGnify InterPro abundances from assembled sequences to predict the recorded environmental material associated with each sample."
   },
   {
     "bio_id": "gut-cirrhosis",
@@ -647,7 +677,8 @@
     "problem_type": "binary",
     "enabled": true,
     "license": "CC-BY-4.0",
-    "notes": "Qin cirrhosis cohort in MetAML: 118 cases and 114 controls, all stool, 232 distinct subjects. Participant-grouped CV. Raw 232x288347 binary markers; >=10% prevalence fitted on training rows only before the feature cap."
+    "notes": "Qin cirrhosis cohort in MetAML: 118 cases and 114 controls, all stool, 232 distinct subjects. Participant-grouped CV. Raw 232x288347 binary markers; >=10% prevalence fitted on training rows only before the feature cap.",
+    "description": "Stool metagenomes from the Qin liver cirrhosis study, represented as the presence or absence of microbial genetic markers in MetAML. The benchmark predicts whether a sample came from a participant with cirrhosis or a healthy control."
   },
   {
     "bio_id": "TDC-BBB-Martins",
@@ -663,8 +694,9 @@
     "notes": "Validated official Harvard Dataverse file 4259566. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 1954 molecules, 2048 features, 1187 groups; 1 invalid structure and 11 conflicting molecules dropped.",
     "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259566",
     "download_sha256": "eb32676c7bf6e2bcd98b7625186bbb2ba4e4644c1d1468dfa18b6be665bd5e98",
-    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259566",
-    "citation": "Martins IF et al. (2012), A Bayesian approach to in silico blood-brain barrier penetration modeling."
+    "source_url": "https://tdcommons.ai/single_pred_tasks/adme/#bbb-blood-brain-barrier-martins-et-al",
+    "citation": "Martins IF et al. (2012), A Bayesian approach to in silico blood-brain barrier penetration modeling.",
+    "description": "The Martins dataset labels compounds by whether they cross the blood-brain barrier. The benchmark uses molecular fingerprints to distinguish compounds labelled as penetrating the barrier from those labelled as non-penetrating."
   },
   {
     "bio_id": "TDC-AMES",
@@ -680,8 +712,9 @@
     "notes": "Validated official Harvard Dataverse file 4259564. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 7255 molecules, 2048 features, 3008 groups; no invalid or conflicting structures.",
     "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259564",
     "download_sha256": "825c2b4c31c9cec81aa32eb394fd24e6b32ee4959905d4272e56483ecb6f3e16",
-    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259564",
-    "citation": "Hansen K et al. (2009), Benchmark data set for in silico prediction of Ames mutagenicity."
+    "source_url": "https://tdcommons.ai/single_pred_tasks/tox/#ames-mutagenicity",
+    "citation": "Hansen K et al. (2009), Benchmark data set for in silico prediction of Ames mutagenicity.",
+    "description": "The Ames dataset records whether compounds cause mutations in a bacterial test. Using molecular fingerprints, the benchmark predicts the mutagenic or non-mutagenic label assigned to each compound."
   },
   {
     "bio_id": "TDC-CYP3A4-Veith",
@@ -697,8 +730,9 @@
     "notes": "Validated official Harvard Dataverse file 4259582. Canonical parent structures, exact-molecule deduplication, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 12300 molecules, 2048 features, 7867 groups; 1 invalid and 1 conflicting molecule dropped.",
     "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259582",
     "download_sha256": "4c85a4cea9ffadd36fdd188f96b866d1d8db5d333a6d423172cf4363a585565a",
-    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259582",
-    "citation": "Veith H et al. (2009), Comprehensive characterization of cytochrome P450 isozyme selectivity."
+    "source_url": "https://tdcommons.ai/single_pred_tasks/adme/#cyp-p450-3a4-inhibition-veith-et-al",
+    "citation": "Veith H et al. (2009), Comprehensive characterization of cytochrome P450 isozyme selectivity.",
+    "description": "This dataset records whether compounds inhibit CYP3A4, a human enzyme involved in drug metabolism. The benchmark uses molecular fingerprints to predict the inhibition labels from the screening study by Veith and colleagues."
   },
   {
     "bio_id": "TDC-AqSolDB",
@@ -714,8 +748,9 @@
     "notes": "Validated official Harvard Dataverse file 4259610. Canonical parent structures, median target for exact duplicates, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 9562 molecules, 2048 features, 4620 groups; 2 invalid structures dropped.",
     "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259610",
     "download_sha256": "0b593f7b55abbe477ba4284aefd7b5450551f4ed21ac4aed80a097931141c9a4",
-    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259610",
-    "citation": "Sorkun MC et al. (2019), AqSolDB, a curated reference set of aqueous solubility."
+    "source_url": "https://tdcommons.ai/single_pred_tasks/adme/#solubility-aqsoldb",
+    "citation": "Sorkun MC et al. (2019), AqSolDB, a curated reference set of aqueous solubility.",
+    "description": "AqSolDB collects experimental measurements of how readily compounds dissolve in water. The benchmark predicts logS from molecular fingerprints, with logS defined as the base-10 logarithm of solubility in moles per litre."
   },
   {
     "bio_id": "TDC-Lipophilicity-AstraZeneca",
@@ -731,8 +766,9 @@
     "notes": "Validated official Harvard Dataverse file 4259595. Canonical parent structures, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 4200 molecules, 2048 features, 2447 groups; no invalid or duplicate structures.",
     "download_url": "https://dataverse.harvard.edu/api/access/datafile/4259595",
     "download_sha256": "14add1edb356e62f78256ff964c0cbba03c007be3ff48d6d4c18679f307f1d4c",
-    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4259595",
-    "citation": "AstraZeneca / MoleculeNet lipophilicity benchmark, distributed by Therapeutics Data Commons."
+    "source_url": "https://tdcommons.ai/single_pred_tasks/adme/#lipophilicity-astrazeneca",
+    "citation": "AstraZeneca / MoleculeNet lipophilicity benchmark, distributed by Therapeutics Data Commons.",
+    "description": "AstraZeneca's lipophilicity dataset measures how compounds distribute between octanol and water at pH 7.4. The benchmark uses molecular fingerprints to predict logD, the logarithm of this distribution coefficient."
   },
   {
     "bio_id": "TDC-LD50-Zhu",
@@ -748,8 +784,9 @@
     "notes": "Validated official Harvard Dataverse file 4267146. Canonical parent structures, median target for exact duplicates, 2048-bit ECFP4, grouped by Bemis-Murcko scaffold. Quality pass: 7341 molecules, 2048 features, 3605 groups; 1 invalid structure dropped.",
     "download_url": "https://dataverse.harvard.edu/api/access/datafile/4267146",
     "download_sha256": "fdae7cfe7840fcca3341be0126cb6cbf1b16a4fcde42865f98cb9ca607f5ff16",
-    "source_url": "https://dataverse.harvard.edu/api/access/datafile/4267146",
-    "citation": "Zhu H et al. (2009), Quantitative structure-activity relationship modeling of rat acute toxicity."
+    "source_url": "https://tdcommons.ai/single_pred_tasks/tox/#acute-toxicity-ld50",
+    "citation": "Zhu H et al. (2009), Quantitative structure-activity relationship modeling of rat acute toxicity.",
+    "description": "The Zhu dataset contains acute oral toxicity measurements in rats. The benchmark predicts pLD50 from molecular fingerprints: the negative base-10 logarithm of the median lethal dose, measured in moles per kilogram of body weight."
   },
   {
     "bio_id": "GEO-GSE40279-Methylation-Age",
@@ -764,7 +801,8 @@
     "license": "NCBI GEO public data; study-specific terms require verification before re-hosting",
     "group_column": "plate",
     "source_max_features": 30000,
-    "notes": "Validated official GEO series matrix: 656 samples and 473034 source probes. Illumina HumanMethylation450 whole-blood beta values and chronological age. The 30000 complete probes with the lowest stable probe-ID hashes are retained without target-dependent selection. Samples are grouped by 9 assay plates because the covariate audit found substantial plate-age imbalance; no plate may cross a split. No missing/non-finite values."
+    "notes": "Validated official GEO series matrix: 656 samples and 473034 source probes. Illumina HumanMethylation450 whole-blood beta values and chronological age. The 30000 complete probes with the lowest stable probe-ID hashes are retained without target-dependent selection. Samples are grouped by 9 assay plates because the covariate audit found substantial plate-age imbalance; no plate may cross a split. No missing/non-finite values.",
+    "description": "DNA methylation measurements from human whole blood, collected with Illumina HumanMethylation450 arrays across people of different ages. The regression task is to predict a participant's chronological age from methylation levels at CpG sites."
   },
   {
     "bio_id": "GEO-GSE42861-Methylation-RA",
@@ -778,7 +816,8 @@
     "redistributable": false,
     "license": "NCBI GEO public data; study-specific terms require verification before re-hosting",
     "source_max_features": 30000,
-    "notes": "Validated official GEO series matrix: 689 samples (354 rheumatoid arthritis, 335 normal) and 485577 source probes. Illumina HumanMethylation450 peripheral-blood leukocyte beta values. The 30000 complete probes with the lowest stable probe-ID hashes are retained without target-dependent selection; quality pass with 689 independent sample groups and no missing/non-finite values."
+    "notes": "Validated official GEO series matrix: 689 samples (354 rheumatoid arthritis, 335 normal) and 485577 source probes. Illumina HumanMethylation450 peripheral-blood leukocyte beta values. The 30000 complete probes with the lowest stable probe-ID hashes are retained without target-dependent selection; quality pass with 689 independent sample groups and no missing/non-finite values.",
+    "description": "DNA methylation profiles from peripheral blood leukocytes of people with rheumatoid arthritis and control participants, measured with Illumina HumanMethylation450 arrays. The task is to classify rheumatoid arthritis case status from methylation levels at CpG sites."
   },
   {
     "bio_id": "GEO-GSE50660-Methylation-Smoking",
@@ -792,7 +831,8 @@
     "redistributable": false,
     "license": "NCBI GEO public data; study-specific terms require verification before re-hosting",
     "source_max_features": 30000,
-    "notes": "Official GEO series matrix with Illumina HumanMethylation450 peripheral-blood beta values for 464 people: 179 never, 263 former and 22 current smokers. Labels 0/1/2 are normalized to never/former/current. The 30000 complete probes with the lowest stable probe-ID hashes are retained without target-dependent selection."
+    "notes": "Official GEO series matrix with Illumina HumanMethylation450 peripheral-blood beta values for 464 people: 179 never, 263 former and 22 current smokers. Labels 0/1/2 are normalized to never/former/current. The 30000 complete probes with the lowest stable probe-ID hashes are retained without target-dependent selection.",
+    "description": "Peripheral blood DNA methylation profiles measured with Illumina HumanMethylation450 arrays in a study of cigarette smoking. The task is to classify each participant as a never, former, or current smoker using methylation levels at CpG sites."
   },
   {
     "bio_id": "GEO-GSE147221-Methylation-Schizophrenia",
@@ -807,7 +847,8 @@
     "license": "NCBI GEO public data; study-specific terms require verification before re-hosting",
     "group_column": "geo_title_plate",
     "source_max_features": 30000,
-    "notes": "Official GEO processed-signal supplement with Illumina HumanMethylation450 whole-blood beta values. The supplement contains 679 QC-retained biological samples (348 cases, 331 controls) and omits 41 of the 720 series samples, including all 7 fully methylated technical controls; inconsistent status capitalization is normalized. Samples on the same 12-array assay plate, derived from the normalized GEO sample-title prefix, remain in one fold. Detection-P-value columns are excluded, and the 30000 complete beta-value probes with the lowest stable probe-ID hashes are retained without target-dependent selection."
+    "notes": "Official GEO processed-signal supplement with Illumina HumanMethylation450 whole-blood beta values. The supplement contains 679 QC-retained biological samples (348 cases, 331 controls) and omits 41 of the 720 series samples, including all 7 fully methylated technical controls; inconsistent status capitalization is normalized. Samples on the same 12-array assay plate, derived from the normalized GEO sample-title prefix, remain in one fold. Detection-P-value columns are excluded, and the 30000 complete beta-value probes with the lowest stable probe-ID hashes are retained without target-dependent selection.",
+    "description": "Blood DNA methylation profiles from the Dublin schizophrenia study, measured at CpG sites with Illumina HumanMethylation450 arrays. The task is to distinguish participants with schizophrenia from control participants using their methylation measurements."
   },
   {
     "bio_id": "gp-maize-FT",
@@ -834,7 +875,8 @@
         "checksum": "1f8eadf2595faec317af5665f8be4afc",
         "algorithm": "md5"
       }
-    }
+    },
+    "description": "This maize panel pairs genome-wide SNP genotypes with flowering-time measurements for individual plant lines. The regression task uses genetic marker values to predict flowering time, drawing on the crop datasets assembled by Azodi and colleagues."
   },
   {
     "bio_id": "gp-rice-FT",
@@ -861,7 +903,8 @@
         "checksum": "f6f14948fc9cbede9d08cc3edb78c2d7",
         "algorithm": "md5"
       }
-    }
+    },
+    "description": "This rice panel contains SNP genotype profiles and flowering-time measurements, with one row per plant line. The regression task predicts flowering time from genetic markers using the data assembled for Azodi and colleagues' genomic-prediction comparison."
   },
   {
     "bio_id": "gp-soy-YLD",
@@ -888,7 +931,8 @@
         "checksum": "bdfaa0ceacf42b0197cbb8ee8347f56c",
         "algorithm": "md5"
       }
-    }
+    },
+    "description": "Soybean plant lines are described by SNP genotype values and paired with their measured yield trait. The regression task predicts yield from these genetic markers using the soybean panel in Azodi and colleagues' genomic-prediction study."
   },
   {
     "bio_id": "gp-switchgrass-HT",
@@ -915,7 +959,8 @@
         "checksum": "5d2fbd31a9fde9edffec23f1d13f34d7",
         "algorithm": "md5"
       }
-    }
+    },
+    "description": "This switchgrass panel pairs SNP genotype profiles with plant-height measurements for individual plant lines. The regression task predicts height from genetic markers using the data assembled for Azodi and colleagues' comparison of genomic-prediction methods."
   },
   {
     "bio_id": "CHEMBL206",
@@ -928,7 +973,8 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY-SA 3.0",
-    "notes": "Human single-protein estrogen receptor endpoint, pinned to ChEMBL 37. Exact unflagged pChEMBL measurements are canonicalised to parent structures, exact molecules receive their median target, and molecules become 2048-bit ECFP4 features grouped by Bemis-Murcko scaffold."
+    "notes": "Human single-protein estrogen receptor endpoint, pinned to ChEMBL 37. Exact unflagged pChEMBL measurements are canonicalised to parent structures, exact molecules receive their median target, and molecules become 2048-bit ECFP4 features grouped by Bemis-Murcko scaffold.",
+    "description": "This dataset collects measured bioactivity of compounds tested against the human estrogen receptor. The benchmark uses molecular fingerprints to predict each compound's median pChEMBL value, a logarithmic measure of reported potency or affinity."
   },
   {
     "bio_id": "CHEMBL2034",
@@ -941,7 +987,8 @@
     "enabled": true,
     "redistributable": false,
     "license": "CC BY-SA 3.0",
-    "notes": "Human single-protein glucocorticoid receptor endpoint, pinned to ChEMBL 37. Exact unflagged pChEMBL measurements are canonicalised to parent structures, exact molecules receive their median target, and molecules become 2048-bit ECFP4 features grouped by Bemis-Murcko scaffold."
+    "notes": "Human single-protein glucocorticoid receptor endpoint, pinned to ChEMBL 37. Exact unflagged pChEMBL measurements are canonicalised to parent structures, exact molecules receive their median target, and molecules become 2048-bit ECFP4 features grouped by Bemis-Murcko scaffold.",
+    "description": "This dataset pairs chemical structures with measured bioactivity against the human glucocorticoid receptor. The benchmark represents each molecule as a fingerprint and predicts its median pChEMBL value, which summarizes potency or affinity on a logarithmic scale."
   },
   {
     "bio_id": "MoleculeNet-Tox21-SR-MMP",
@@ -950,7 +997,7 @@
     "fetch_id": "SR-MMP",
     "download_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
     "download_sha256": "45d09792492ce049039dd24aa27b07fc79ce20c573187d4d90bcd178c0c0d360",
-    "source_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+    "source_url": "https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html#tox21-datasets",
     "citation": "Wu Z et al. (2018), MoleculeNet: a benchmark for molecular machine learning. doi:10.1039/C7SC02664A; Tox21 SR-MMP assay.",
     "data_type": "Molecular Fingerprint",
     "target": "SR-MMP",
@@ -958,7 +1005,8 @@
     "enabled": true,
     "redistributable": false,
     "license": "Tox21 / MoleculeNet distribution; underlying source terms apply",
-    "notes": "Measured SR-MMP activity. Pinned original Tox21 CSV; missing assay labels excluded, canonical parent structures deduplicated, conflicting parent labels dropped under the existing 1% quality limit. Stateless 2048-bit ECFP4. Scaffolds linked by identical fingerprints form indivisible groups. Shares the Tox21 cohort with NR-AhR; endpoints are not independent cohorts."
+    "notes": "Measured SR-MMP activity. Pinned original Tox21 CSV; missing assay labels excluded, canonical parent structures deduplicated, conflicting parent labels dropped under the existing 1% quality limit. Stateless 2048-bit ECFP4. Scaffolds linked by identical fingerprints form indivisible groups. Shares the Tox21 cohort with NR-AhR; endpoints are not independent cohorts.",
+    "description": "The Tox21 SR-MMP assay screens for compounds that decrease mitochondrial membrane potential in HepG2 cells. The benchmark uses molecular fingerprints to predict the assay's active or inactive label for each compound."
   },
   {
     "bio_id": "MoleculeNet-Tox21-NR-AhR",
@@ -967,7 +1015,7 @@
     "fetch_id": "NR-AhR",
     "download_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
     "download_sha256": "45d09792492ce049039dd24aa27b07fc79ce20c573187d4d90bcd178c0c0d360",
-    "source_url": "https://deepchemdata.s3-us-west-1.amazonaws.com/datasets/tox21.csv.gz",
+    "source_url": "https://deepchem.readthedocs.io/en/latest/api_reference/moleculenet.html#tox21-datasets",
     "citation": "Wu Z et al. (2018), MoleculeNet: a benchmark for molecular machine learning. doi:10.1039/C7SC02664A; Tox21 NR-AhR assay.",
     "data_type": "Molecular Fingerprint",
     "target": "NR-AhR",
@@ -975,7 +1023,8 @@
     "enabled": true,
     "redistributable": false,
     "license": "Tox21 / MoleculeNet distribution; underlying source terms apply",
-    "notes": "Measured NR-AhR activity. Uses the same pinned source and scaffold-plus-identical-input grouping as SR-MMP, with endpoint-specific missing labels and conflicts removed. Shares the Tox21 cohort with SR-MMP; endpoints are not independent cohorts."
+    "notes": "Measured NR-AhR activity. Uses the same pinned source and scaffold-plus-identical-input grouping as SR-MMP, with endpoint-specific missing labels and conflicts removed. Shares the Tox21 cohort with SR-MMP; endpoints are not independent cohorts.",
+    "description": "This Tox21 task records compound activity in the aryl hydrocarbon receptor signalling pathway. The benchmark uses molecular fingerprints to predict whether a compound receives an active or inactive label in the AhR assay."
   },
   {
     "bio_id": "MW-ST001000-CD-UC",
@@ -992,6 +1041,7 @@
     "enabled": true,
     "redistributable": true,
     "license": "CC BY 4.0",
-    "notes": "Primary ST001000 AN001880 C18-negative table: 121 PRISM participants (68 CD, 53 UC), 2121 metabolite features. Target 1=CD, 0=UC. Participant IDs and diagnosis fields excluded from X; log1p only, with source NA retained for training-fitted missingness handling. External 43-person UMCGIBD cohort excluded from benchmark CV. Manual small-cohort inclusion below the separate quality helper's 150-row default. Within-PRISM batch/plate metadata remain unavailable."
+    "notes": "Primary ST001000 AN001880 C18-negative table: 121 PRISM participants (68 CD, 53 UC), 2121 metabolite features. Target 1=CD, 0=UC. Participant IDs and diagnosis fields excluded from X; log1p only, with source NA retained for training-fitted missingness handling. External 43-person UMCGIBD cohort excluded from benchmark CV. Manual small-cohort inclusion below the separate quality helper's 150-row default. Within-PRISM batch/plate metadata remain unavailable.",
+    "description": "Untargeted stool metabolomics measurements from the PRISM inflammatory bowel disease cohort, using the study's C18 negative-ion mass spectrometry data. The task is to distinguish Crohn's disease from ulcerative colitis using metabolite feature abundances."
   }
 ]

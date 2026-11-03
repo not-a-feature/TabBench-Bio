@@ -6,7 +6,6 @@
   <meta name="viewport" content="width=device-width, initial-scale=1">
   <meta name="description" content="The versioned biomedical dataset registry used by TabBench-Bio.">
   <meta name="theme-color" content="#f4f5f1">
-  <link rel="canonical" href="https://tabbench-bio.eu/dataset.html">
   <link rel="alternate" type="application/json" href="https://tabbench-bio.eu/data/datasets/index.json"
     title="TabBench-Bio dataset metadata">
   <link rel="alternate" type="text/plain" href="https://tabbench-bio.eu/llms.txt"
@@ -17,7 +16,7 @@
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
   <link rel="stylesheet" href="style.min.css?v=20261028-code-cards">
-  <link rel="stylesheet" href="dataset-explorer.css?v=20261102-stacked-model-panels">
+  <link rel="stylesheet" href="dataset-explorer.css?v=20261103-license-badge">
 </head>
 
 <body data-page="dataset">
@@ -25,8 +24,8 @@
     <a class="wordmark" href="index.html" aria-label="TabBench-Bio home"><span class="wordmark-mark"
         aria-hidden="true"></span><span>TabBench-<strong>Bio</strong></span></a>
     <nav aria-label="Primary navigation">
-      <a href="index.html#explore">Explore</a><a href="datasets.html" aria-current="page">Datasets</a><a
-        href="models.html">Models</a><a href="artifacts.html">Artifacts</a><a href="changelog.html">Changelog</a><a
+      <a href="index.html#explore">Explore</a><a href="/datasets/" aria-current="page">Datasets</a><a
+        href="/models/">Models</a><a href="artifacts.html">Artifacts</a><a href="changelog.html">Changelog</a><a
         href="https://github.com/not-a-feature/TabBench-Bio">GitHub</a>
     </nav>
     <button id="theme-toggle" class="theme-button" type="button" aria-label="Switch to dark theme" aria-pressed="false"
@@ -36,15 +35,16 @@
         </svg></span></button>
   </header>
   <main id="top" class="dataset-explorer shell">
-    <a id="dataset-back" class="dataset-back" href="datasets.html">← All datasets</a>
-    <p id="detail-not-found" class="dataset-empty" hidden>Dataset not found. <a href="datasets.html">Browse the
+    <a id="dataset-back" class="dataset-back" href="/datasets/">← All datasets</a>
+    <p id="detail-not-found" class="dataset-empty" hidden>Dataset not found. <a href="/datasets/">Browse the
         registry</a>.</p>
     <div id="dataset-detail-content">
       <header class="dataset-page-heading">
         <p class="eyebrow" id="detail-modality">Dataset</p>
         <h1 id="detail-title">Loading dataset…</h1>
+        <p id="dataset-description"></p>
       </header>
-      <div class="dataset-context"><span id="detail-task" class="tag"></span><span id="detail-id" class="tag"></span><span>Target: <strong
+      <div class="dataset-context"><span id="detail-task" class="tag"></span><span id="detail-license" class="tag"></span><span id="detail-id" class="tag"></span><span>Target: <strong
             id="detail-target"></strong></span><a id="detail-source" class="source-link" target="_blank"
           rel="noreferrer">Source ↗</a></div>
       <section class="results-toolbar dataset-toolbar" aria-label="Operating point">
@@ -114,8 +114,8 @@
   </footer>
   <div id="load-error" class="load-error" hidden></div>
   <script src="js/analytics.js?v=20260908-optout"></script>
-  <script src="js/datasets.js?v=20261102-query-details"></script>
-  <script src="js/app.js?v=20261102-model-copy"></script>
+  <script src="js/datasets.js?v=20261103-license-badge"></script>
+  <script src="js/app.js?v=20261103-static-pages"></script>
 </body>
 
 </html>

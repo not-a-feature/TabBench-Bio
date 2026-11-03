@@ -23,6 +23,7 @@ body[data-page="models"] .dataset-filters { grid-template-columns: minmax(210px,
 .dataset-back { display: inline-block; color: var(--accent); margin-bottom: 24px; font-size: 0.9rem; }
 .dataset-context { display: flex; flex-wrap: wrap; align-items: center; gap: 12px 24px; margin: -8px 0 26px; font-size: 0.875rem; color: var(--muted); }
 .dataset-context .tag { font-size: 0.8rem; }
+.dataset-context #detail-license { max-width: 100%; white-space: normal; overflow-wrap: anywhere; }
 .dataset-context .source-link { text-transform: none; font-size: 0.875rem; }
 .dataset-toolbar { margin-top: 0; align-items: end; }
 .model-toolbar { grid-template-columns: minmax(0, 1fr); }

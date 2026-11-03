@@ -43,6 +43,7 @@
         }
       ]
     },
-    "source_url": "https://github.com/scikit-learn/scikit-learn"
+    "source_url": "https://github.com/scikit-learn/scikit-learn",
+    "description": "This uses the same Extra Trees model as XT for classification or regression. A small predefined grid varies candidate features per split, minimum leaf size and bootstrap sampling on a training-only holdout, then the selected model is refitted on the full training fold."
   }
 ]

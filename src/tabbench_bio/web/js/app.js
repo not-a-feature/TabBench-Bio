@@ -6,10 +6,13 @@ let SHOW_ALL_MODELS = false;
 let RANK_REFERENCE_CELL = null;
 let CHARTS_READY = false;
 
+const SITE_ROOT = new URL("../", document.currentScript.src);
+const siteUrl = path => new URL(path, SITE_ROOT).href;
 const SCRIPT_LOADS = new Map();
 const TRAINING_OVERLAP_NOTE = "Part of the benchmark training data was used in the training process of this model.";
 function detailPageUrl(kind, identifier) {
-  return `${kind}.html?${new URLSearchParams({[kind === "model" ? "model" : "id"]: identifier})}`;
+  const slug = identifier.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+  return siteUrl(`${kind}s/${slug}/`);
 }
 function hasTrainingOverlap(model) { return DATA.models[model.model_id || model.id].training_data_overlap === true; }
 function modelLabel(model) { return model.display + (hasTrainingOverlap(model) ? " †" : ""); }
@@ -20,7 +23,7 @@ function loadExternalScript(path, globalName) {
   if (SCRIPT_LOADS.has(path)) return SCRIPT_LOADS.get(path);
   const promise = new Promise((resolve, reject) => {
     const script = document.createElement("script");
-    script.src = path;
+    script.src = siteUrl(path);
     script.async = true;
     script.addEventListener("load", () => {
       if (!window[globalName]) {
@@ -460,6 +463,14 @@ function initializeModelOverview() {
 
 function renderModelCard() {
   const modelId = byId("model-card-model").value;
+  if (document.body.dataset.entityId && document.body.dataset.entityId !== modelId) {
+    const params = new URLSearchParams(location.search);
+    params.delete("model");
+    params.set("compare", byId("model-card-comparator").value);
+    params.set("p", byId("model-card-cap").value);
+    location.assign(`${detailPageUrl("model", modelId)}?${params}`);
+    return;
+  }
   const comparatorId = byId("model-card-comparator").value;
   const comparator = DATA.models[comparatorId];
   const featureCap = budgetValue(byId("model-card-cap").value);
@@ -470,15 +481,11 @@ function renderModelCard() {
   if (model.source_url) sourceLink.href = model.source_url;
   else sourceLink.removeAttribute("href");
   const params = new URLSearchParams(location.search);
-  params.set("model", modelId);
+  params.delete("model");
   params.set("compare", comparatorId);
   params.set("p", byId("model-card-cap").value);
   history.replaceState(null, "", `${location.pathname}?${params}`);
-  document.title = `${model.display} · TabBench-Bio`;
   byId("model-page-title").textContent = model.display;
-  const description = `${model.display} (${model.category}) on TabBench-Bio: compare biomedical benchmark performance and failure rates across feature and training-sample budgets.`;
-  document.querySelector('meta[name="description"]').content = description;
-  document.querySelector('link[rel="canonical"]').href = new URL(detailPageUrl("model", modelId), location.href).href;
   const domains = DATA.domains.filter((domain) => domain !== "all");
   const cells = DATA.cell_options
     .filter((cell) => sameBudget(cell.feature_cap, featureCap))
@@ -573,7 +580,7 @@ function initializeModelCard() {
   const capSelect = byId("model-card-cap");
   const comparatorSelect = byId("model-card-comparator");
   const params = new URLSearchParams(location.search);
-  const requestedModel = params.get("model");
+  const requestedModel = document.body.dataset.entityId || params.get("model");
   const modelIds = Object.keys(DATA.models)
     .filter((modelId) => modelId === requestedModel || (!EXCLUDED.has(modelId) && (SHOW_ALL_MODELS || modelId !== "AUTOGLUON")))
     .sort((left, right) => DATA.models[left].display.localeCompare(DATA.models[right].display));
@@ -1300,7 +1307,7 @@ function renderComposition() {
     barmode: "stack",
     bargap: 0.3,
     xaxis: axes({ title: "Datasets", dtick: 2 }),
-    yaxis: axes({ showgrid: false, tickmode: "array", tickvals: modalities, ticktext: modalities.map(modality => `<a style="color: ${css("--ink")}" href="datasets.html?modality=${encodeURIComponent(modality)}">${escapeHtml(modality)}</a>`) }),
+    yaxis: axes({ showgrid: false, tickmode: "array", tickvals: modalities, ticktext: modalities.map(modality => `<a style="color: ${css("--ink")}" href="${siteUrl("datasets/")}?modality=${encodeURIComponent(modality)}">${escapeHtml(modality)}</a>`) }),
     legend: { orientation: "h", x: 0, y: mobile ? -0.24 : -0.2, font: { size: 11, color: css("--muted") } },
   });
   const chart = byId("composition-chart");
@@ -1313,7 +1320,7 @@ function renderComposition() {
     });
     chart.removeAllListeners("plotly_click");
     chart.on("plotly_click", event => {
-      location.href = `datasets.html?modality=${encodeURIComponent(event.points[0].y)}`;
+      location.href = `${siteUrl("datasets/")}?modality=${encodeURIComponent(event.points[0].y)}`;
     });
   });
 }
@@ -1424,7 +1431,7 @@ async function loadAnalysisView(view) {
   if (DATA.analysis_views[view]) return DATA.analysis_views[view];
   if (!ANALYSIS_LOADS.has(view)) {
     const pending = (async () => {
-      const response = await fetch(DATA.analysis_view_files[view]);
+      const response = await fetch(siteUrl(DATA.analysis_view_files[view]));
       if (!response.ok) throw new Error(`Could not load ${view} results (HTTP ${response.status})`);
       const selected = await response.json();
       restoreModelMetadata(selected);
@@ -1542,22 +1549,39 @@ function initializeCodeCopy() {
 }
 
 async function main() {
-  initializeTheme();
   const page = document.body.dataset.page;
+  const legacyParams = new URLSearchParams(location.search);
+  if (page === "models" && legacyParams.has("model")) {
+    const identifier = legacyParams.get("model");
+    legacyParams.delete("model");
+    location.replace(`${detailPageUrl("model", identifier)}${legacyParams.size ? `?${legacyParams}` : ""}`);
+    return;
+  }
+  if ((page === "model" || page === "dataset") && !document.body.dataset.entityId) {
+    const key = page === "model" ? "model" : "id";
+    const identifier = legacyParams.get(key);
+    legacyParams.delete(key);
+    const target = identifier ? detailPageUrl(page, identifier) : siteUrl(`${page}s/`);
+    location.replace(`${target}${legacyParams.size ? `?${legacyParams}` : ""}`);
+    return;
+  }
+  if ((page === "models" || page === "datasets") && location.pathname.endsWith(".html")) {
+    location.replace(`${siteUrl(`${page}/`)}${location.search}`);
+    return;
+  }
+  initializeTheme();
   if (page === "changelog" || page === "imprint" || page === "citation") return;
   if (page === "models") {
-    const params = new URLSearchParams(location.search);
-    if (params.has("model")) location.replace(`model.html?${params}`);
-    else initializeModelOverview();
+    initializeModelOverview();
     return;
   }
   const charting = page === "home" ? loadExternalScript("assets/plotly-cartesian.min.js", "Plotly") : Promise.resolve();
-  const response = await fetch(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json", { cache: "no-cache" });
+  const response = await fetch(siteUrl(page === "datasets" || page === "dataset" ? "data/datasets/index.json" : "data/dashboard.json"), { cache: "no-cache" });
   if (!response.ok) throw new Error(`Could not load benchmark data (HTTP ${response.status})`);
   DATA = await response.json();
   restoreModelMetadata(DATA);
   EXCLUDED = new Set(SHOW_ALL_MODELS ? [] : DATA.meta.plot_excluded_models);
-  const linkedModel = new URLSearchParams(location.search).get("model");
+  const linkedModel = document.body.dataset.entityId || new URLSearchParams(location.search).get("model");
   if (page === "model" && DATA.models[linkedModel] && (EXCLUDED.has(linkedModel) || linkedModel === "AUTOGLUON")) {
     SHOW_ALL_MODELS = true;
     EXCLUDED = new Set();
