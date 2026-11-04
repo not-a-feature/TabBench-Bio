@@ -9,6 +9,7 @@ The full configuration covers 33 classification and 13 regression datasets.
 
 This repository contains the package and experiment definitions. The
 [published website](https://tabbench-bio.eu) is built from Codeberg's `pages` branch.
+The website / benchmark results were computed using one NVIDIA L40S with 48 GB VRAM, 16 CPU cores and 80 GB RAM per model.
 
 ## Install
 
