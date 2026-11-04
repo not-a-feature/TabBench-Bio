@@ -65,6 +65,15 @@ selection is removed and the context limit is raised when needed to retain all
 benchmark-selected training rows. Feature and sample budgets come from the benchmark.
 Regression tasks are skipped; classification above 10 classes uses the backend's
 native error-correcting output codes. Each checkpoint is pinned to a Hub revision.
+The adapter uses the unchanged `neuralk-oss==0.2.3` model with sequential ensemble
+members and 16-row query chunks. It retains preprocessed context inputs and caches
+encoded contexts in ordinary CPU RAM under a 60 GiB LRU budget. On cgroup-v1/v2 hosts,
+it evicts contexts to preserve 16 GiB of job memory headroom; encodings that cannot
+be retained are recomputed. Disposable encodings are omitted from saved models and
+refit templates. All ensemble members, features and selected training rows remain.
+This bounds retained CPU encodings, not the GPU memory needed to encode a single
+member. Sequential versus automatic upstream batching can differ by floating-point
+rounding; parity tests compare both execution modes.
 Code is Apache-2.0; weights use the Neuralk Seldon License. Accept the terms on
 [Seldon](https://huggingface.co/Neuralk-AI/seldon) and
 [Seldon-Mini](https://huggingface.co/Neuralk-AI/seldon-mini), then authenticate with

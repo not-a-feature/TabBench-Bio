@@ -6,6 +6,8 @@ import torch
 from autogluon.core.models import AbstractModel
 from neuralk_oss import SeldonClassifier, SeldonRecipe
 
+from tabbench_bio.models.seldon_cache import BoundedSeldonICL
+
 CHECKPOINT_REVISIONS = {
     "seldon": "54479903c8863a22789a9bc7a71dea7bb43dcb06",
     "seldon-mini": "9a7e0cbbe4b42dd49a3a99ef954467a9c789d722",
@@ -37,6 +39,13 @@ class SeldonModel(AbstractModel):
         # Keep the packaged variant's recipe settings and ensemble size.
         recipe = self.model.estimator.recipe
         self.model.estimator.recipe = _FullFeatureRecipe(**vars(recipe))
+        original = self.model.estimator
+        # Sequential members bound GPU memory; CPU encodings use an evictable
+        # budget rather than SDM's unbounded pinned context cache.
+        self.model.estimator = BoundedSeldonICL(
+            original.model, original.recipe, query_chunk_size=16
+        ).to(self.model.device)
+        self.model.estimator_batch_size = 1
         self.model.fit(self.preprocess(X), y)
         assert np.array_equal(self.model.classes_, np.arange(self.num_classes)), (
             "Seldon probabilities must follow AutoGluon's class order."

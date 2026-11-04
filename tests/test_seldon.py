@@ -120,3 +120,95 @@ def test_autogluon_full_refit(tmp_path, local_weights, adapter):
     prediction = predictor.predict_proba(X.iloc[24:]).to_numpy()
     restored = TabularPredictor.load(predictor.path)
     np.testing.assert_allclose(restored.predict_proba(X.iloc[24:]), prediction, atol=1e-5)
+
+
+@pytest.mark.parametrize(
+    "device",
+    [
+        "cpu",
+        pytest.param(
+            "cuda", marks=pytest.mark.skipif(not torch.cuda.is_available(), reason="CUDA required")
+        ),
+    ],
+)
+@pytest.mark.parametrize("classes", [2, 3, 12])
+@pytest.mark.parametrize("budget", [0, 4096, 2**30])
+def test_bounded_cache_matches_released_classifier(
+    tmp_path, local_weights, classes, budget, device
+):
+    import pickle
+
+    from neuralk_oss import SeldonClassifier
+
+    from tabbench_bio.models.seldon import _FullFeatureRecipe
+    from tabbench_bio.models.seldon_cache import BoundedSeldonICL
+
+    torch.set_num_threads(1)
+    X = pd.DataFrame(np.random.default_rng(42).normal(size=(40, 9)))
+    X["category"] = pd.Series(["a", "b"] * 18 + ["new"] * 4, dtype="category")
+    X.iloc[2, 3] = np.nan
+    y = np.arange(36) % classes
+    options = dict(
+        revision=CHECKPOINT_REVISIONS["seldon-mini"],
+        device=device,
+        estimator_batch_size=1,
+        query_chunk_size=16,
+        recipe=_FullFeatureRecipe(half_shuffle=True),
+    )
+    reference = SeldonClassifier.from_pretrained("seldon-mini", **options)
+    bounded = SeldonClassifier.from_pretrained("seldon-mini", **options)
+    old = bounded.estimator
+    bounded.estimator = BoundedSeldonICL(old.model, old.recipe, query_chunk_size=16).to(device)
+    bounded.estimator.cache_budget = budget
+    reference.fit(X.iloc[:36], y)
+    bounded.fit(X.iloc[:36], y)
+    expected = reference.predict_proba(X.iloc[36:])
+    actual = bounded.predict_proba(X.iloc[36:])
+    np.testing.assert_array_equal(actual, expected)
+    # Also compare with upstream automatic member batching, whose kernels can
+    # differ in floating-point rounding from sequential member execution.
+    native = SeldonClassifier.from_pretrained(
+        "seldon-mini",
+        revision=CHECKPOINT_REVISIONS["seldon-mini"],
+        device=device,
+        recipe=_FullFeatureRecipe(half_shuffle=True),
+    )
+    native.fit(X.iloc[:36], y)
+    native_proba = native.predict_proba(X.iloc[36:])
+    np.testing.assert_allclose(actual, native_proba, atol=5e-4 if device == "cuda" else 1e-6)
+    np.testing.assert_array_equal(actual.argmax(axis=1), native_proba.argmax(axis=1))
+    assert bounded.estimator._encoded_bytes <= budget
+    np.testing.assert_array_equal(bounded.predict_proba(X.iloc[36:]), expected)
+    restored = pickle.loads(pickle.dumps(bounded))
+    assert restored.estimator._encoded_bytes == 0
+    np.testing.assert_array_equal(restored.predict_proba(X.iloc[36:]), expected)
+    np.testing.assert_allclose(bounded.predict_proba(X.iloc[36:37]), expected[:1], atol=1e-6)
+
+
+@pytest.mark.parametrize("version", [1, 2])
+def test_cgroup_headroom_uses_tightest_ancestor(monkeypatch, version):
+    from pathlib import Path
+
+    from tabbench_bio.models.seldon_cache import _headroom
+
+    if version == 1:
+        records = "10:memory:/job/step\n0::/system.slice/slurmd.service"
+        root = "/sys/fs/cgroup/memory"
+        limit, usage = "memory.limit_in_bytes", "memory.usage_in_bytes"
+        unlimited = str(2**63 - 4096)
+    else:
+        records = "0::/job/step"
+        root = "/sys/fs/cgroup"
+        limit, usage = "memory.max", "memory.current"
+        unlimited = "max"
+    files = {
+        "/proc/self/cgroup": records,
+        f"{root}/job/step/{limit}": "200",
+        f"{root}/job/step/{usage}": "50",
+        f"{root}/job/{limit}": "160",
+        f"{root}/job/{usage}": "140",
+        f"{root}/{limit}": unlimited,
+    }
+    monkeypatch.setattr(Path, "read_text", lambda p: files[str(p).replace("\\", "/")])
+    monkeypatch.setattr(Path, "is_file", lambda p: str(p).replace("\\", "/") in files)
+    assert _headroom() == 20
