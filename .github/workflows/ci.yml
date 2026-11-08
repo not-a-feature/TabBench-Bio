@@ -1,6 +1,7 @@
 name: CI
 
 on:
+  workflow_dispatch:
   push:
     branches: [main]
   pull_request:
@@ -36,10 +37,10 @@ jobs:
           pip install "${wheels[0]}[dev]"
 
       - name: Lint (ruff)
-        run: ruff check src/ tests/ benchmark_my_model/
+        run: ruff check src/ tests/ scripts/ benchmark_my_model/
 
       - name: Format check
-        run: ruff format --check src/ tests/ benchmark_my_model/
+        run: ruff format --check src/ tests/ scripts/ benchmark_my_model/
 
       - name: Run tests
         run: pytest tests/ -v --tb=short -o pythonpath=.
