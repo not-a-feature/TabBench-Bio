@@ -36,17 +36,12 @@ jobs:
           pip install "${wheels[0]}[dev]"
 
       - name: Lint (ruff)
-        run: ruff check src/ tests/ scripts/ benchmark_my_model/
+        run: ruff check src/ tests/ benchmark_my_model/
 
       - name: Format check
         run: ruff format --check src/ tests/ benchmark_my_model/
 
       - name: Run tests
         run: pytest tests/ -v --tb=short -o pythonpath=.
-        env:
-          MPLBACKEND: Agg
-
-      - name: Smoke test installed SQLite API and CLI plot
-        run: python scripts/smoke_sqlite_api.py
         env:
           MPLBACKEND: Agg

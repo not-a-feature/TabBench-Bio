@@ -15,13 +15,19 @@ from sdm.models.kumo.tabular.model import MODEL_KWARGS
 
 from tabbench_bio.model import _resolve_hyperparameters
 from tabbench_bio.models import kumo_tabular
-from tabbench_bio.models.kumo_tabular import CHECKPOINT_REVISION, KumoTabularMediumModel
+from tabbench_bio.models.kumo_tabular import (
+    CHECKPOINT_REVISION,
+    KumoTabularLargeModel,
+    KumoTabularMediumModel,
+)
 
 
-@pytest.fixture
-def local_weights(tmp_path, monkeypatch):
+@pytest.fixture(params=[KumoTabularMediumModel, KumoTabularLargeModel])
+def local_weights(tmp_path, monkeypatch, request):
+    model_class = request.param
+    size = model_class.size
     config = {
-        **MODEL_KWARGS["medium"],
+        **MODEL_KWARGS[size],
         "cell_channels": 8,
         "num_embedding_layers": 1,
         "num_embedding_heads": 2,
@@ -31,11 +37,11 @@ def local_weights(tmp_path, monkeypatch):
         "num_icl_layers": 1,
         "num_icl_heads": 2,
     }
-    monkeypatch.setitem(MODEL_KWARGS, "medium", config)
+    monkeypatch.setitem(MODEL_KWARGS, size, config)
     for task, filename in [("classification", "classifier"), ("regression", "regressor")]:
         with torch.random.fork_rng():
             torch.manual_seed(12)
-            model = sdm.models.KumoTabular(task=task, size="medium", pretrained=False)
+            model = sdm.models.KumoTabular(task=task, size=size, pretrained=False)
             for parameter in model.parameters():
                 if not parameter.any():
                     torch.nn.init.normal_(parameter, std=0.02)
@@ -44,10 +50,11 @@ def local_weights(tmp_path, monkeypatch):
     def download(repo_id, filename, revision):
         assert repo_id == "nvidia/Kumo-Tabular"
         assert revision == CHECKPOINT_REVISION
-        assert filename.startswith("medium/")
+        assert filename.startswith(f"{size}/")
         return str(tmp_path / filename.split("/")[1])
 
     monkeypatch.setattr(kumo_tabular, "hf_hub_download", download)
+    return model_class
 
 
 @pytest.mark.parametrize("task,classes", [("binary", 2), ("multiclass", 12), ("regression", 0)])
@@ -56,7 +63,7 @@ def test_fit_predict_restore_and_unseen_categories(tmp_path, local_weights, task
     X["category"] = pd.Series(["a", "b"] * 12 + ["unseen", "b", "a", "b"], dtype="category")
     X.loc[2, "a"] = np.nan
     y = pd.Series(np.arange(24) % classes if classes else 100 + X.b.iloc[:24] * 20)
-    model = KumoTabularMediumModel(path=str(tmp_path), name="Kumo", problem_type=task)
+    model = local_weights(path=str(tmp_path), name="Kumo", problem_type=task)
     model.fit(X=X.iloc[:24], y=y, num_cpus=1, num_gpus=0)
     assert model.model._cache is None
     assert len(model._contexts) == 8
@@ -84,7 +91,7 @@ def test_more_than_500_features_reach_the_network(tmp_path, local_weights, monke
 
     monkeypatch.setattr(RowEmbedding, "forward", record)
     X = pd.DataFrame(np.random.default_rng(5).normal(size=(14, 513))).add_prefix("f")
-    model = KumoTabularMediumModel(path=str(tmp_path), name="WideKumo", problem_type="binary")
+    model = local_weights(path=str(tmp_path), name="WideKumo", problem_type="binary")
     model.fit(X=X.iloc[:12], y=pd.Series([0, 1] * 6), num_cpus=1, num_gpus=0)
     assert np.isfinite(model.predict_proba(X.iloc[12:])).all()
     assert widths and set(widths) == {513}
@@ -94,9 +101,7 @@ def test_regression_preserves_target_units(tmp_path, local_weights):
     X = pd.DataFrame(np.random.default_rng(8).normal(size=(14, 3)), columns=list("abc"))
     predictions = []
     for offset in [0, 500]:
-        model = KumoTabularMediumModel(
-            path=str(tmp_path), name=f"Kumo{offset}", problem_type="regression"
-        )
+        model = local_weights(path=str(tmp_path), name=f"Kumo{offset}", problem_type="regression")
         model.fit(
             X=X.iloc[:12], y=pd.Series(np.arange(12, dtype=float) + offset), num_cpus=1, num_gpus=0
         )
@@ -110,11 +115,12 @@ def test_explicit_gpu_never_falls_back_to_cpu(monkeypatch):
         KumoTabularMediumModel()._fit(None, None, num_gpus=1)
 
 
-def test_registry_and_foundation_model_category():
+@pytest.mark.parametrize("model_class", [KumoTabularMediumModel, KumoTabularLargeModel])
+def test_registry_and_foundation_model_category(model_class):
     from tabbench_bio import dashboard, site
 
-    key = "KUMO-TABULAR-MEDIUM"
-    assert _resolve_hyperparameters([key], 1) == {KumoTabularMediumModel: [{"ag.num_gpus": 1}]}
+    key = model_class.ag_key
+    assert _resolve_hyperparameters([key], 1) == {model_class: [{"ag.num_gpus": 1}]}
     assert dashboard.MODEL_CATEGORY[key] == site.MODEL_CATEGORY[key] == "Tabular Foundation"
 
 
@@ -126,7 +132,7 @@ def test_autogluon_refits_all_training_rows(tmp_path, local_weights, task):
     predictor = TabularPredictor(label="target", problem_type=task, path=str(tmp_path / task))
     predictor.fit(
         train_data=train,
-        hyperparameters={KumoTabularMediumModel: {}},
+        hyperparameters={local_weights: {}},
         num_cpus=1,
         num_gpus=0,
         num_bag_folds=0,

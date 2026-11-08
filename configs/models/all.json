@@ -121,6 +121,11 @@
     "description": "GeneICL is built for prediction from bulk gene expression profiles. It compresses the gene measurements with principal component analysis, then uses a pretrained recurrent network to learn from labelled examples without updating its weights for each new task."
   },
   {
+    "key": "FTFM",
+    "source_url": "https://github.com/machinelearningnuremberg/ftfm-official",
+    "description": "FTFM-1 builds cell representations from factorized row and column representations, then predicts classes from labelled training rows supplied as context. This benchmark uses its released eight-member ensemble with sequential views. Its pretraining configuration includes real and synthetic data, so results are flagged for possible training-data overlap."
+  },
+  {
     "key": "CAUSILO",
     "source_url": "https://github.com/nums-ai/causilo",
     "description": "Causilo, by Nums AI, is pretrained on synthetic tables and uses labelled examples as context for classification or regression. It processes relationships across rows and columns, combining information about individual features with patterns shared by samples."
@@ -128,7 +133,22 @@
   {
     "key": "KUMO-TABULAR-MEDIUM",
     "source_url": "https://github.com/NVIDIA/structured-data-models",
-    "description": "Kumo Tabular, by NVIDIA, learns from synthetic tables before it is applied to a new dataset. It builds representations of columns and rows, then uses labelled examples as context for classification or regression; this benchmark uses the medium-sized model."
+    "description": "Kumo Tabular, by NVIDIA, learns from synthetic tables before it is applied to a new dataset. It builds representations of columns and rows, then uses labelled examples as context for classification or regression; this benchmark uses the medium-sized model. The released default recipe selects at most 500 features; this benchmark removes that selection step and evaluates the full feature budget."
+  },
+  {
+    "key": "KUMO-TABULAR-LARGE",
+    "source_url": "https://huggingface.co/nvidia/Kumo-Tabular",
+    "description": "Kumo Tabular Large is the released large tabular foundation model from NVIDIA for classification and regression. It uses labelled training rows as context without updating its weights. This benchmark uses its eight-member ensemble, processes members sequentially, and lets the benchmark control feature and sample budgets. The released default recipe selects at most 500 features; this benchmark removes that selection step and evaluates the full feature budget."
+  },
+  {
+    "key": "SELDON",
+    "source_url": "https://huggingface.co/Neuralk-AI/seldon",
+    "description": "Seldon, by Neuralk-AI, is a 213.5-million-parameter transformer pretrained only on synthetic tables. It compresses cells into row representations and uses labelled training rows as context for classification without updating its weights. This benchmark keeps its released eight-member inference ensemble and lets the benchmark control feature and sample budgets. The released recipe normally selects at most 500 features; this benchmark removes that selection step and evaluates the full feature budget."
+  },
+  {
+    "key": "SELDON-MINI",
+    "source_url": "https://huggingface.co/Neuralk-AI/seldon-mini",
+    "description": "Seldon-Mini is Neuralk-AI's 27.4-million-parameter classification model, pretrained only on synthetic tables. It uses labelled examples as context without updating its weights. This benchmark keeps its released four-member inference ensemble and lets the benchmark control feature and sample budgets. The released recipe normally selects at most 500 features; this benchmark removes that selection step and evaluates the full feature budget."
   },
   {
     "key": "LIMIX-2",

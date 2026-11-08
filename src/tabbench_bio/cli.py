@@ -523,6 +523,20 @@ def main():
         "--site-dir", type=Path, help="Also verify a generated site's skill copies"
     )
     doctor_p.add_argument(
+        "--expected-cpus", type=int, default=16, help="Expected allocated CPUs (default: 16)"
+    )
+    doctor_p.add_argument(
+        "--expected-memory-gib",
+        type=int,
+        default=80,
+        help="Expected allocated system RAM in GiB (default: 80)",
+    )
+    doctor_p.add_argument(
+        "--require-resource-metadata",
+        action="store_true",
+        help="Also fail when attempted evaluations lack CPU/RAM allocation metadata",
+    )
+    doctor_p.add_argument(
         "--model",
         action="append",
         default=[],

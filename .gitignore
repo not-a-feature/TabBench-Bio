@@ -47,3 +47,6 @@ website.cache/
 
 # Default custom-model example output
 /my_model_results/
+
+# Local experiment and cluster launch scripts
+/scripts/

@@ -17,6 +17,7 @@ from tabbench_bio.config import (
 )
 from tabbench_bio.io_utils import atomic_write_json
 from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key, model_entry
+from tabbench_bio.resource_guard import check_reference_hardware
 from tabbench_bio.resources import resource_root
 from tabbench_bio.result_store import ResultRepository, consolidate_results
 from tabbench_bio.tuning import tuning_specs
@@ -100,21 +101,14 @@ def worker_environment(
     hardware = json.loads(probe.stdout)
     hardware.update(threads=threads, available_threads=available)
     env["TABBENCH_MODEL_HARDWARE"] = json.dumps(hardware)
-    allocation_matches = available == 18 if "SLURM_CPUS_PER_TASK" in env else available >= 32
-    if (
-        not allocation_matches
-        or threads != 32
-        or hardware["gpu"] is None
-        or "L40S" not in hardware["gpu"].upper()
-    ):
-        print(
-            f"WARNING: using {threads} model threads on {available} available CPUs "
-            f"and {hardware['gpu'] or 'no GPU'}. "
-            "The TCML reference uses 18 allocated CPUs, 32 model threads and one NVIDIA L40S; results, "
-            "especially timings and time-limited fits, are less comparable.",
-            file=sys.stderr,
-            flush=True,
-        )
+    allocation = check_reference_hardware(
+        gpu_required=device == "gpu",
+        gpu_name=hardware["gpu"],
+        model_threads=threads,
+        probe_gpu=False,
+    )
+    hardware.update({key: value for key, value in allocation.items() if value is not None})
+    env["TABBENCH_MODEL_HARDWARE"] = json.dumps(hardware)
     if device == "gpu":
         assert hardware["gpu"] is not None, (
             "This model requires a GPU. Allocate one, or pass --device cpu to try CPU execution."

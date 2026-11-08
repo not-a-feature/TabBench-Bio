@@ -4,6 +4,7 @@ import importlib.util
 import json
 import os
 import pickle
+import re
 import sqlite3
 import subprocess
 from collections import Counter
@@ -183,6 +184,81 @@ def check_results(path: Path) -> list[str]:
     return problems
 
 
+def check_resource_metadata(
+    path: Path,
+    *,
+    expected_cpus: int = 16,
+    expected_memory_gib: int = 80,
+    require_metadata: bool = False,
+) -> tuple[list[str], dict[str, int]]:
+    """Validate allocation fields, not peak usage or GPU VRAM; never rewrite records."""
+    if expected_cpus <= 0 or expected_memory_gib <= 0:
+        raise ValueError("Expected CPU and RAM budgets must be positive")
+    issues = Counter()
+    stats = Counter()
+    with closing(sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True)) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(attempts)")}
+        if "record_json" not in columns:
+            return ["Missing attempts.record_json; resource allocations cannot be verified"], {}
+        for model, text in connection.execute(
+            "SELECT model, record_json FROM attempts WHERE status IN ('pass','fail')"
+        ):
+            stats["attempted"] += 1
+            try:
+                record = json.loads(text)
+            except (json.JSONDecodeError, TypeError):
+                record = None
+            if not isinstance(record, dict):
+                issues[(model, "invalid record_json; expected a JSON object")] += 1
+                stats["mismatched_records"] += 1
+                stats["missing_metadata"] += 1
+                continue
+            hardware = record.get("hardware") or {}
+            profile = record.get("resource_profile") or ""
+            if not isinstance(hardware, dict) or not isinstance(profile, str):
+                issues[(model, "invalid hardware or resource_profile metadata type")] += 1
+                stats["mismatched_records"] += 1
+                stats["missing_metadata"] += 1
+                continue
+            cpu = {"slurm_cpus_per_task": record.get("slurm_cpus_per_task")}
+            cpu["hardware.allocated_cpus"] = hardware.get("allocated_cpus")
+            ram = {"slurm_memory_mb": record.get("slurm_memory_mb")}
+            ram["hardware.allocated_memory_mb"] = hardware.get("allocated_memory_mb")
+            # A profile label describes an intended budget, not an observed allocation.
+            missing = not any(v is not None for v in cpu.values()) or not any(
+                v is not None for v in ram.values()
+            )
+            match = re.search(r"-(\d+)c-(\d+)g(?:-|$)", profile) or re.search(
+                r"-(\d+)-(\d+)gb$", profile
+            )
+            if match:
+                cpu["resource_profile.cpus"] = int(match[1])
+                ram["resource_profile.memory_mib"] = int(match[2]) * 1024
+            stats["missing_metadata"] += missing
+            mismatched = False
+            for fields, expected in [(cpu, expected_cpus), (ram, expected_memory_gib * 1024)]:
+                for field, value in fields.items():
+                    if value is not None and (isinstance(value, bool) or value != expected):
+                        issues[(model, f"{field}={value!r}; expected {expected}")] += 1
+                        mismatched = True
+            threads = hardware.get("model_threads")
+            if threads is not None and (
+                isinstance(threads, bool) or not isinstance(threads, (int, float)) or threads <= 0
+            ):
+                issues[
+                    (model, f"hardware.model_threads={threads!r}; expected a positive count")
+                ] += 1
+                mismatched = True
+            stats["mismatched_records"] += mismatched
+            if require_metadata and missing:
+                issues[(model, "missing CPU or system-RAM allocation metadata")] += 1
+    problems = [
+        f"{model}: {count} evaluations with {description}"
+        for (model, description), count in sorted(issues.items())
+    ]
+    return problems, dict(stats)
+
+
 def cmd_doctor(args) -> None:
     checks = [
         ("Registry and environment files", check_metadata(CHECKOUT)),
@@ -191,6 +267,19 @@ def cmd_doctor(args) -> None:
     ]
     if args.results is not None:
         checks.append(("Result split coverage", check_results(args.results)))
+        resource_problems, resource_stats = check_resource_metadata(
+            args.results,
+            expected_cpus=getattr(args, "expected_cpus", 16),
+            expected_memory_gib=getattr(args, "expected_memory_gib", 80),
+            require_metadata=getattr(args, "require_resource_metadata", False),
+        )
+        checks.append(("Recorded CPU/RAM budgets", resource_problems))
+        if resource_stats.get("missing_metadata"):
+            print(
+                f"WARN {resource_stats['missing_metadata']} attempted evaluations lack complete "
+                "CPU/RAM allocation metadata; their budgets are unverified. "
+                "Use --require-resource-metadata to fail on missing values."
+            )
     checks.extend((f"Adapter {key}", check_adapter(key)) for key in args.model)
     for name, problems in checks:
         print(f"{'FAIL' if problems else 'OK'} {name}")

@@ -51,6 +51,7 @@ from tabbench_bio.model_registry import (
     REGULAR_MAX_FEATURES,
     canonical_model_key,
 )
+from tabbench_bio.resource_guard import check_reference_hardware
 from tabbench_bio.result_store import ResultRepository, StoredAttempt
 from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
@@ -637,6 +638,14 @@ def compute_predictions(
     config["models"] = list(dict.fromkeys(["DUMMY", *config["models"]]))
     if num_shards < 1 or not (0 <= shard_index < num_shards):
         raise ValueError(f"invalid shard {shard_index}/{num_shards}")
+    gpu_required = False
+    for key in config["models"]:
+        parent = config.get("model_tuning", {}).get(key, {}).get("base_model", key)
+        spec = MODEL_REGISTRY.get(canonical_model_key(parent))
+        if spec is not None and spec.device == "gpu":
+            gpu_required = True
+            break
+    check_reference_hardware(gpu_required=gpu_required)
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
 
     _gpu_power_handle(os.getpid())

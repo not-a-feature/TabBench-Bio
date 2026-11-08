@@ -510,9 +510,12 @@ function renderModelCard() {
   byId("model-card-caption").textContent = `Macro-F1 Elo relative to ${comparator.display}. Columns are training-sample caps; rows are dataset modalities. Small labels show the number of binding targets.`;
   byId("model-card-scale-label").textContent = `Elo difference vs. ${comparator.display}`;
   byId("model-card-family").textContent = model.category;
-  byId("model-card-limit").textContent = model.regular_max_features === null || model.regular_max_features === undefined
-    ? "No declared regular feature limit"
-    : `Regular feature limit: ${capLabel(model.regular_max_features)}`;
+  // Model-specific pages already contain this static registry information.
+  if (!document.body.dataset.entityId) {
+    byId("model-card-limit").textContent = model.regular_max_features === null || model.regular_max_features === undefined
+      ? "No declared regular feature limit"
+      : `Regular feature limit: ${capLabel(model.regular_max_features)}`;
+  }
   const overlapWarning = byId("model-card-overlap-warning");
   overlapWarning.hidden = !hasTrainingOverlap(model);
   overlapWarning.textContent = `† ${model.display}: ${TRAINING_OVERLAP_NOTE}`;
@@ -817,6 +820,7 @@ function renderElo() {
   const rendered = Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
     chart.removeAllListeners("plotly_click");
     chart.on("plotly_click", event => {
+      if (event.event?.button != null && event.event.button !== 0) return;
       const point = event.points[0];
       const modelId = point.data.ids?.[point.pointNumber];
       if (modelId && DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
@@ -1127,20 +1131,29 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
     customdata: frontier.map((row) => modelLabel(row) + overlapTooltip(row)),
     hovertemplate: `<b>%{customdata}</b><br>Pareto frontier<br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>`,
   };
-  const categoryTraces = categories.map((category) => {
-    const points = rows.filter((row) => row.category === category);
-    return {
+  const categoryTraces = categories.flatMap((category) => {
+    const categoryRows = rows.filter((row) => row.category === category);
+    // Frontier points get their hover from frontierTrace only.
+    const groups = [
+      categoryRows.filter((row) => !frontierIds.has(row.model_id)),
+      categoryRows.filter((row) => frontierIds.has(row.model_id)),
+    ].filter((points) => points.length);
+    return groups.map((points, index) => ({
       type: "scatter",
       mode: "markers",
       name: category,
+      legendgroup: category,
+      showlegend: index === 0,
       ids: points.map((row) => row.model_id),
       x: points.map((row) => row[timing.column]),
       y: points.map((row) => row[metric]),
       cliponaxis: false,
       marker: { color: points[0].color, size: points.map((row) => frontierIds.has(row.model_id) ? 12 : 9), opacity: 0.88, line: { color: css("--surface"), width: 1 } },
       customdata: points.map((row) => modelLabel(row) + overlapTooltip(row)),
-      hovertemplate: `<b>%{customdata}</b><br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>`,
-    };
+      ...(frontierIds.has(points[0].model_id)
+        ? { hoverinfo: "skip" }
+        : { hovertemplate: `<b>%{customdata}</b><br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>` }),
+    }));
   });
   const layout = baseLayout({
     height: height + margin.t + margin.b,
@@ -1173,12 +1186,14 @@ function renderCost(prefix, force = false) {
   return Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
     chart.removeAllListeners("plotly_click");
     chart.on("plotly_click", event => {
+      if (event.event?.button != null && event.event.button !== 0) return;
       const point = event.points[0];
       const modelId = point.data.ids?.[point.pointNumber];
       if (modelId && DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
     });
     chart.removeAllListeners("plotly_clickannotation");
     chart.on("plotly_clickannotation", event => {
+      if (event.event?.button != null && event.event.button !== 0) return;
       const modelId = event.annotation.name;
       if (DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
     });

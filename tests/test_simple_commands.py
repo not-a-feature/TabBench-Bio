@@ -22,7 +22,8 @@ def installed_model_environment(monkeypatch):
 @pytest.mark.parametrize(
     "cpus,threads,gpu,warning",
     [
-        (18, 32, "NVIDIA L40S", False),
+        (16, 16, "NVIDIA L40S", False),
+        (16, 32, "NVIDIA L40S", False),
         (32, 32, "NVIDIA L40S", True),
         (18, 16, "NVIDIA L40S", True),
         (18, 32, "NVIDIA A100", True),
@@ -33,6 +34,8 @@ def test_hardware_warning_and_single_gpu(monkeypatch, capsys, cpus, threads, gpu
     monkeypatch.setattr(model_run.sys, "platform", "win32")
     monkeypatch.setattr(model_run.os, "cpu_count", lambda: 64)
     monkeypatch.setenv("SLURM_CPUS_PER_TASK", str(cpus))
+    monkeypatch.setenv("SLURM_MEM_PER_NODE", "81920")
+    monkeypatch.delenv("TABBENCH_STRICT_HARDWARE", raising=False)
     monkeypatch.setenv("CUDA_VISIBLE_DEVICES", "GPU-first,GPU-second")
     seen = []
 
@@ -51,7 +54,7 @@ def test_hardware_warning_and_single_gpu(monkeypatch, capsys, cpus, threads, gpu
         assert env["TABBENCH_MODEL_CPUS"] == str(threads)
         assert env["OMP_NUM_THREADS"] == str(threads)
     assert seen[0]["CUDA_VISIBLE_DEVICES"] == "GPU-first"
-    assert ("less comparable" in capsys.readouterr().err) == warning
+    assert ("Non-reference benchmark hardware" in capsys.readouterr().err) == warning
 
 
 def test_cpu_override_hides_gpus(monkeypatch):
