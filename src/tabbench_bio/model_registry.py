@@ -34,6 +34,15 @@ MODEL_REGISTRY = {
     "MITRA": ModelSpec(
         display="MITRA", category="Tabular Foundation", device="gpu", max_features=500
     ),
+    "FTFM": ModelSpec(
+        display="FTFM-1",
+        category="Tabular Foundation",
+        device="gpu",
+        environment="ftfm",
+        adapter="tabbench_bio.models.ftfm:FTFMModel",
+        supported_tasks=("classification",),
+        training_data_overlap=True,
+    ),
     "CAUSILO": ModelSpec(
         display="Causilo",
         category="Tabular Foundation",
@@ -55,6 +64,15 @@ MODEL_REGISTRY = {
         device="gpu",
         environment="kumo",
         adapter="tabbench_bio.models.kumo_tabular:KumoTabularMediumModel",
+        max_features=500,
+    ),
+    "KUMO-TABULAR-LARGE": ModelSpec(
+        display="Kumo Tabular (L)",
+        category="Tabular Foundation",
+        device="gpu",
+        environment="kumo",
+        adapter="tabbench_bio.models.kumo_tabular:KumoTabularLargeModel",
+        max_features=500,
     ),
     "SELDON": ModelSpec(
         display="Seldon",
@@ -62,6 +80,7 @@ MODEL_REGISTRY = {
         device="gpu",
         environment="seldon",
         adapter="tabbench_bio.models.seldon:SeldonModel",
+        max_features=500,
         supported_tasks=("classification",),
     ),
     "SELDON-MINI": ModelSpec(
@@ -70,6 +89,7 @@ MODEL_REGISTRY = {
         device="gpu",
         environment="seldon",
         adapter="tabbench_bio.models.seldon:SeldonMiniModel",
+        max_features=500,
         supported_tasks=("classification",),
     ),
     "LIMIX-2": ModelSpec(

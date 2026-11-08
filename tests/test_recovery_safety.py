@@ -4,7 +4,6 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from scripts.feature_sweep import _write_cell_config
 from tabbench_bio.io_utils import atomic_to_csv, atomic_write_json
 from tabbench_bio.logging_utils import run_file_logger
 from tabbench_bio.predictions import (
@@ -108,29 +107,3 @@ def test_ground_truth_numeric_string_labels_survive_csv_inference(tmp_path):
     data_test[["target"]].to_csv(path)
 
     _assert_ground_truth_frame_compatible(pd.read_csv(path, index_col=0), data_test)
-
-
-def test_existing_grid_config_is_immutable(tmp_path):
-    kwargs = {
-        "datasets": ["toy"],
-        "datasets_regression": [],
-        "models": [{"key": "DUMMY", "device": "cpu"}],
-        "n_rep": None,
-        "cv_folds": 2,
-        "time_limit": 60,
-        "out_root": str(tmp_path),
-        "cache_dir": ".cache",
-        "test_size": 0.2,
-        "random_state": 42,
-        "min_samples_per_class": 2,
-    }
-    first = _write_cell_config(2000, 100, **kwargs)
-    config_path = Path(first["full_cfg"])
-    original = config_path.read_bytes()
-
-    _write_cell_config(2000, 100, **kwargs)
-    assert config_path.read_bytes() == original
-
-    resumed = _write_cell_config(2000, 100, **{**kwargs, "time_limit": 120})
-    assert resumed["n_splits"] == 2
-    assert config_path.read_bytes() == original

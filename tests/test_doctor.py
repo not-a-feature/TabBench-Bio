@@ -257,3 +257,37 @@ def test_doctor_cli_results_check_exits_nonzero(result_database, monkeypatch, ca
         main()
     assert result.value.code == 1
     assert "FAIL Result split coverage" in capsys.readouterr().out
+
+
+@pytest.mark.parametrize(
+    "record, strict, expected_problem",
+    [
+        (
+            {
+                "slurm_cpus_per_task": 16,
+                "slurm_memory_mb": 81920,
+                "hardware": {"model_threads": 32},
+            },
+            True,
+            None,
+        ),
+        ({"slurm_cpus_per_task": 18, "slurm_memory_mb": 92160}, False, "slurm_cpus_per_task=18"),
+        ({}, False, None),
+        ({}, True, "missing CPU or system-RAM allocation metadata"),
+    ],
+)
+def test_resource_allocation_checks_are_read_only(tmp_path, record, strict, expected_problem):
+    database = tmp_path / "results.sqlite"
+    with sqlite3.connect(database) as connection:
+        connection.execute("CREATE TABLE attempts (model TEXT, status TEXT, record_json TEXT)")
+        connection.execute(
+            "INSERT INTO attempts VALUES (?, ?, ?)", ("SELDON", "pass", json.dumps(record))
+        )
+    before = database.read_bytes()
+    problems, stats = doctor.check_resource_metadata(database, require_metadata=strict)
+    if expected_problem is None:
+        assert problems == []
+    else:
+        assert any(expected_problem in problem for problem in problems)
+    assert stats["attempted"] == 1
+    assert database.read_bytes() == before

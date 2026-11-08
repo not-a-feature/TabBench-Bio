@@ -17,8 +17,9 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `causilo` | Causilo, with its pinned source revision |
 | `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
-| `kumo` | Kumo Tabular Medium, with pinned SDM source and checkpoint revisions |
+| `kumo` | Kumo Tabular Medium and Large, with pinned SDM source and checkpoint revisions |
 | `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.2.3 and pinned checkpoint revisions |
+| `ftfm` | FTFM-1, with pinned upstream source and checkpoint revisions |
 
 The model registry in `src/tabbench_bio/model_registry.py` declares these assignments.
 The roster in `configs/models/all.json` selects benchmark models; explicit per-run
@@ -56,6 +57,10 @@ eight sequential ensemble members, and uncached attention using training-only pr
 selection is removed; the benchmark's feature cells still apply. Other released
 preprocessing remains unchanged. Code is Apache-2.0; weights are OpenMDW-1.1.
 Run with `tabbench-bio KUMO-TABULAR-MEDIUM` after installing the `kumo` profile.
+
+`FTFM` uses the released [FTFM-1](https://github.com/machinelearningnuremberg/ftfm-official)
+classification checkpoint across the full grid, with the same eight estimators,
+seed 42 and sequential views (`view_batch_size=1`).
 
 `SELDON` (213.5M parameters) and `SELDON-MINI` (27.4M) use the released
 [Neuralk classifiers](https://pypi.org/project/neuralk-oss/) in the `seldon` profile.

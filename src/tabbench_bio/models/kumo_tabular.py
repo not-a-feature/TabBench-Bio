@@ -1,4 +1,4 @@
-"""Kumo Tabular Medium with its released ensemble and no internal column cap."""
+"""Kumo Tabular models with their released ensemble and no internal column cap."""
 
 import numpy as np
 import sdm
@@ -14,6 +14,7 @@ CHECKPOINT_REVISION = "bd7fa122b516c7355583873ffcf38f5e79403ebd"
 class KumoTabularMediumModel(AbstractModel):
     ag_key = "KUMO-TABULAR-MEDIUM"
     ag_name = "KumoTabularMedium"
+    size = "medium"
 
     def _fit(self, X, y, num_cpus=1, num_gpus=0, **kwargs):
         assert num_cpus >= 1
@@ -24,11 +25,11 @@ class KumoTabularMediumModel(AbstractModel):
         regression = self.problem_type == "regression"
         task = "regression" if regression else "classification"
         self.model = sdm.models.KumoTabular(
-            task=task, size="medium", pretrained=False, device="meta"
+            task=task, size=self.size, pretrained=False, device="meta"
         )
         checkpoint = hf_hub_download(
             repo_id="nvidia/Kumo-Tabular",
-            filename=f"medium/{'regressor' if regression else 'classifier'}.pt",
+            filename=f"{self.size}/{'regressor' if regression else 'classifier'}.pt",
             revision=CHECKPOINT_REVISION,
         )
         self.model.models[task].load_state_dict(
@@ -108,3 +109,9 @@ class KumoTabularMediumModel(AbstractModel):
     @classmethod
     def supported_problem_types(cls):
         return ["binary", "multiclass", "regression"]
+
+
+class KumoTabularLargeModel(KumoTabularMediumModel):
+    ag_key = "KUMO-TABULAR-LARGE"
+    ag_name = "KumoTabularLarge"
+    size = "large"
