@@ -51,7 +51,7 @@ still select subsets, and each run freezes its resolved dataset IDs.
 
 Missing datasets download automatically and are cached. Curated embedding tables
 come from checksum-verified Parquet assets in the
-[GitHub Release](https://github.com/not-a-feature/TabBench-Bio/releases/tag/v0.1.0).
+[GitHub Release](https://github.com/not-a-feature/TabBench-Bio/releases/tag/v1.1.0).
 Kaggle requires `~/.kaggle/kaggle.json`.
 Use `--cache-dir` to select the cache or `TABBENCH_BIO_LOCAL_DIR` for local tables.
 The [contributor guide](https://github.com/not-a-feature/TabBench-Bio/blob/main/CONTRIBUTING.md#adding-a-dataset) explains how to add and check a dataset.

@@ -172,7 +172,7 @@
     "display_name": "BRCA VEP (Evo2)",
     "source": "local",
     "fetch_id": "brca_evo2_vep.parquet",
-    "download_url": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/brca_evo2_vep.parquet",
+    "download_url": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v1.1.0/brca_evo2_vep.parquet",
     "download_sha256": "1ec46a3134aa5a7fa16a6d52116b8d0c1d587a7feed584a055dc3739d2b3f467",
     "data_type": "DNA Embedding",
     "target": "y",
@@ -183,7 +183,7 @@
     "license": "Source terms apply; redistribution authorized by dataset curator",
     "notes": "BRCA variant-effect prediction from Evo2-7b embeddings (layer blocks.26.mlp.l3). Per row: concat of mean-pooled reference and variant sequence embeddings (4096+4096=8192-d), stored as float32 columns embedding_0..embedding_8191 in compressed Parquet. Values preserve the original CSV's six-decimal float32 representation. Target y=func.class (FUNC/LOF/INT). 3893x8192; built by scripts/generate_brca_embeddings.py.",
     "description": "BRCA sequence variants are represented by Evo2 embeddings of their reference and altered DNA sequences, averaged over each sequence and joined together. The target assigns each variant to its recorded functional-effect class: FUNC, LOF, or INT.",
-    "source_url": "https://github.com/not-a-feature/TabBench-Bio/releases/tag/v0.1.0"
+    "source_url": "https://github.com/not-a-feature/TabBench-Bio/releases/tag/v1.1.0"
   },
   {
     "bio_id": "local-BRCA_DNABERT2-VEP",
@@ -235,7 +235,7 @@
     "display_name": "DeepLoc2 Fungi (ESM-2)",
     "source": "local",
     "fetch_id": "deeploc2_fungi_esm2_t33.parquet",
-    "download_url": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/deeploc2_fungi_esm2_t33.parquet",
+    "download_url": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v1.1.0/deeploc2_fungi_esm2_t33.parquet",
     "download_sha256": "d0b8446db3761f8f8dc68f9b2383c966f596c0a93611994148f104efa2a31636",
     "data_type": "Protein Embedding",
     "target": "membrane",
@@ -253,7 +253,7 @@
     "display_name": "TEM-1 Activity (ESM-2)",
     "source": "local",
     "fetch_id": "peer_beta_lactamase_esm2_t33.parquet",
-    "download_url": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v0.1.0/peer_beta_lactamase_esm2_t33.parquet",
+    "download_url": "https://github.com/not-a-feature/TabBench-Bio/releases/download/v1.1.0/peer_beta_lactamase_esm2_t33.parquet",
     "download_sha256": "38e310fdf5c5a4083a5e9edc0a73226bbee49e4a04278fe5c86e6fe5eb6c8a6d",
     "data_type": "Protein Embedding",
     "target": "activity",
