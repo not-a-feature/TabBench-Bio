@@ -48,5 +48,7 @@ website.cache/
 # Default custom-model example output
 /my_model_results/
 
-# Local experiment and cluster launch scripts
-/scripts/
+# Keep cluster launchers local; publish embedding generation only.
+/scripts/*
+!/scripts/generate_brca_embeddings.py
+!/scripts/generate_protein_embeddings.py
