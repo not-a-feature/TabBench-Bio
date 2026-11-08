@@ -202,6 +202,10 @@ def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
         "id": model_id,
         "display": f"{display} (tuned)" if parent else display,
         "tuned_from": parent,
+        "classification_only": (
+            family_id in MODEL_REGISTRY
+            and MODEL_REGISTRY[family_id].supported_tasks == ("classification",)
+        ),
         "source_url": entry["source_url"],
         "description": entry.get("description", parent_entry.get("description")),
         "tuning": entry["tuning"] if "tuning" in entry else None,

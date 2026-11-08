@@ -10,13 +10,18 @@ const SITE_ROOT = new URL("../", document.currentScript.src);
 const siteUrl = path => new URL(path, SITE_ROOT).href;
 const SCRIPT_LOADS = new Map();
 const TRAINING_OVERLAP_NOTE = "Part of the benchmark training data was used in the training process of this model.";
+const CLASSIFICATION_ONLY_NOTE = "Classification only; regression tasks are not supported.";
 function detailPageUrl(kind, identifier) {
   const slug = identifier.toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   return siteUrl(`${kind}s/${slug}/`);
 }
 function hasTrainingOverlap(model) { return DATA.models[model.model_id || model.id].training_data_overlap === true; }
-function modelLabel(model) { return model.display + (hasTrainingOverlap(model) ? " †" : ""); }
-function overlapTooltip(model) { return hasTrainingOverlap(model) ? "<br>† " + TRAINING_OVERLAP_NOTE : ""; }
+function isClassificationOnly(model) { return DATA.models[model.model_id || model.id].classification_only === true; }
+function modelLabel(model) { return model.display + (hasTrainingOverlap(model) ? " †" : "") + (isClassificationOnly(model) ? " ‡" : ""); }
+function modelAnnotationTooltip(model) {
+  return (hasTrainingOverlap(model) ? "<br>† " + TRAINING_OVERLAP_NOTE : "")
+    + (isClassificationOnly(model) ? "<br>‡ " + CLASSIFICATION_ONLY_NOTE : "");
+}
 
 function loadExternalScript(path, globalName) {
   if (window[globalName]) return Promise.resolve();
@@ -485,7 +490,7 @@ function renderModelCard() {
   params.set("compare", comparatorId);
   params.set("p", byId("model-card-cap").value);
   history.replaceState(null, "", `${location.pathname}?${params}`);
-  byId("model-page-title").textContent = model.display;
+  byId("model-page-title").textContent = modelLabel(model);
   const domains = DATA.domains.filter((domain) => domain !== "all");
   const cells = DATA.cell_options
     .filter((cell) => sameBudget(cell.feature_cap, featureCap))
@@ -519,7 +524,13 @@ function renderModelCard() {
   const overlapWarning = byId("model-card-overlap-warning");
   overlapWarning.hidden = !hasTrainingOverlap(model);
   overlapWarning.textContent = `† ${model.display}: ${TRAINING_OVERLAP_NOTE}`;
-  byId("model-card-name").title = hasTrainingOverlap(model) ? TRAINING_OVERLAP_NOTE : "";
+  const classificationWarning = byId("model-card-classification-warning");
+  classificationWarning.hidden = !isClassificationOnly(model);
+  classificationWarning.textContent = `‡ ${model.display}: ${CLASSIFICATION_ONLY_NOTE}`;
+  byId("model-card-name").title = [
+    hasTrainingOverlap(model) ? TRAINING_OVERLAP_NOTE : "",
+    isClassificationOnly(model) ? CLASSIFICATION_ONLY_NOTE : "",
+  ].filter(Boolean).join(" ");
 
   const grid = byId("model-card-grid");
   grid.style.setProperty("--model-card-sample-count", cells.length);
@@ -623,6 +634,10 @@ function renderFamilyLegend(rows, hasTuned = false) {
   const warning = byId("elo-overlap-warning");
   warning.hidden = flagged.length === 0;
   warning.textContent = `† ${flagged.map((row) => row.display).join(", ")}: Part of the benchmark training data was used in the training process of ${flagged.length === 1 ? "this model" : "these models"}.`;
+  const classifiers = rows.filter(isClassificationOnly);
+  const classificationWarning = byId("elo-classification-warning");
+  classificationWarning.hidden = classifiers.length === 0;
+  classificationWarning.textContent = `‡ ${classifiers.map((row) => row.display).join(", ")}: ${CLASSIFICATION_ONLY_NOTE}`;
 }
 
 function initializeElo() {
@@ -694,7 +709,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
       row.Elo_lo,
       row.Elo_hi,
       row.category,
-      overlapTooltip(row),
+      modelAnnotationTooltip(row),
       rankingElo(row),
       (tunedByParent.get(row.model_id) || row).Elo,
     ]),
@@ -707,7 +722,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
     const parents = paired.map((row) => byModel.get(DATA.models[row.model_id].tuned_from));
     const labels = parents.map(modelLabel);
     const details = paired.map((row, i) => [
-      modelLabel(row), parents[i].Elo, row.Elo, row.Elo - parents[i].Elo, row.Elo_lo, row.Elo_hi, overlapTooltip(row),
+      modelLabel(row), parents[i].Elo, row.Elo, row.Elo - parents[i].Elo, row.Elo_lo, row.Elo_hi, modelAnnotationTooltip(row),
     ]);
     const hover = "<b>%{customdata[0]}</b><br>Untuned Elo %{customdata[1]:.0f}<br>Tuned Elo %{customdata[2]:.0f}<br>Tuned 95% interval [%{customdata[4]:.0f}, %{customdata[5]:.0f}]%{customdata[6]}<extra></extra>";
     // Explicit bases preserve signed changes: the segment ends at tuned Elo, never their sum.
@@ -978,7 +993,7 @@ function renderBudget(prefix, force = false) {
         symbol: categorical ? above.map((value) => value ? `${symbol}-open` : symbol) : symbol,
         line: { color: categorical ? meta.color : css("--surface"), width: categorical ? 2 : 1 },
       },
-      hovertemplate: `<b>${modelLabel(meta)}</b>${overlapTooltip(meta)}<br>${view.hover} %{x}<br>Elo %{y:.0f}<br>95% interval [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<br>%{customdata[2]} targets · %{customdata[3]}<extra></extra>`,
+      hovertemplate: `<b>${modelLabel(meta)}</b>${modelAnnotationTooltip(meta)}<br>${view.hover} %{x}<br>Elo %{y:.0f}<br>95% interval [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<br>%{customdata[2]} targets · %{customdata[3]}<extra></extra>`,
     };
   });
 
@@ -1128,7 +1143,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
     y: frontier.map((row) => row[metric]),
     line: { color: css("--ink"), width: 2, dash: "dot" },
     marker: { color: css("--surface"), size: 8, line: { color: css("--ink"), width: 1.5 } },
-    customdata: frontier.map((row) => modelLabel(row) + overlapTooltip(row)),
+    customdata: frontier.map((row) => modelLabel(row) + modelAnnotationTooltip(row)),
     hovertemplate: `<b>%{customdata}</b><br>Pareto frontier<br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>`,
   };
   const categoryTraces = categories.flatMap((category) => {
@@ -1149,7 +1164,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
       y: points.map((row) => row[metric]),
       cliponaxis: false,
       marker: { color: points[0].color, size: points.map((row) => frontierIds.has(row.model_id) ? 12 : 9), opacity: 0.88, line: { color: css("--surface"), width: 1 } },
-      customdata: points.map((row) => modelLabel(row) + overlapTooltip(row)),
+      customdata: points.map((row) => modelLabel(row) + modelAnnotationTooltip(row)),
       ...(frontierIds.has(points[0].model_id)
         ? { hoverinfo: "skip" }
         : { hovertemplate: `<b>%{customdata}</b><br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>` }),

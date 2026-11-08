@@ -102,10 +102,10 @@ function renderDatasetCharts() {
   const height = Math.max(380, ranked.length * 28 + 100);
   byId("dataset-ranking-chart").style.height = `${height}px`;
   Plotly.react(byId("dataset-ranking-chart"), [{
-    type: "scatter", mode: "markers", x: ranked.map(row => row.values[metric.key]), y: ranked.map(row => DATA.models[row.model_id].display),
+    type: "scatter", mode: "markers", x: ranked.map(row => row.values[metric.key]), y: ranked.map(row => modelLabel(DATA.models[row.model_id])),
     marker: {size: ranked.map(row => row.model_id === "RF" ? 13 : 10), color: ranked.map(row => row.model_id === "RF" ? css("--ink") : css("--accent")), symbol: ranked.map(row => row.model_id === "RF" ? "diamond" : "circle")},
     hovertemplate: `%{y}<br>${metric.label}: %{x:.3f}<extra></extra>`,
-  }], baseLayout({height, margin: {l: isMobileViewport() ? 155 : 185, r: 24, t: 20, b: 65}, xaxis: axes({title: `${metric.label} ${metric.better === "low" ? "↓" : "↑"}`}), yaxis: axes({type: "category", categoryorder: "array", categoryarray: ranked.map(row => DATA.models[row.model_id].display), showgrid: false}), showlegend: false}), PLOT_CONFIG);
+  }], baseLayout({height, margin: {l: isMobileViewport() ? 155 : 185, r: 24, t: 20, b: 65}, xaxis: axes({title: `${metric.label} ${metric.better === "low" ? "↓" : "↑"}`}), yaxis: axes({type: "category", categoryorder: "array", categoryarray: ranked.map(row => modelLabel(DATA.models[row.model_id])), showgrid: false}), showlegend: false}), PLOT_CONFIG);
   const group = byId("detail-models").value;
   const ordering = rows.length ? rows : cells.flatMap(option => scoreRows(option.id, metric));
   const modelIds = group === "top" ? [...new Set([...ordering.slice(0, 5).map(row => row.model_id), "RF"])]
@@ -124,7 +124,7 @@ function renderDatasetCharts() {
   Plotly.react(byId("dataset-budget-chart"), traces, baseLayout({height: 500, margin: {l: 72, r: 24, t: 25, b: 160}, xaxis: axes({title: "Training-sample cap", type: "category", categoryorder: "array", categoryarray: cells.map(option => sampleLabel(option.n_train))}), yaxis: axes({title: `${metric.label} ${metric.better === "low" ? "↓" : "↑"}`}), legend: {orientation: "h", x: 0, y: -0.3, font: {size: 12}}, hovermode: "closest"}), PLOT_CONFIG);
   byId("detail-budget-note").textContent = `${capLabel(featureCap)} features · ${group === "top" ? "Top five at the selected operating point, plus Random Forest." : "Click legend entries to show or hide models."} Full uses all available training samples.`;
   byId("dataset-score-head").innerHTML = `<tr><th>Model</th>${ACTIVE_DATASET.metrics.map(item => `<th>${escapeHtml(item.label)} ${item.better === "low" ? "↓" : "↑"}</th>`).join("")}</tr>`;
-  byId("dataset-score-body").innerHTML = rows.map(row => `<tr${row.model_id === "RF" ? ' class="dataset-baseline-row"' : ""}><td><a href="${escapeHtml(detailPageUrl("model", row.model_id))}">${escapeHtml(DATA.models[row.model_id].display)}</a>${row.model_id === "RF" ? ' <span class="tag">Baseline</span>' : ""}</td>${ACTIVE_DATASET.metrics.map(item => `<td>${Number.isFinite(row.values[item.key]) ? row.values[item.key].toFixed(3) : "—"}</td>`).join("")}</tr>`).join("");
+  byId("dataset-score-body").innerHTML = rows.map(row => `<tr${row.model_id === "RF" ? ' class="dataset-baseline-row"' : ""}><td><a href="${escapeHtml(detailPageUrl("model", row.model_id))}">${escapeHtml(modelLabel(DATA.models[row.model_id]))}</a>${row.model_id === "RF" ? ' <span class="tag">Baseline</span>' : ""}</td>${ACTIVE_DATASET.metrics.map(item => `<td>${Number.isFinite(row.values[item.key]) ? row.values[item.key].toFixed(3) : "—"}</td>`).join("")}</tr>`).join("");
 }
 
 async function initializeDatasetDetail() {

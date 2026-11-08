@@ -56,6 +56,14 @@ def format_score(value) -> str:
     return f"{value:.4g}" if isinstance(value, (int, float)) and math.isfinite(value) else "—"
 
 
+def model_label(model: dict) -> str:
+    return (
+        model["display"]
+        + (" †" if model.get("training_data_overlap") else "")
+        + (" ‡" if model.get("classification_only") else "")
+    )
+
+
 def model_page(template: str, identifier: str, dashboard: dict, project_url: str) -> str:
     model = dashboard["models"][identifier]
     title = f"{model['display']} on biomedical data · TabBench-Bio"
@@ -70,12 +78,22 @@ def model_page(template: str, identifier: str, dashboard: dict, project_url: str
         'data-page="model"', f'data-page="model" data-entity-id="{escape(identifier, quote=True)}"'
     )
     for element_id, content in (
-        ("model-page-title", model["display"]),
-        ("model-card-name", model["display"]),
+        ("model-page-title", model_label(model)),
+        ("model-card-name", model_label(model)),
         ("model-card-family", model["category"]),
         ("model-description", description),
     ):
         html = replace_element(html, element_id, escape(content))
+    if model.get("classification_only"):
+        html = replace_element(
+            html,
+            "model-card-classification-warning",
+            "‡ Classification only; regression tasks are not supported.",
+        )
+        html = html.replace(
+            'id="model-card-classification-warning" class="model-card-limit-warning" hidden',
+            'id="model-card-classification-warning" class="model-card-limit-warning"',
+        )
     limit = model.get("regular_max_features")
     html = replace_element(
         html,
@@ -202,7 +220,7 @@ def dataset_page(
         '<tr><td><a href="'
         + detail_url("model", row["model_id"])
         + '">'
-        + escape(models[row["model_id"]]["display"])
+        + escape(model_label(models[row["model_id"]]))
         + "</a></td>"
         + "".join(
             f"<td>{format_score(row['values'].get(item['key']))}</td>"

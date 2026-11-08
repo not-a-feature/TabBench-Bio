@@ -7,7 +7,7 @@ from pathlib import Path
 from xml.sax.saxutils import escape
 
 from tabbench_bio.resources import resource_root
-from tabbench_bio.static_pages import detail_url, write_static_pages
+from tabbench_bio.static_pages import detail_url, model_label, write_static_pages
 
 SKILL_NAME = "biomedical-tabular-model-selection"
 
@@ -299,7 +299,7 @@ def write_model_registry_summary(site_dir: Path, dashboard: dict) -> None:
             else "—"
         )
         model_rows.append(
-            f'<tr><td><a href="{escape(detail)}">{escape(model["display"])}</a></td>'
+            f'<tr><td><a href="{escape(detail)}">{escape(model_label(model))}</a></td>'
             f"<td>{escape(model['category'])}</td><td>{escape(identifier)}</td>"
             f"<td>{source_link}</td>"
             f'<td><a class="dataset-open" href="{escape(detail)}">Explore →</a></td></tr>'
