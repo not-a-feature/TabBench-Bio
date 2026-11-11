@@ -71,9 +71,9 @@
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Regular.woff2" as="font" type="font/woff2"
     crossorigin>
   <link rel="preload" href="assets/fonts/AtkinsonHyperlegibleNext-Bold.woff2" as="font" type="font/woff2" crossorigin>
-  <link rel="stylesheet" href="style.min.css?v=20261028-code-cards">
+  <link rel="stylesheet" href="style.min.css?v=20261111-toolbar-actions">
   <script defer src="js/analytics.js?v=20260908-optout"></script>
-  <script defer src="js/app.js?v=20261103-static-pages"></script>
+  <script defer src="js/app.js?v=20261111-advanced-options"></script>
 </head>
 
 <body data-page="home">
@@ -144,7 +144,7 @@
       </div>
       <div class="results-toolbar">
         <div class="analysis-view-control">
-          <div class="analysis-view-options" role="group" aria-label="Analysis view">
+          <div class="analysis-view-options" role="group" aria-label="Analysis view" data-advanced-option hidden>
             <button id="view-strict" class="button button-primary" type="button" aria-pressed="true">Strict
               (primary)</button>
             <button id="view-adaptive" class="button" type="button" aria-pressed="false">Adaptive (sensitivity)</button>
@@ -163,10 +163,13 @@
               model from the target. Models are then ranked on different target pools, so this view is an optimistic
               bound rather than a like-for-like comparison.</span></p>
         </div>
+        <div class="results-toolbar-actions">
+          <button id="advanced-options" class="button" type="button" aria-pressed="false">Advanced options</button>
         <button id="download-all-figures"
           title="Download current chart selections, including collapsed plots, for all three analysis modes with default and all models (PNG and SVG)."
           class="button figure-download-button" type="button" disabled>Download all figures <span
             aria-hidden="true">↓</span></button>
+        </div>
       </div>
       <article class="panel panel-main" id="elo-panel">
         <div class="panel-head">
@@ -177,7 +180,7 @@
             </div>
           </div>
           <div class="controls">
-            <label>Metric<select id="elo-metric" aria-label="Leaderboard metric"></select></label>
+            <label data-advanced-option hidden>Metric<select id="elo-metric" aria-label="Leaderboard metric"></select></label>
             <label>Dataset modality<select id="elo-domain" aria-label="Elo dataset modality"></select></label>
             <label>Feature cap<select id="elo-cap" aria-label="Feature cap"></select></label>
             <label>Training samples<select id="elo-samples" aria-label="Training samples"></select></label>
@@ -208,7 +211,7 @@
             <label>Dataset modality<select id="perf-domain" aria-label="Performance dataset modality"></select></label>
             <label>Feature cap<select id="perf-cap" aria-label="Performance feature cap"></select></label>
             <label>Models<select id="perf-group" aria-label="Model group"></select></label>
-            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="perf-ci"
+            <label class="checkbox-control" data-advanced-option hidden><span>Uncertainty</span><span class="checkbox-row"><input id="perf-ci"
                   type="checkbox">95% CI</span></label>
           </div>
           <button class="panel-toggle" type="button" aria-expanded="true" aria-controls="performance-content"
@@ -236,7 +239,7 @@
             <label>Training samples<select id="feat-samples"
                 aria-label="Feature-budget training samples"></select></label>
             <label>Models<select id="feat-group" aria-label="Feature-budget model group"></select></label>
-            <label class="checkbox-control"><span>Uncertainty</span><span class="checkbox-row"><input id="feat-ci"
+            <label class="checkbox-control" data-advanced-option hidden><span>Uncertainty</span><span class="checkbox-row"><input id="feat-ci"
                   type="checkbox">95% CI</span></label>
           </div>
           <button class="panel-toggle" type="button" aria-expanded="false" aria-controls="feature-budget-content"><span
@@ -259,7 +262,7 @@
             </div>
           </div>
           <div class="controls">
-            <label>Metric<select id="prediction-cost-metric"
+            <label data-advanced-option hidden>Metric<select id="prediction-cost-metric"
                 aria-label="Prediction-cost Pareto metric"></select></label>
             <label>Dataset modality<select id="prediction-cost-domain"
                 aria-label="Prediction-cost dataset modality"></select></label>
@@ -275,6 +278,8 @@
         <div id="prediction-cost-content" class="panel-chart-content">
           <div id="prediction-cost-chart" class="plot" role="region" aria-label="Performance versus prediction cost">
           </div>
+          <p id="prediction-cost-metric-warning" class="model-card-limit-warning" hidden></p>
+          <p id="prediction-cost-note" class="chart-note"></p>
         </div>
       </article>
 
@@ -287,7 +292,7 @@
             </div>
           </div>
           <div class="controls" hidden>
-            <label>Metric<select id="cost-metric" aria-label="Pareto metric"></select></label>
+            <label data-advanced-option hidden>Metric<select id="cost-metric" aria-label="Pareto metric"></select></label>
             <label>Dataset modality<select id="cost-domain" aria-label="Pareto dataset modality"></select></label>
             <label>Feature cap<select id="cost-cap" aria-label="Pareto feature cap"></select></label>
             <label>Training samples<select id="cost-samples" aria-label="Pareto training samples"></select></label>
@@ -298,6 +303,8 @@
         </div>
         <div id="fitting-cost-content" class="panel-chart-content" hidden>
           <div id="cost-chart" class="plot" role="region" aria-label="Performance versus fitting cost"></div>
+          <p id="cost-metric-warning" class="model-card-limit-warning" hidden></p>
+          <p id="cost-note" class="chart-note"></p>
         </div>
       </article>
 

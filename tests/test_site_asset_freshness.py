@@ -158,7 +158,8 @@ def database(tmp_path):
                         "status": "fail" if failed else "pass",
                         "reason": "fit_oom" if failed else "",
                         "n_train_samples": n,
-                        "train_time_s": 1.0 if n == 20 else 10.0,
+                        "train_time_s": (1.0 if n == 20 else 10.0)
+                        * (20 if dataset == "reg" else 1),
                         "inference_time_s": 0.5,
                     }
                     prediction = (
@@ -224,6 +225,26 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         if row["cell"] == "cap_100_n50" and row["model_id"] == "NEW" and row["domain"] == "all"
     )
     assert new_cost["train_time_s"] == 5.5  # Median of the source and nominal successful fits.
+    strict_view = parsed["analysis_views"]["strict"]
+    for grid, expected_time in (
+        ("cost_grid", 10.0),
+        ("regression_cost_grid", 200.0),
+        ("pooled_cost_grid", 105.0),
+    ):
+        cost = next(
+            row
+            for row in strict_view[grid]
+            if row["cell"] == "cap_100_n50" and row["model_id"] == "RF" and row["domain"] == "all"
+        )
+        assert cost["train_time_s"] == expected_time
+        if grid == "regression_cost_grid":
+            assert cost["r2"] == pytest.approx(
+                strict["regression"].query("cell == 'cap_100_n50' and model == 'RF'")["r2"].mean(),
+                rel=1e-5,
+            )
+            assert "f1_macro" not in cost
+        if grid == "pooled_cost_grid":
+            assert "r2" not in cost and "f1_macro" not in cost
     assert strict["classification"].query("model == 'RF'")["roc_auc"].eq(1).all()
     registry = json.loads((output / "data/datasets/index.json").read_text())
     assert len(registry["datasets"]) == 2
@@ -460,6 +481,8 @@ def test_incomplete_database_without_rf_builds_an_empty_ranking(tmp_path, task):
     assert result["cell_elo"] == []
     assert result["reference"] == []
     assert result["cost_grid"] == []
+    assert result["regression_cost_grid"] == []
+    assert result["pooled_cost_grid"] == []
     assert result["progress"]["fraction"] == 0.5
 
 

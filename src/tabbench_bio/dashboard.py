@@ -868,6 +868,21 @@ def build_view(
         "cost_grid": build_cost_grid(
             models, datasets, cells, domains, metrics, clf, run_stats, adaptive
         ),
+        "regression_cost_grid": build_cost_grid(
+            models, datasets, cells, domains, ["r2", "rmse"], reg, run_stats, adaptive
+        ),
+        "pooled_cost_grid": build_cost_grid(
+            models,
+            datasets,
+            cells,
+            domains,
+            [],
+            pd.concat([frame for frame in (clf, reg) if not frame.empty], ignore_index=True)
+            if not clf.empty or not reg.empty
+            else clf,
+            run_stats,
+            adaptive,
+        ),
         "rank_correlations": {"cells": cells, "matrix": correlations},
     }
 

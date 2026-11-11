@@ -603,3 +603,8 @@ mask-image: linear-gradient(to right, transparent 30%, #000 75%);
 .model-selection-controls { justify-content: flex-start; }
 .model-selection-controls .model-visibility-control { align-self: flex-end; height: 38px; min-height: 38px; padding-block: 0; }
 .section.section-results{padding-bottom:0}.section.about-benchmark{margin-top:22px;padding-top:56px;border-top:1px solid var(--line)}.code-pair{margin-top:18px}.code-pair .citation-card{display:flex;flex-direction:column}.code-pair .citation-code{flex:1;min-height:0}.about-benchmark>p a{text-decoration:underline;text-underline-offset:2px}.about-benchmark :not(pre)>code{color:var(--ink);font-size:.9em}
+
+[data-advanced-option][hidden] { display: none !important; }
+
+.results-toolbar-actions { display: flex; align-items: start; justify-content: flex-end; flex-wrap: wrap; gap: 8px; }
+.results-toolbar-actions .button { width: auto; }

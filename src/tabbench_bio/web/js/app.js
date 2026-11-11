@@ -3,6 +3,7 @@
 let DATA = null;
 let EXCLUDED = new Set();
 let SHOW_ALL_MODELS = false;
+let ADVANCED_OPTIONS = false;
 let RANK_REFERENCE_CELL = null;
 let CHARTS_READY = false;
 
@@ -50,6 +51,36 @@ const ELO_METRICS = {
   balanced_accuracy: "Balanced accuracy",
   roc_auc: "ROC-AUC",
 };
+const COST_METRICS = {
+  elo: { label: "Elo", grid: "pooled_cost_grid", eloMetric: "f1_macro" },
+  ...Object.fromEntries(Object.entries(ELO_METRICS).map(([key, label]) => [
+    key, { label, grid: "cost_grid", task: "classification" },
+  ])),
+  rmse: { label: "RMSE", axisLabel: "−RMSE", grid: "regression_cost_grid", task: "regression", sourceMetric: "rmse", negate: true },
+  r2: { label: "R²", grid: "regression_cost_grid", task: "regression" },
+};
+
+function costMetricNote(metric) {
+  const spec = COST_METRICS[metric];
+  if (!spec.task) return "";
+  return spec.task === "classification"
+    ? `${spec.label}: Classification only; regression tasks are excluded from performance and timing summaries.`
+    : `${spec.label}: Regression only; classification tasks are excluded from performance and timing summaries.${spec.negate ? " RMSE is negated so higher is better; its magnitude depends on each target's units and scale." : ""}`;
+}
+
+function costRows(metric, cell, domain) {
+  const spec = COST_METRICS[metric];
+  const rows = (DATA[spec.grid] || []).filter(row => row.cell === cell && row.domain === domain);
+  if (spec.negate) return rows.filter(row => Number.isFinite(row[spec.sourceMetric]))
+    .map(row => ({ ...row, [metric]: -row[spec.sourceMetric] }));
+  if (!spec.eloMetric) return rows.filter(row => Number.isFinite(row[metric]));
+  const ratings = new Map(DATA.domain_elo
+    .filter(row => row.cell === cell && row.domain === domain && row.metric === spec.eloMetric)
+    .map(row => [row.model_id, row]));
+  return rows.filter(row => ratings.has(row.model_id)).map(row => ({
+    ...row, [metric]: ratings.get(row.model_id).Elo,
+  }));
+}
 
 const DASHES = ["solid", "dash", "dot", "dashdot", "longdash", "longdashdot"];
 const SYMBOLS = ["circle", "square", "diamond", "triangle-up", "cross", "x"];
@@ -1044,6 +1075,12 @@ function initializeCost() {
   initializeCostView("prediction-cost");
 }
 
+function updateCostDomains(prefix, preferred = byId(`${prefix}-domain`).value) {
+  const grid = DATA[COST_METRICS[byId(`${prefix}-metric`).value].grid] || [];
+  const domains = DATA.domains.filter(domain => grid.some(row => row.domain === domain));
+  setOptions(byId(`${prefix}-domain`), domains, domains.includes(preferred) ? preferred : "all", domainLabel);
+}
+
 function initializeCostView(prefix) {
   const metricSelect = byId(`${prefix}-metric`);
   const domainSelect = byId(`${prefix}-domain`);
@@ -1051,9 +1088,9 @@ function initializeCostView(prefix) {
   const sampleSelect = byId(`${prefix}-samples`);
   const reference = DATA.cell_options.find((cell) => cell.id === DATA.meta.reference_cell) || DATA.cell_options[0];
   const caps = [...new Set(DATA.cell_options.map((cell) => cell.feature_cap))].sort((a, b) => Number(a) - Number(b));
-  const domains = DATA.domains.filter((domain) => DATA.cost_grid.some((row) => row.domain === domain));
-  setOptions(metricSelect, DATA.elo_metrics, "f1_macro", (metric) => ELO_METRICS[metric]);
-  setOptions(domainSelect, domains, "all", domainLabel);
+  setOptions(metricSelect, Object.keys(COST_METRICS), "elo", metric => COST_METRICS[metric].label);
+
+  updateCostDomains(prefix, "all");
   setOptions(capSelect, caps, reference.feature_cap, capLabel);
 
   function updateSamples(preferred) {
@@ -1065,7 +1102,7 @@ function initializeCostView(prefix) {
     setOptions(sampleSelect, samples, preferred, sampleLabel);
   }
 
-  metricSelect.addEventListener("change", () => renderCost(prefix));
+  metricSelect.addEventListener("change", () => { updateCostDomains(prefix); renderCost(prefix); });
   domainSelect.addEventListener("change", () => renderCost(prefix));
   capSelect.addEventListener("change", () => { updateSamples(sampleSelect.value); renderCost(prefix); });
   sampleSelect.addEventListener("change", () => renderCost(prefix));
@@ -1121,7 +1158,16 @@ function costLabelAnnotations(rows, metric, timeColumn, mobile, width, height, x
 }
 
 function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 1100) {
-  const metricLabel = ELO_METRICS[metric];
+  const metricSpec = COST_METRICS[metric];
+  const metricLabel = metricSpec.axisLabel || metricSpec.label;
+  const valueFormat = metricSpec.eloMetric ? ".0f" : ".3f";
+  if (!rows.length) return {
+    traces: [],
+    layout: baseLayout({
+      height: 420,
+      annotations: [{ text: "No matching timed results for this selection.", x: 0.5, y: 0.5, xref: "paper", yref: "paper", showarrow: false }],
+    }),
+  };
   const categories = [...new Set(rows.map((row) => row.category))];
   const frontier = paretoFrontier(rows, metric, timing.column);
   const frontierIds = new Set(frontier.map((row) => row.model_id));
@@ -1131,7 +1177,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
   const logs = rows.map((row) => Math.log10(row[timing.column]));
   const values = rows.map((row) => row[metric]);
   const xPad = Math.max(0.15, (Math.max(...logs) - Math.min(...logs)) * 0.12);
-  const yPad = Math.max(0.01, (Math.max(...values) - Math.min(...values)) * 0.15);
+  const yPad = Math.max(metricSpec.eloMetric ? 10 : 0.01, (Math.max(...values) - Math.min(...values)) * 0.15);
   const xRange = [Math.min(...logs) - xPad, Math.max(...logs) + xPad];
   const yRange = [Math.min(...values) - yPad, Math.max(...values) + yPad];
   const frontierTrace = {
@@ -1144,7 +1190,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
     line: { color: css("--ink"), width: 2, dash: "dot" },
     marker: { color: css("--surface"), size: 8, line: { color: css("--ink"), width: 1.5 } },
     customdata: frontier.map((row) => modelLabel(row) + modelAnnotationTooltip(row)),
-    hovertemplate: `<b>%{customdata}</b><br>Pareto frontier<br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>`,
+    hovertemplate: `<b>%{customdata}</b><br>Pareto frontier<br>%{x:.1f} s per fold<br>${metricLabel} %{y:${valueFormat}}<extra></extra>`,
   };
   const categoryTraces = categories.flatMap((category) => {
     const categoryRows = rows.filter((row) => row.category === category);
@@ -1167,7 +1213,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
       customdata: points.map((row) => modelLabel(row) + modelAnnotationTooltip(row)),
       ...(frontierIds.has(points[0].model_id)
         ? { hoverinfo: "skip" }
-        : { hovertemplate: `<b>%{customdata}</b><br>%{x:.1f} s per fold<br>${metricLabel} %{y:.3f}<extra></extra>` }),
+        : { hovertemplate: `<b>%{customdata}</b><br>%{x:.1f} s per fold<br>${metricLabel} %{y:${valueFormat}}<extra></extra>` }),
     }));
   });
   const layout = baseLayout({
@@ -1176,7 +1222,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
     meta: { cost: { rows, metric, timing } },
     annotations: costLabelAnnotations(rows, metric, timing.column, mobile, width, height, xRange, yRange),
     xaxis: axes({ title: timing.axis, type: "log", range: xRange, automargin: false }),
-    yaxis: axes({ title: `Mean ${metricLabel}`, range: yRange, automargin: false }),
+    yaxis: axes({ title: metricSpec.eloMetric ? metricLabel : `Mean ${metricLabel}`, range: yRange, automargin: false, ...(metricSpec.eloMetric ? { tickformat: ".0f" } : {}) }),
     legend: { orientation: "h", x: 0, y: -75 / height, yanchor: "top", font: { size: mobile ? 11 : 12, color: css("--muted") } },
   });
   return { traces: [frontierTrace, ...categoryTraces], layout };
@@ -1192,10 +1238,17 @@ function renderCost(prefix, force = false) {
   const samples = budgetValue(byId(`${prefix}-samples`).value);
   const option = DATA.cell_options.find((cell) => sameBudget(cell.feature_cap, cap) && sameBudget(cell.n_train, samples));
   if (!option) return;
-  const rows = DATA.cost_grid.filter((row) =>
-    row.cell === option.id && row.domain === domain && !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON")
+  const rows = costRows(metric, option.id, domain).filter((row) =>
+    !EXCLUDED.has(row.model_id) && (SHOW_ALL_MODELS || row.model_id !== "AUTOGLUON")
+    && Number.isFinite(row[timing.column]) && row[timing.column] > 0
   );
-  if (!rows.length) return;
+  const warning = byId(`${prefix}-metric-warning`);
+  warning.textContent = costMetricNote(metric);
+  warning.hidden = !warning.textContent;
+  const eloMetric = COST_METRICS[metric].eloMetric;
+  byId(`${prefix}-note`).textContent = eloMetric
+    ? `Elo combines classification (${ELO_METRICS[eloMetric]}) and regression (RMSE); untuned Random Forest is anchored at 1,000. Timing medians include successful timed folds from both task types. The frontier uses point estimates.`
+    : "Timing medians include successful timed folds from the selected task type. Higher scores are better.";
   const chart = byId(timing.chart);
   const spec = costPlotSpec(rows, metric, timing, mobile, chart.clientWidth || chart.closest(".panel").clientWidth);
   return Plotly.react(chart, spec.traces, spec.layout, PLOT_CONFIG).then(() => {
@@ -1567,6 +1620,36 @@ function initializeModelVisibility() {
   });
 }
 
+async function setAdvancedOptions(active) {
+  ADVANCED_OPTIONS = active;
+  const toggle = byId("advanced-options");
+  toggle.setAttribute("aria-pressed", String(active));
+  toggle.classList.toggle("button-primary", active);
+  document.querySelectorAll("[data-advanced-option]").forEach(element => { element.hidden = !active; });
+  if (active) return;
+
+  // Hidden controls must return to the documented default view.
+  byId("elo-metric").value = "f1_macro";
+  ["cost", "prediction-cost"].forEach(prefix => {
+    byId(`${prefix}-metric`).value = "elo";
+    updateCostDomains(prefix);
+  });
+  ["perf-ci", "feat-ci"].forEach(id => { byId(id).checked = false; });
+  SHOW_ALL_MODELS = false;
+  EXCLUDED = new Set(DATA.meta.plot_excluded_models);
+  const modelsToggle = byId("show-all-models");
+  modelsToggle.setAttribute("aria-pressed", "false");
+  modelsToggle.classList.remove("button-primary");
+  renderReferencePodium();
+  await selectAnalysisView("strict");
+}
+
+function initializeAdvancedOptions() {
+  const toggle = byId("advanced-options");
+  if (!toggle) return;
+  toggle.addEventListener("click", () => setAdvancedOptions(!ADVANCED_OPTIONS).catch(showLoadError));
+}
+
 function initializeCodeCopy() {
   document.querySelectorAll(".code-copy").forEach((button) => {
     button.addEventListener("click", () => {
@@ -1619,6 +1702,7 @@ async function main() {
   initializeModelVisibility();
   if (page === "home") {
     initializeCodeCopy();
+    initializeAdvancedOptions();
     await charting;
     Object.assign(DATA, DATA.analysis_views.strict);
     initializeMeta();
