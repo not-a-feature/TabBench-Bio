@@ -47,7 +47,7 @@ def test_aliases_and_checkpoint_overrides():
     assert spec.adapter == MODEL_REGISTRY["TABPFN-WIDE"].adapter
 
 
-@pytest.mark.parametrize("key", ["LIMIX-2", "GENEICL"])
+@pytest.mark.parametrize("key", ["LIMIX-2", "GENEICL", "LIGHTPFN"])
 def test_class_limit_is_a_design_skip(tmp_path, monkeypatch, debug_config, key):
     from unittest.mock import Mock
 

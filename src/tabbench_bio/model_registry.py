@@ -57,6 +57,9 @@ EXECUTION_REGISTRY = {
     "GENEICL": ExecutionSpec(
         device="gpu", environment="geneicl", adapter="tabbench_bio.models.geneicl:GeneICLModel"
     ),
+    "LIGHTPFN": ExecutionSpec(
+        device="gpu", environment="lightpfn", adapter="tabbench_bio.models.lightpfn:LightPFNModel"
+    ),
     "KUMO-TABULAR-MEDIUM": ExecutionSpec(
         device="gpu",
         environment="kumo",
