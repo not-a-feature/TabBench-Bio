@@ -10,6 +10,7 @@ import pytest
 
 from tabbench_bio import cli
 from tabbench_bio.config import load_config, resolve_nan_policy
+from tabbench_bio.model_registry import model_entry
 from tabbench_bio.result_store import _merge_cell_config
 from tabbench_bio.sample_fallback import _assert_compatible_configs
 from tabbench_bio.tuning import candidates, selection_split, tuning_fingerprint, tuning_specs
@@ -77,7 +78,8 @@ def test_grid_omits_default_and_has_stable_candidates():
 def test_mlp_grid_uses_registered_parent_and_supported_architecture_parameters():
     roster = json.loads((Path(__file__).parents[1] / "configs/models/mlp_tuned.json").read_text())
     spec = tuning_specs(roster)["NN_TORCH-TUNED"]
-    assert spec["base_model"] == "NN_TORCH" and roster[0]["device"] == "gpu"
+    assert spec["base_model"] == "NN_TORCH"
+    assert model_entry(roster[0])["device"] == "gpu"
     for task in ("classification", "regression"):
         grid = candidates(spec, task)
         assert {} not in grid and len(grid) == 16
