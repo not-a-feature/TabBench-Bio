@@ -52,3 +52,6 @@ website.cache/
 /scripts/*
 !/scripts/generate_brca_embeddings.py
 !/scripts/generate_protein_embeddings.py
+
+tex/
+rebuttal/

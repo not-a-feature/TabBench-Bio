@@ -1,173 +1,127 @@
-"""Model adapters, execution defaults and public metadata."""
+"""Python execution defaults composed with the public JSON metadata catalog."""
 
-from dataclasses import dataclass
+from dataclasses import asdict, dataclass
+from pathlib import Path
+
+from tabbench_bio.model_metadata import PUBLIC_METADATA_FIELDS, load_model_metadata
 
 
 @dataclass(frozen=True)
-class ModelSpec:
-    display: str
-    category: str
+class ExecutionSpec:
     device: str
     environment: str = "standard"
     adapter: str | None = None
-    max_features: int | None = None
-    supported_tasks: tuple[str, ...] = ("classification", "regression")
-    max_classes: int | None = None
-    hidden: bool = False
-    training_data_overlap: bool = False
     aliases: tuple[str, ...] = ()
     hyperparameters: tuple[tuple[str, object], ...] = ()
 
 
-MODEL_REGISTRY = {
-    "DUMMY": ModelSpec(hidden=True, display="Constant", category="Baseline", device="cpu"),
-    "KNN": ModelSpec(hidden=True, display="KNN", category="Traditional ML", device="cpu"),
-    "LR": ModelSpec(display="Logistic Regression", category="Traditional ML", device="cpu"),
-    "RF": ModelSpec(display="Random Forest", category="Tree-based", device="cpu"),
-    "XT": ModelSpec(display="Extra Trees", category="Tree-based", device="cpu"),
-    "CAT": ModelSpec(hidden=True, display="CatBoost", category="Gradient Boosting", device="cpu"),
-    "GBM": ModelSpec(hidden=True, display="LightGBM", category="Gradient Boosting", device="cpu"),
-    "XGB": ModelSpec(display="XGBoost", category="Gradient Boosting", device="gpu"),
-    "NN_TORCH": ModelSpec(display="MLP", category="Deep Learning", device="gpu"),
-    "REALMLP": ModelSpec(display="RealMLP", category="Deep Learning", device="gpu"),
-    "TABM": ModelSpec(display="TabM", category="Deep Learning", device="gpu"),
-    "MITRA": ModelSpec(
-        display="MITRA", category="Tabular Foundation", device="gpu", max_features=500
+@dataclass(frozen=True)
+class ModelSpec:
+    """Resolved compatibility view; public values are required JSON fields."""
+
+    display: str
+    category: str
+    description: str
+    source_url: str | None
+    hidden: bool
+    training_data_overlap: bool
+    supported_tasks: tuple[str, ...]
+    max_features: int | None
+    max_classes: int | None
+    device: str
+    environment: str = "standard"
+    adapter: str | None = None
+    aliases: tuple[str, ...] = ()
+    hyperparameters: tuple[tuple[str, object], ...] = ()
+
+
+EXECUTION_REGISTRY = {
+    "DUMMY": ExecutionSpec(device="cpu"),
+    "KNN": ExecutionSpec(device="cpu"),
+    "LR": ExecutionSpec(device="cpu"),
+    "RF": ExecutionSpec(device="cpu"),
+    "XT": ExecutionSpec(device="cpu"),
+    "CAT": ExecutionSpec(device="cpu"),
+    "GBM": ExecutionSpec(device="cpu"),
+    "XGB": ExecutionSpec(device="gpu"),
+    "NN_TORCH": ExecutionSpec(device="gpu"),
+    "REALMLP": ExecutionSpec(device="gpu"),
+    "TABM": ExecutionSpec(device="gpu"),
+    "MITRA": ExecutionSpec(device="gpu"),
+    "FTFM": ExecutionSpec(
+        device="gpu", environment="ftfm", adapter="tabbench_bio.models.ftfm:FTFMModel"
     ),
-    "FTFM": ModelSpec(
-        display="FTFM-1",
-        category="Tabular Foundation",
-        device="gpu",
-        environment="ftfm",
-        adapter="tabbench_bio.models.ftfm:FTFMModel",
-        supported_tasks=("classification",),
-        training_data_overlap=True,
+    "CAUSILO": ExecutionSpec(
+        device="gpu", environment="causilo", adapter="tabbench_bio.models.causilo:CausiloModel"
     ),
-    "CAUSILO": ModelSpec(
-        display="Causilo",
-        category="Tabular Foundation",
-        device="gpu",
-        environment="causilo",
-        adapter="tabbench_bio.models.causilo:CausiloModel",
+    "GENEICL": ExecutionSpec(
+        device="gpu", environment="geneicl", adapter="tabbench_bio.models.geneicl:GeneICLModel"
     ),
-    "GENEICL": ModelSpec(
-        display="GeneICL",
-        category="Tabular Foundation",
-        device="gpu",
-        environment="geneicl",
-        adapter="tabbench_bio.models.geneicl:GeneICLModel",
-        max_classes=10,
-    ),
-    "KUMO-TABULAR-MEDIUM": ModelSpec(
-        display="Kumo Tabular (M)",
-        category="Tabular Foundation",
+    "KUMO-TABULAR-MEDIUM": ExecutionSpec(
         device="gpu",
         environment="kumo",
         adapter="tabbench_bio.models.kumo_tabular:KumoTabularMediumModel",
-        max_features=500,
     ),
-    "KUMO-TABULAR-LARGE": ModelSpec(
-        display="Kumo Tabular (L)",
-        category="Tabular Foundation",
+    "KUMO-TABULAR-LARGE": ExecutionSpec(
         device="gpu",
         environment="kumo",
         adapter="tabbench_bio.models.kumo_tabular:KumoTabularLargeModel",
-        max_features=500,
     ),
-    "SELDON": ModelSpec(
-        display="Seldon",
-        category="Tabular Foundation",
-        device="gpu",
-        environment="seldon",
-        adapter="tabbench_bio.models.seldon:SeldonModel",
-        max_features=500,
-        supported_tasks=("classification",),
+    "SELDON": ExecutionSpec(
+        device="gpu", environment="seldon", adapter="tabbench_bio.models.seldon:SeldonModel"
     ),
-    "SELDON-MINI": ModelSpec(
-        display="Seldon-Mini",
-        category="Tabular Foundation",
-        device="gpu",
-        environment="seldon",
-        adapter="tabbench_bio.models.seldon:SeldonMiniModel",
-        max_features=500,
-        supported_tasks=("classification",),
+    "SELDON-MINI": ExecutionSpec(
+        device="gpu", environment="seldon", adapter="tabbench_bio.models.seldon:SeldonMiniModel"
     ),
-    "LIMIX-2": ModelSpec(
-        display="LimiX2",
-        category="Tabular Foundation",
-        device="gpu",
-        environment="limix2",
-        max_classes=10,
-        adapter="tabbench_bio.models.limix_2:LimiX2Model",
+    "LIMIX-2": ExecutionSpec(
+        device="gpu", environment="limix2", adapter="tabbench_bio.models.limix_2:LimiX2Model"
     ),
-    "REALTABPFN-V2": ModelSpec(
-        display="RealTabPFN v2", category="Tabular Foundation", device="gpu", max_features=500
+    "REALTABPFN-V2": ExecutionSpec(device="gpu"),
+    "REALTABPFN-V2.5": ExecutionSpec(device="gpu"),
+    "TABPFN-V3": ExecutionSpec(
+        device="gpu", adapter="tabbench_bio.models.tabpfn_v3:TabPFNV3Model", aliases=("TABPFNV3",)
     ),
-    "REALTABPFN-V2.5": ModelSpec(
-        display="RealTabPFN 2.5", category="Tabular Foundation", device="gpu", max_features=2000
-    ),
-    "TABPFN-V3": ModelSpec(
-        hidden=True,
-        display="TabPFN 3",
-        category="Tabular Foundation",
-        device="gpu",
-        adapter="tabbench_bio.models.tabpfn_v3:TabPFNV3Model",
-        max_features=10000,
-        aliases=("TABPFNV3",),
-    ),
-    "TABPFN-V3.5": ModelSpec(
-        display="TabPFN 3.5",
-        category="Tabular Foundation",
+    "TABPFN-V3.5": ExecutionSpec(
         device="gpu",
         environment="tabpfn35",
         adapter="tabbench_bio.models.tabpfn_v3_5:TabPFNV35Model",
-        max_features=20000,
         aliases=("TABPFNV35",),
     ),
-    "TABPFN-WIDE": ModelSpec(
-        hidden=True,
-        display="TabPFN Wide (8k)",
-        category="Tabular Foundation",
+    "TABPFN-WIDE": ExecutionSpec(
         device="gpu",
         adapter="tabbench_bio.models.tabpfn_wide:TabPFNWideModel",
-        supported_tasks=("classification",),
         aliases=("TABPFNWIDE",),
     ),
-    "TABPFN-WIDE-5K-NE3": ModelSpec(
-        display="TabPFN Wide 5k (ne3)",
-        category="Tabular Foundation",
+    "TABPFN-WIDE-5K-NE3": ExecutionSpec(
         device="gpu",
         adapter="tabbench_bio.models.tabpfn_wide:TabPFNWideModel",
-        supported_tasks=("classification",),
         hyperparameters=(("model_name", "wide-v2-5k"), ("n_estimators", 3)),
     ),
-    "TABFM": ModelSpec(
-        display="TabFM",
-        category="Tabular Foundation",
-        device="gpu",
-        adapter="tabbench_bio.models.tabfm:TabFMModel",
-        max_features=2000,
-    ),
-    "TABDPT": ModelSpec(
-        display="TabDPT",
-        category="Tabular Foundation",
-        device="gpu",
-        max_features=2500,
-        training_data_overlap=True,
-    ),
-    "TABICL": ModelSpec(
-        hidden=True,
-        display="TabICL v2",
-        category="Tabular Foundation",
-        device="gpu",
-        max_features=2000,
-    ),
-    "AUTOGLUON": ModelSpec(display="AutoGluon", category="AutoML", device="gpu"),
-    "FASTAI": ModelSpec(display="FastAI", category="Deep Learning", device="gpu"),
-    "TABPFN": ModelSpec(display="TabPFN", category="Tabular Foundation", device="gpu"),
+    "TABFM": ExecutionSpec(device="gpu", adapter="tabbench_bio.models.tabfm:TabFMModel"),
+    "TABDPT": ExecutionSpec(device="gpu"),
+    "TABICL": ExecutionSpec(device="gpu"),
+    "AUTOGLUON": ExecutionSpec(device="gpu"),
+    "FASTAI": ExecutionSpec(device="gpu"),
+    "TABPFN": ExecutionSpec(device="gpu"),
 }
 
-MODEL_ALIASES = {alias: key for key, spec in MODEL_REGISTRY.items() for alias in spec.aliases}
+
+def load_registry(metadata_path: Path | None = None) -> dict[str, ModelSpec]:
+    """Join validated JSON metadata with Python adapter/execution definitions."""
+    metadata = load_model_metadata(metadata_path)
+    missing = EXECUTION_REGISTRY.keys() - metadata.keys()
+    if missing:
+        raise ValueError(f"Missing public metadata for execution models: {sorted(missing)}")
+    registry = {}
+    for key, execution in EXECUTION_REGISTRY.items():
+        public = {field: metadata[key][field] for field in PUBLIC_METADATA_FIELDS}
+        public["supported_tasks"] = tuple(public["supported_tasks"])
+        registry[key] = ModelSpec(**public, **asdict(execution))
+    return registry
+
+
+MODEL_REGISTRY = load_registry()
+MODEL_ALIASES = {alias: key for key, spec in EXECUTION_REGISTRY.items() for alias in spec.aliases}
 MODEL_CATEGORY = {key: spec.category for key, spec in MODEL_REGISTRY.items()}
 MODEL_DISPLAY = {key: spec.display for key, spec in MODEL_REGISTRY.items()}
 REGULAR_MAX_FEATURES = {
@@ -184,7 +138,7 @@ def model_entry(entry: dict) -> dict:
     key = canonical_model_key(entry["key"])
     parent = canonical_model_key(entry["base_model"]) if "base_model" in entry else key
     defaults = {}
-    if parent in MODEL_REGISTRY:
-        spec = MODEL_REGISTRY[parent]
+    if parent in EXECUTION_REGISTRY:
+        spec = EXECUTION_REGISTRY[parent]
         defaults = {"environment": spec.environment, "device": spec.device}
     return {**defaults, **entry, "key": key}

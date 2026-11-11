@@ -94,7 +94,7 @@ class BoundedSeldonICL(SeldonICL):
             count = y.shape[-1]
             cache["inputs"] = (X[:, :count].clone(), y.reshape(-1, count).clone(), mask.clone())
             cache["encoding_key"] = uuid.uuid4().hex
-            return x.new_zeros((*lead, 0, self.model.max_classes))
+            return x.new_zeros((*lead, 0, self._out_dim))
         key = cache["encoding_key"]
         self._trim()
         if key in self._encoded:

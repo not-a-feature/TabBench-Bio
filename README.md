@@ -58,7 +58,8 @@ The [contributor guide](https://github.com/not-a-feature/TabBench-Bio/blob/main/
 
 The [model roster](https://github.com/not-a-feature/TabBench-Bio/blob/main/configs/models/all.json) includes linear models, trees, neural
 networks and tabular foundation models. `DUMMY` provides a constant baseline, and
-Random Forest anchors Elo at 1000. New adapters need a `ModelSpec` in
+Random Forest anchors Elo at 1000. Public model metadata lives in
+`configs/model_metadata.json`. New adapters need an `ExecutionSpec` in
 `src/tabbench_bio/model_registry.py`, including their environment profile.
 
 ## Merge results and build the website

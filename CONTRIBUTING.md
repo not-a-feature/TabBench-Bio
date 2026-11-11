@@ -85,7 +85,12 @@ print(lb.rank())
 For resumable jobs and mergeable SQLite results, follow the
 [end-to-end model guide](benchmark_my_model/INTEGRATION.md). Models already registered
 in AutoGluon's `ag_model_registry` need no adapter. Other models need an adapter and
-a `ModelSpec` in `src/tabbench_bio/model_registry.py` with an `environment` field.
+an `ExecutionSpec` in `src/tabbench_bio/model_registry.py` with an `environment` field.
+Declare its public name, category, description, source URL, visibility, overlap flag,
+supported tasks and declared limits in `configs/model_metadata.json`. Base entries
+declare all public fields; tuned entries may inherit them using `base_model`.
+The files in `configs/models/` select runnable models and configure tuning, memory
+priors and fitting regimes; public metadata belongs only in the catalog.
 Choose an existing compatible profile or add `environments/<profile>.txt` with the
 backend requirements. Install it in `.venvs/<profile>/` and test every supported task
 type before submitting a long run.

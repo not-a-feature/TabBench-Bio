@@ -2,8 +2,6 @@
   {
     "key": "NN_TORCH-TUNED",
     "base_model": "NN_TORCH",
-    "device": "gpu",
-    "environment": "standard",
     "tuning": {
       "protocol": "holdout-grid-v1",
       "selection": "inner_holdout",
@@ -30,8 +28,6 @@
           ]
         }
       ]
-    },
-    "source_url": "https://github.com/autogluon/autogluon",
-    "description": "This variant uses AutoGluon's PyTorch multilayer perceptron, selecting its depth, hidden layer width, learning rate and dropout from a small grid. Selection uses a holdout drawn only from the training data, followed by a refit of the selected configuration."
+    }
   }
 ]

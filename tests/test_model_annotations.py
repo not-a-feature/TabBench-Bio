@@ -8,6 +8,11 @@ from tabbench_bio.model_registry import MODEL_REGISTRY
 
 
 def test_existing_model_roster_contains_annotation():
+    catalog = json.loads(
+        (Path(__file__).resolve().parents[1] / "configs/model_metadata.json").read_text(
+            encoding="utf-8"
+        )
+    )
     models = json.loads(
         (Path(__file__).resolve().parents[1] / "configs/models/all.json").read_text(
             encoding="utf-8"
@@ -15,6 +20,10 @@ def test_existing_model_roster_contains_annotation():
     )
     tabdpt = next(model for model in models if model["key"] == "TABDPT")
     assert "training_data_overlap" not in tabdpt
+    assert (
+        next(model for model in catalog if model["key"] == "TABDPT")["training_data_overlap"]
+        is True
+    )
     assert MODEL_REGISTRY["TABDPT"].training_data_overlap is True
     registry = build_site.load_model_registry()
     assert build_site.model_meta("TABDPT", registry)["training_data_overlap"] is True

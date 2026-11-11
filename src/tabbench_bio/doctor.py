@@ -15,6 +15,7 @@ from pathlib import Path
 from tabbench_bio.bio.cache import load_cached_raw
 from tabbench_bio.bio.datasets import load_specs
 from tabbench_bio.bio.fingerprint import spec_fingerprint, validate_cached_spec
+from tabbench_bio.model_metadata import load_model_catalog
 from tabbench_bio.model_registry import MODEL_REGISTRY, canonical_model_key
 from tabbench_bio.model_run import model_python
 from tabbench_bio.resources import resource_root
@@ -26,6 +27,10 @@ CHECKOUT = resource_root()
 
 def check_metadata(root: Path) -> list[str]:
     problems = []
+    try:
+        load_model_catalog(root)
+    except (OSError, ValueError) as exc:
+        problems.append(f"Invalid model metadata/catalog: {exc}")
     for key, spec in MODEL_REGISTRY.items():
         profile = root / "environments" / f"{spec.environment}.txt"
         if not profile.is_file():

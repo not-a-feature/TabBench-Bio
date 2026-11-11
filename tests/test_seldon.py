@@ -10,12 +10,18 @@ pytest.importorskip("neuralk_oss")
 
 import torch
 from autogluon.tabular import TabularPredictor
-from neuralk_oss import Seldon
+from neuralk_oss import Seldon, SeldonRegressor
 from neuralk_oss.model import seldon as backend
 from neuralk_oss.model.config import SeldonConfig
 
 from tabbench_bio.model import _resolve_hyperparameters
-from tabbench_bio.models.seldon import CHECKPOINT_REVISIONS, SeldonMiniModel, SeldonModel
+from tabbench_bio.models.seldon import (
+    CHECKPOINT_REVISIONS,
+    REGRESSION_CHECKPOINT_REVISIONS,
+    SeldonMiniModel,
+    SeldonModel,
+    _FullFeatureRecipe,
+)
 
 
 @pytest.fixture
@@ -32,17 +38,30 @@ def local_weights(tmp_path, monkeypatch):
         icl_channels=16,
         num_icl_key_value_heads_for_query=None,
     )
-    with torch.random.fork_rng():
-        torch.manual_seed(42)
-        model = Seldon(config)
-        model.save_pretrained(tmp_path / "checkpoint")
+    for task, head in (
+        ("classification", {"task": "classification", "max_classes": 10}),
+        ("regression", {"task": "regression", "num_quantiles": 7}),
+    ):
+        settings = config.model_copy(
+            update={"head": type(config).model_validate({**config.model_dump(), "head": head}).head}
+        )
+        with torch.random.fork_rng():
+            torch.manual_seed(42)
+            Seldon(settings).save_pretrained(tmp_path / task)
 
-    def download(repo_id, revision, **kwargs):
-        name = repo_id.split("/")[-1]
-        assert revision == CHECKPOINT_REVISIONS[name]
-        return str(tmp_path / "checkpoint")
+    resolve_checkpoint = backend.resolve_checkpoint
 
-    monkeypatch.setattr(backend, "snapshot_download", download)
+    def resolve(name_or_path, *, task=None, revision=None, **kwargs):
+        name = (
+            str(name_or_path).split("/")[-1].removesuffix("-classifier").removesuffix("-regressor")
+        )
+        revisions = (
+            REGRESSION_CHECKPOINT_REVISIONS if task == "regression" else CHECKPOINT_REVISIONS
+        )
+        assert revision == revisions[name]
+        return resolve_checkpoint(tmp_path / task, task=task)
+
+    monkeypatch.setattr(backend, "resolve_checkpoint", resolve)
 
 
 @pytest.mark.parametrize("adapter,members", [(SeldonModel, 8), (SeldonMiniModel, 4)])
@@ -99,6 +118,42 @@ def test_both_models_resolve_together():
 
 
 @pytest.mark.parametrize("adapter", [SeldonModel, SeldonMiniModel])
+@pytest.mark.parametrize("budget", [0, 4096, 2**30])
+def test_regression_matches_released_cache_and_restores(tmp_path, local_weights, adapter, budget):
+    torch.set_num_threads(1)
+    X = pd.DataFrame(np.random.default_rng(12).normal(size=(32, 6))).add_prefix("f")
+    X["category"] = pd.Categorical(["a", "b"] * 16)
+    X.iloc[2, 0] = np.nan
+    y = pd.Series(np.linspace(-3, 5, 28) + np.random.default_rng(4).normal(size=28))
+    reference = SeldonRegressor.from_pretrained(
+        adapter.checkpoint,
+        revision=REGRESSION_CHECKPOINT_REVISIONS[adapter.checkpoint],
+        device="cpu",
+        estimator_batch_size=1,
+        query_chunk_size=16,
+        max_cache_gb=budget / 2**30,
+    )
+    recipe = reference.estimator.recipe
+    reference.estimator.recipe = _FullFeatureRecipe(**vars(recipe))
+    model = adapter(path=str(tmp_path), name="SeldonRegressor", problem_type="regression")
+    model.fit(X=X.iloc[:28], y=y, num_cpus=1, num_gpus=0)
+    model.model.estimator.cache_budget = budget
+    reference.fit(X.iloc[:28], y)
+    expected = reference.predict(X.iloc[28:])
+    actual = model.predict(X.iloc[28:])
+    assert model.model.n_estimators == reference.n_estimators == 4
+    assert model.model.clip_margin == reference.clip_margin == 0.1
+    assert model.model.estimator.recipe.half_shuffle is True
+    assert actual.shape == (4,) and np.isfinite(actual).all()
+    np.testing.assert_array_equal(actual, expected)
+    np.testing.assert_allclose(model.predict(X.iloc[28:29]), actual[:1], atol=1e-6)
+    restored = adapter.load(model.save())
+    assert restored.model.estimator._encoded_bytes == 0
+    np.testing.assert_array_equal(restored.predict(X.iloc[28:]), actual)
+    assert model.model.estimator._encoded_bytes <= budget
+
+
+@pytest.mark.parametrize("adapter", [SeldonModel, SeldonMiniModel])
 def test_autogluon_full_refit(tmp_path, local_weights, adapter):
     X = pd.DataFrame(np.random.default_rng(42).normal(size=(30, 4))).add_prefix("f")
     train = X.iloc[:24].copy()
@@ -140,7 +195,6 @@ def test_bounded_cache_matches_released_classifier(
 
     from neuralk_oss import SeldonClassifier
 
-    from tabbench_bio.models.seldon import _FullFeatureRecipe
     from tabbench_bio.models.seldon_cache import BoundedSeldonICL
 
     torch.set_num_threads(1)

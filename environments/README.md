@@ -18,7 +18,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
 | `kumo` | Kumo Tabular Medium and Large, with pinned SDM source and checkpoint revisions |
-| `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.2.3 and pinned checkpoint revisions |
+| `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.3.0 and pinned checkpoint revisions |
 | `ftfm` | FTFM-1, with pinned upstream source and checkpoint revisions |
 
 The model registry in `src/tabbench_bio/model_registry.py` declares these assignments.
@@ -62,7 +62,7 @@ Run with `tabbench-bio KUMO-TABULAR-MEDIUM` after installing the `kumo` profile.
 classification checkpoint across the full grid, with the same eight estimators,
 seed 42 and sequential views (`view_batch_size=1`).
 
-`SELDON` and `SELDON-MINI` use the `seldon` profile for classification.
+`SELDON` and `SELDON-MINI` use the `seldon` profile for classification and regression.
 Accept the [Seldon](https://huggingface.co/Neuralk-AI/seldon) and
 [Seldon-Mini](https://huggingface.co/Neuralk-AI/seldon-mini) weight terms and run
 `hf auth login`, then `tabbench-bio SELDON` or `tabbench-bio SELDON-MINI`.

@@ -310,7 +310,7 @@
     "display_name": "mtp2",
     "source": "openml",
     "fetch_id": "430",
-    "data_type": "Misc",
+    "data_type": "Molecular properties",
     "target": "oz1143",
     "problem_type": "regression",
     "enabled": true,

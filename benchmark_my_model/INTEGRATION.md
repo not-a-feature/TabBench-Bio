@@ -21,17 +21,33 @@ as a guide to the interface:
 Register the adapter in [model_registry.py](../src/tabbench_bio/model_registry.py):
 
 ```python
-"MYMODEL": ModelSpec(
-    display="My Model",
-    category="Tabular Foundation",
+"MYMODEL": ExecutionSpec(
     device="gpu",  # or "cpu"
     environment="my-model",
     adapter="tabbench_bio.models.my_model:MyModel",
 ),
 ```
 
-Use `supported_tasks=("classification",)` for a classification-only model, or
-`max_classes` for a class limit. Use a new key for a different checkpoint or method.
+Add its public metadata to `configs/model_metadata.json`:
+
+```json
+{
+  "key": "MYMODEL",
+  "display": "My Model",
+  "category": "Tabular Foundation",
+  "description": "Describe the model, its training data, and the released prediction method used by this benchmark.",
+  "source_url": "https://github.com/you/model",
+  "hidden": false,
+  "training_data_overlap": false,
+  "supported_tasks": ["classification", "regression"],
+  "max_features": null,
+  "max_classes": null
+}
+```
+
+Use `"supported_tasks": ["classification"]` for a classification-only model, or
+`max_classes` for a declared class limit. Missing or invalid metadata fails loading.
+Use a new key for a different checkpoint or method.
 Add the key to `configs/models/all.json` only if it should join the default roster;
 no CLI or grid edits are needed to run a registered key directly.
 

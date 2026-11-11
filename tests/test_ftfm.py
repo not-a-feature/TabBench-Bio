@@ -93,14 +93,11 @@ def test_explicit_gpu_requires_cuda(monkeypatch):
 
 
 def test_registration_and_full_grid():
-    from tabbench_bio.model_registry import MODEL_REGISTRY
     from tabbench_bio.predictions import CLASSIFICATION_ONLY_MODELS
     from tabbench_bio.resources import resource_root
 
     assert _resolve_hyperparameters(["FTFM"], 1) == {FTFMModel: [{"ag.num_gpus": 1}]}
     assert "FTFM" in CLASSIFICATION_ONLY_MODELS
-    spec = MODEL_REGISTRY["FTFM"]
-    assert spec.training_data_overlap and spec.max_features is None and spec.max_classes is None
     grid = json.loads((resource_root() / "configs/grid_sweep_all.json").read_text())
     roster = json.loads((resource_root() / "configs/models/all.json").read_text())
     assert any(row["key"] == "FTFM" for row in roster)

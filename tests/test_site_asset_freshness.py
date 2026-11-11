@@ -15,6 +15,7 @@ from tabbench_bio.config import config_for_cell
 from tabbench_bio.dashboard_data import read_inputs
 from tabbench_bio.elo import compute_elo, fold_scores
 from tabbench_bio.leaderboard import Leaderboard
+from tabbench_bio.model_metadata import PUBLIC_METADATA_FIELDS
 from tabbench_bio.result_store import ResultRepository, consolidate_results
 
 
@@ -91,14 +92,27 @@ def test_installed_registry_is_loaded_without_a_source_checkout(tmp_path, monkey
     package = tmp_path / "lib/site-packages/tabbench_bio"
     directory = package / "_resources/configs/models"
     directory.mkdir(parents=True)
+    original = dashboard.load_model_registry()["RF"]
+    fields = {"key", *PUBLIC_METADATA_FIELDS}
+    (directory.parent / "model_metadata.json").write_text(
+        json.dumps(
+            [
+                {key: value for key, value in original.items() if key in fields},
+                {
+                    "key": "CUSTOM",
+                    "base_model": "RF",
+                    "display": "Custom RF",
+                    "training_data_overlap": True,
+                },
+            ]
+        )
+    )
     (directory / "custom.json").write_text(
         json.dumps(
             [
                 {
                     "key": "CUSTOM",
                     "base_model": "RF",
-                    "training_data_overlap": True,
-                    "source_url": "https://github.com/scikit-learn/scikit-learn",
                 }
             ]
         )

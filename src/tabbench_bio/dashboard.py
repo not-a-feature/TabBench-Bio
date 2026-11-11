@@ -19,11 +19,15 @@ from tqdm.auto import tqdm
 from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read_inputs
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
 from tabbench_bio.io_utils import atomic_write_json, sha256_file
+from tabbench_bio.model_metadata import (
+    hidden_model_ids,
+    load_model_catalog,
+)
 from tabbench_bio.model_registry import (
-    MODEL_CATEGORY,
-    MODEL_DISPLAY,
-    MODEL_REGISTRY,
-    REGULAR_MAX_FEATURES,
+    MODEL_CATEGORY as MODEL_CATEGORY,
+)
+from tabbench_bio.model_registry import (
+    MODEL_DISPLAY as MODEL_DISPLAY,
 )
 from tabbench_bio.releases import LATEST_RESULTS_URL
 from tabbench_bio.resources import resource_root
@@ -153,17 +157,7 @@ def write_dashboard_payload(path: Path, dashboard: dict) -> None:
 
 
 def load_model_registry(configs=()) -> dict[str, dict]:
-    directory = resource_root() / "configs/models"
-    paths = sorted(directory.glob("*.json"))
-    assert paths, f"Model registry missing: {directory}"
-    registry = {}
-    for path in paths:
-        for entry in json.loads(path.read_text(encoding="utf-8")):
-            key = entry["key"]
-            assert key not in registry or registry[key] == entry, (
-                f"Conflicting registry model: {key}"
-            )
-            registry[key] = entry
+    registry = load_model_catalog(resource_root())
     frozen_tuning = {}
     for config in configs:
         if "model_tuning" not in config:
@@ -195,34 +189,24 @@ def model_meta(model_id: str, registry: dict[str, dict]) -> dict[str, object]:
     parent = entry["base_model"] if "base_model" in entry else None
     family_id = parent or model_id
     parent_entry = registry[parent] if parent in registry else {}
-    overlap = entry if "training_data_overlap" in entry else parent_entry
-    category = MODEL_CATEGORY[family_id] if family_id in MODEL_CATEGORY else "Custom"
-    display = MODEL_DISPLAY[family_id] if family_id in MODEL_DISPLAY else model_id
+    metadata = {**parent_entry, **entry}
+    category = metadata.get("category", "Custom")
+    display = entry.get(
+        "display",
+        f"{parent_entry.get('display', family_id)} (tuned)" if parent else model_id,
+    )
     return {
         "id": model_id,
-        "display": f"{display} (tuned)" if parent else display,
+        "display": display,
         "tuned_from": parent,
-        "classification_only": (
-            family_id in MODEL_REGISTRY
-            and MODEL_REGISTRY[family_id].supported_tasks == ("classification",)
-        ),
+        "classification_only": tuple(metadata.get("supported_tasks", ())) == ("classification",),
         "source_url": entry["source_url"],
         "description": entry.get("description", parent_entry.get("description")),
         "tuning": entry["tuning"] if "tuning" in entry else None,
         "category": category,
         "color": CATEGORY_COLORS[category] if category in CATEGORY_COLORS else "#64748b",
-        "regular_max_features": (
-            REGULAR_MAX_FEATURES[model_id] if model_id in REGULAR_MAX_FEATURES else None
-        ),
-        "training_data_overlap": (
-            overlap["training_data_overlap"]
-            if "training_data_overlap" in overlap
-            else (
-                MODEL_REGISTRY[family_id].training_data_overlap
-                if family_id in MODEL_REGISTRY
-                else False
-            )
-        ),
+        "regular_max_features": metadata.get("max_features"),
+        "training_data_overlap": metadata.get("training_data_overlap", False),
     }
 
 
@@ -968,7 +952,7 @@ def build_website(
             "domain": "tabbench-bio.eu",
             "contact_url": "https://github.com/not-a-feature/TabBench-Bio/issues",
             "affiliation": "Methods in Medical Informatics, University of Tübingen",
-            "plot_excluded_models": [key for key, spec in MODEL_REGISTRY.items() if spec.hidden],
+            "plot_excluded_models": hidden_model_ids(registry),
             "primary_analysis_view": "strict_nominal_cell",
             "adaptive_analysis_role": "sensitivity_only",
             "paper_analysis_view": "strict",
