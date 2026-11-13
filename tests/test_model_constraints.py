@@ -3,6 +3,7 @@ from tabbench_bio.model_registry import REGULAR_MAX_FEATURES
 
 def test_regular_feature_limits_match_the_benchmarked_adapters():
     assert REGULAR_MAX_FEATURES == {
+        "LIGHTPFN": 500,
         "MITRA": 500,
         "KUMO-TABULAR-MEDIUM": 500,
         "KUMO-TABULAR-LARGE": 500,

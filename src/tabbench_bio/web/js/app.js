@@ -796,7 +796,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
   });
   const referenceValues = autogluon ? [autogluon.Elo, autogluon.Elo_hi] : [];
   const xMax = Math.ceil(Math.max(1000, ...visible.map((row) => tunedByParent.has(row.model_id) ? row.Elo : row.Elo_hi), ...referenceValues) / 100) * 100;
-  const xMin = Math.floor(Math.min(0, ...visible.map((row) => row.Elo < 0 || tunedByParent.has(row.model_id) ? row.Elo : Math.max(0, row.Elo_lo))) / 100) * 100;
+  const xMin = 0;
   const shapes = [{
     type: "line", x0: 1000, x1: 1000, y0: -0.5, y1: peers.length - 0.5,
     line: { color: css("--ink"), dash: "dot", width: 1.2 },
