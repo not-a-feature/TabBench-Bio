@@ -16,6 +16,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `tabpfn35` | TabPFN 3.5, using its separate extra |
 | `causilo` | Causilo, with its pinned source revision |
 | `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
+| `lightpfn` | LightPFN 1.5.1, with its pinned classification and regression checkpoints |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |
 | `kumo` | Kumo Tabular Medium and Large, with pinned SDM source and checkpoint revisions |
 | `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.3.0 and pinned checkpoint revisions |
@@ -93,3 +94,8 @@ tabbench-bio GENEICL
 ```
 
 Use `--full-grid` for all cells, or `--device cpu` for explicit CPU execution.
+
+`LIGHTPFN` runs [LightPFN 1.5.1](https://github.com/GioOtto/LightPFN) for classification
+and regression with the released defaults and pinned weights. Install the `lightpfn`
+profile, then run `tabbench-bio LIGHTPFN`; add `--device cpu` to use the CPU.
+The regular feature limit is 500, and classification supports up to 10 classes.

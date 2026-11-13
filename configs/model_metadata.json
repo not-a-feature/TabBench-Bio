@@ -209,6 +209,21 @@
     "description": "Causilo, by Nums AI, is pretrained on synthetic tables and uses labelled examples as context for classification or regression. It processes relationships across rows and columns, combining information about individual features with patterns shared by samples."
   },
   {
+    "key": "LIGHTPFN",
+    "display": "LightPFN 1.5.1",
+    "category": "Tabular Foundation",
+    "max_features": 500,
+    "supported_tasks": [
+      "classification",
+      "regression"
+    ],
+    "max_classes": 10,
+    "hidden": false,
+    "training_data_overlap": false,
+    "source_url": "https://github.com/GioOtto/LightPFN",
+    "description": "LightPFN is a compact transformer pretrained only on synthetic tables, with separate classification and regression checkpoints under five million parameters. It uses labelled training rows as context without updating its weights. The benchmark uses four-member classification and two-member regression ensembles. Classification supports up to 10 classes."
+  },
+  {
     "key": "GENEICL",
     "display": "GeneICL",
     "category": "Tabular Foundation",

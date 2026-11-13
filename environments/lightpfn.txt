@@ -1,0 +1,4 @@
+-r ../requirements-autogluon-fork.txt
+-e .[autogluon]
+lightpfn==1.5.1
+torch==2.13.*
