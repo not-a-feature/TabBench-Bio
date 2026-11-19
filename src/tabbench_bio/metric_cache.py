@@ -11,7 +11,7 @@ def metric_algorithm_sha256() -> str:
     root = Path(__file__).parent
     digest = hashlib.sha256(b"fold-metrics-v1")
     for name in (
-        "leaderboard.py",
+        "fold_metrics.py",
         "metric_cache.py",
         "dataset.py",
         "metrics/__init__.py",

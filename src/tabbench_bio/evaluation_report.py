@@ -6,12 +6,14 @@ import io
 import re
 from pathlib import Path
 
-import matplotlib.pyplot as plt
 import numpy as np
 import pandas as pd
+from matplotlib.figure import Figure
 from scipy.stats import wilcoxon
 
 from tabbench_bio.coverage import coverage_counts
+from tabbench_bio.elo import DEFAULT_N_BOOT
+from tabbench_bio.io_utils import _atomic_path
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
 
 
@@ -125,18 +127,39 @@ def _latex(frame, caption):
 
 
 def _figure(figure, output, name):
-    for extension in ("svg", "png", "pdf"):
-        figure.savefig(output / (name + "." + extension), bbox_inches="tight", dpi=180)
+    figure.savefig(output / (name + ".svg"), bbox_inches="tight")
+    return embedded_svg(figure, name.replace("_", " "))
+
+
+def embedded_svg(figure, alt):
     buffer = io.BytesIO()
     figure.savefig(buffer, format="svg", bbox_inches="tight")
-    plt.close(figure)
     return (
         '<img alt="'
-        + html.escape(name.replace("_", " "))
+        + html.escape(alt)
         + '" src="data:image/svg+xml;base64,'
         + base64.b64encode(buffer.getvalue()).decode("ascii")
         + '">'
     )
+
+
+def ranking_cards(rating, *, rank, model_count, targets, scored_folds):
+    focus_rank = "—"
+    focus_elo = "—"
+    if pd.notna(rating["Elo"]):
+        focus_rank = f"{rank} / {model_count}"
+        focus_elo = f"{rating['Elo']:.0f} [{rating['Elo_lo']:.0f}, {rating['Elo_hi']:.0f}]"
+    cards = [
+        ("Rank", focus_rank),
+        ("Elo · 95% CI", focus_elo),
+        ("Targets", str(targets)),
+        ("Scored folds", str(scored_folds)),
+    ]
+    content = "".join(
+        f"<div><span>{html.escape(label)}</span><strong>{html.escape(value)}</strong></div>"
+        for label, value in cards
+    )
+    return f'<div class="cards">{content}</div>'
 
 
 def write_report(
@@ -151,15 +174,20 @@ def write_report(
     status,
     reference,
     model_settings="Not recorded",
+    modality_section="",
+    bootstrap_rounds=DEFAULT_N_BOOT,
 ):
     """Write a portable HTML report, CSV tables, LaTeX tables and vector figures."""
     output = Path(output)
     models = ranking["model_id"].tolist()
     assert focus in models, f"Model absent from comparison: {focus}"
     labels = ranking.set_index("model_id")["Model"].to_dict()
-    labels[focus] = focus
-    figure = lb.plot(task)
-    elo_image = _figure(figure, output, "leaderboard")
+    focus_label = labels[focus]
+    elo_image = (
+        _figure(lb.plot(task), output, "leaderboard")
+        if ranking["Elo"].notna().any()
+        else '<p class="muted">Elo is unavailable without a scored Random Forest comparison.</p>'
+    )
     ranking.to_csv(output / "leaderboard.csv", index=False)
     rank_columns = ["Rank", "Model", "Elo", "Elo_lo", "Elo_hi", "Score", "Avg Rank", "# Targets"]
     rank_table = ranking[rank_columns].rename(
@@ -195,27 +223,20 @@ def write_report(
         counts = (
             frame.groupby(["key", "model"])["seed"].nunique().unstack("model").reindex_like(means)
         )
-        # Match fold identities for a paired target; equal counts alone are insufficient.
-        seeds = frame.groupby(["key", "model"])["seed"].agg(frozenset)
-        for key in means.index:
-            if (key, focus) not in seeds.index:
-                continue
-            for model in models:
-                if (key, model) in seeds.index:
-                    assert seeds[key, model] == seeds[key, focus], (
-                        f"Mismatched paired folds: {key}, {model}"
-                    )
+        seeds = frame.groupby(["key", "model"])["seed"].agg(frozenset).unstack("model")
+        seeds = seeds.reindex_like(means)
+        paired_means = means.where(seeds.eq(seeds[focus], axis="index"))
         all_metrics.append(frame)
         means.to_csv(output / f"dataset_scores_{selected_task}.csv", index_label="Dataset")
         detail = frame.groupby(["key", "model"])[metric].agg(["mean", "std", "count"]).reset_index()
         detail.to_csv(output / f"dataset_summary_{selected_task}.csv", index=False)
-        pairs = paired_comparisons(means, focus, lower_is_better=lower)
+        pairs = paired_comparisons(paired_means, focus, lower_is_better=lower)
         pairs.to_csv(output / f"paired_comparisons_{selected_task}.csv", index=False)
         clean = frame.loc[~frame["imputed"].eq(True)] if "imputed" in frame else frame
         clean_counts = (
             clean.groupby(["key", "model"])["seed"].nunique().unstack("model").reindex_like(means)
         )
-        successful = means.where(clean_counts.eq(counts))
+        successful = paired_means.where(clean_counts.eq(counts))
         sensitivity = paired_comparisons(successful, focus, lower_is_better=lower)
         sensitivity.to_csv(output / f"paired_successful_{selected_task}.csv", index=False)
         shown = [model for model in models[:5] if model != focus]
@@ -231,14 +252,13 @@ def write_report(
         (output / f"paired_comparisons_{selected_task}.tex").write_text(
             _latex(
                 pairs,
-                f"Dataset-level comparisons with {focus}. Delta = model minus baseline; pointwise 95 percent bootstrap intervals; Holm-corrected Wilcoxon tests.",
+                f"Dataset-level comparisons with {focus_label}. Delta = model minus baseline; pointwise 95 percent bootstrap intervals; Holm-corrected Wilcoxon tests.",
             ),
             encoding="utf-8",
         )
         values = means.rank(axis=1, ascending=lower, method="average") if lower else means
-        figure, axis = plt.subplots(
-            figsize=(max(7, len(models) * 0.44 + 3), max(4, len(means) * 0.28 + 1.8))
-        )
+        figure = Figure(figsize=(max(7, len(models) * 0.44 + 3), max(4, len(means) * 0.28 + 1.8)))
+        axis = figure.subplots()
         heat = axis.imshow(
             values.to_numpy(), aspect="auto", cmap="viridis_r" if lower else "viridis"
         )
@@ -254,20 +274,22 @@ def write_report(
         figure.colorbar(heat, ax=axis, shrink=0.5)
         heatmap = _figure(figure, output, "dataset_scores_" + selected_task)
         best = next(
-            (model for model in models if model != focus and means[model].notna().any()), ""
+            (model for model in models if model != focus and paired_means[model].notna().any()),
+            "",
         )
         scatter = ""
         if best:
-            paired = means[[focus, best]].dropna()
+            paired = paired_means[[focus, best]].dropna()
             if not paired.empty:
-                figure, axis = plt.subplots(figsize=(5, 4))
+                figure = Figure(figsize=(5, 4))
+                axis = figure.subplots()
                 axis.scatter(paired[best], paired[focus], color="#d97706", s=22, alpha=0.8)
                 low, high = np.nanmin(paired.to_numpy()), np.nanmax(paired.to_numpy())
                 if low == high:
                     low, high = low - 0.01, high + 0.01
                 axis.plot([low, high], [low, high], "--", color="#94a3b8", linewidth=1)
                 axis.set_xlabel(labels[best] + " · " + metric)
-                axis.set_ylabel(focus + " · " + metric)
+                axis.set_ylabel(focus_label + " · " + metric)
                 axis.set_title(f"{len(paired)} paired datasets", loc="left")
                 scatter = _figure(figure, output, "paired_" + selected_task)
         pair_display = pairs.drop(columns="p_raw").rename(
@@ -285,13 +307,14 @@ def write_report(
             f"<section><h2>{selected_task.title()} <small>{score_name} · {len(means)} targets · model mean {focus_mean:.4f}</small></h2>"
             + heatmap
             + _table(
-                means.rename(columns=labels).reset_index().rename(columns={"key": "Dataset"}), focus
+                means.rename(columns=labels).reset_index().rename(columns={"key": "Dataset"}),
+                focus_label,
             )
             + '<h3>Paired comparisons</h3><p class="muted">Δ = your model − baseline. W/T/L follows metric direction.</p>'
-            + _table(pair_display, focus)
+            + _table(pair_display, focus_label)
             + scatter
             + "<details><summary>Successful fits only</summary>"
-            + _table(sensitivity.drop(columns="p_raw"), focus)
+            + _table(sensitivity.drop(columns="p_raw"), focus_label)
             + "</details></section>"
         )
     metrics = pd.concat(all_metrics, ignore_index=True)
@@ -324,12 +347,13 @@ def write_report(
     reasons.to_csv(output / "failure_reasons.csv", index=False)
     focus_row = ranking.loc[ranking["model_id"] == focus].iloc[0]
     units = metrics.loc[metrics["model"] == focus]
-    cards = [
-        ("Rank", f"{focus_row['Rank']} / {len(models)}"),
-        ("Elo · 95% CI", f"{focus_row['Elo']} [{focus_row['Elo_lo']}, {focus_row['Elo_hi']}]"),
-        ("Targets", str(units["key"].nunique())),
-        ("Scored folds", str(len(units))),
-    ]
+    cards = ranking_cards(
+        focus_row,
+        rank=focus_row["Rank"],
+        model_count=len(models),
+        targets=units["key"].nunique(),
+        scored_folds=len(units),
+    )
     settings = {
         "Cell": cell,
         "Reference": reference,
@@ -343,15 +367,20 @@ def write_report(
     )
     methods = (
         "<details><summary>Methods</summary>"
-        + _table(settings_table, focus)
-        + "<p>Fold-level Bradley–Terry Elo; RF = 1000; 2,000 dataset-bootstrap samples. Score is target-normalized, not raw F1/RMSE. Paired tests use dataset means, two-sided Wilcoxon/Pratt (normal approximation), Holm correction per task. Δ intervals: 2,000 paired-dataset bootstrap samples, seed 0. Fold SDs are descriptive. Shared cohorts can make targets dependent.</p><p>Recorded failures retain benchmark imputation; successful-only comparisons remove imputed targets. Missing attempts are unknown. No matched memory/runtime comparison.</p></details>"
+        + _table(settings_table, focus_label)
+        + f"<p>Fold-level Bradley–Terry Elo with Random Forest anchored at 1,000 and {bootstrap_rounds:,} dataset bootstrap draws. "
+        "Paired tests compare dataset means with identical fold identities using the two-sided Wilcoxon/Pratt test "
+        "with a normal approximation and Holm correction per task. Δ intervals use 2,000 paired-dataset bootstrap draws with seed 0. "
+        "Fold SDs are descriptive. Shared cohorts can make targets dependent.</p>"
+        "<p>Recorded failures retain benchmark imputation. Successful-only comparisons remove imputed targets. "
+        "Missing attempts are unknown.</p></details>"
     )
     icon = "data:image/svg+xml;base64," + base64.b64encode(
         (Path(__file__).parent / "web/assets/favicon.svg").read_bytes()
     ).decode("ascii")
     page = (
         '<!doctype html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>TabBench-Bio · '
-        + html.escape(focus)
+        + html.escape(focus_label)
         + '</title><link rel="icon" type="image/svg+xml" href="'
         + icon
         + '"><style>'
@@ -361,39 +390,31 @@ def write_report(
         + '" alt="" aria-hidden="true"><span>TabBench-<strong>Bio</strong></span></div></div><header><p class="eyebrow">'
         + html.escape(cell)
         + "</p><h1>"
-        + html.escape(focus)
-        + '</h1></header><div class="cards">'
-    )
-    page += (
-        "".join(
-            "<div><span>"
-            + html.escape(label)
-            + "</span><strong>"
-            + html.escape(value)
-            + "</strong></div>"
-            for label, value in cards
-        )
-        + "</div>"
+        + html.escape(focus_label)
+        + "</h1></header>"
+        + cards
     )
     page += (
         "<section><h2>Ranking</h2>"
         + elo_image
-        + _table(rank_table, focus)
+        + _table(rank_table, focus_label)
         + "</section>"
         + "".join(sections)
     )
     page += (
         '<section><h2>Coverage</h2><p class="muted">Counts are folds. Imputed scores remain in the ranking.</p>'
-        + _table(coverage.rename(index=labels).reset_index(), focus)
+        + _table(coverage.rename(index=labels).reset_index(), focus_label)
         + "<details><summary>Failure and skip reasons</summary>"
-        + _table(reasons, focus)
+        + _table(reasons, focus_label)
         + "</details></section>"
+        + modality_section
         + methods
         + "<script>"
         + SCRIPT
         + "</script></body></html>"
     )
-    (output / "report.html").write_text(page, encoding="utf-8")
+    with _atomic_path(output / "report.html") as temporary:
+        temporary.write_text(page, encoding="utf-8")
 
 
 STYLE = """
@@ -406,7 +427,7 @@ body{color:var(--ink);background:var(--bg)}.site-header{display:flex;justify-con
 """
 
 SCRIPT = """
-document.querySelectorAll('table.sortable').forEach(table=>{
+function enhanceTables(root){root.querySelectorAll('table.sortable').forEach(table=>{
  const input=document.createElement('input');input.className='filter';input.placeholder='Filter rows';input.setAttribute('aria-label','Filter table rows');table.parentNode.before(input);
  input.addEventListener('input',()=>Array.from(table.tBodies[0].rows).forEach(row=>row.hidden=!row.textContent.toLowerCase().includes(input.value.toLowerCase())));
  table.querySelectorAll('thead th').forEach((th,col)=>{th.tabIndex=0;th.setAttribute('aria-sort','none');
@@ -415,4 +436,6 @@ document.querySelectorAll('table.sortable').forEach(table=>{
  th.addEventListener('click',sort);th.addEventListener('keydown',event=>{if(event.key==='Enter'||event.key===' '){event.preventDefault();sort()}});
  });
 });
+}
+enhanceTables(document);
 """

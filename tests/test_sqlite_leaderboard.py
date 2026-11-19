@@ -16,7 +16,7 @@ import pytest
 from sklearn.dummy import DummyClassifier
 
 from tabbench_bio import Leaderboard
-from tabbench_bio.leaderboard import _metrics_from_sqlite
+from tabbench_bio.fold_metrics import _metrics_from_sqlite
 from tabbench_bio.metric_cache import MetricCache
 
 
@@ -29,7 +29,7 @@ def test_public_sqlite_loader_reuses_metrics_without_reading_blobs(tmp_path, mon
     )
     assert "reused 0/2; computed 2" in capsys.readouterr().out
     monkeypatch.setattr(
-        "tabbench_bio.leaderboard._sqlite_frame",
+        "tabbench_bio.fold_metrics._sqlite_frame",
         lambda *a: pytest.fail("Warm public loader must not decode prediction blobs"),
     )
     warm = Leaderboard.from_sqlite(
@@ -51,7 +51,7 @@ def test_metric_cache_persists_and_skips_blob_loading(tmp_path, monkeypatch):
         with closing(MetricCache(cache_path)) as cache, ProcessPoolExecutor(max_workers=2) as pool:
             cold = _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache, executor=pool)
         monkeypatch.setattr(
-            "tabbench_bio.leaderboard._sqlite_frame",
+            "tabbench_bio.fold_metrics._sqlite_frame",
             lambda *a: pytest.fail("Cached predictions should not be loaded"),
         )
         with closing(MetricCache(cache_path)) as cache:
@@ -88,7 +88,7 @@ def test_metric_cache_keeps_completed_batches_after_interruption(tmp_path, monke
             with closing(MetricCache(cache_path)) as cache, pytest.raises(KeyboardInterrupt):
                 _metrics_from_sqlite(connection, "cap_10000_n100", cache=cache)
         monkeypatch.setattr(
-            "tabbench_bio.leaderboard._sqlite_frame",
+            "tabbench_bio.fold_metrics._sqlite_frame",
             lambda *a: pytest.fail("Completed batches must remain cached after interruption"),
         )
         with closing(MetricCache(cache_path)) as cache:

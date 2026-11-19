@@ -27,6 +27,7 @@ See Also
 
 import argparse
 import logging
+import os
 import sys
 import warnings
 from pathlib import Path
@@ -211,6 +212,12 @@ def cmd_site(args):
     )
 
 
+def cmd_report(args):
+    from tabbench_bio.model_report import generate_model_report
+
+    generate_model_report(args)
+
+
 def cmd_doctor(args):
     from tabbench_bio.doctor import cmd_doctor as run_doctor
 
@@ -302,6 +309,34 @@ def main():
     )
     add_arguments(evaluate_p)
     evaluate_p.set_defaults(func=evaluate)
+
+    report_p = sub.add_parser("report", help="Generate model reports from saved benchmark results")
+    report_source = report_p.add_mutually_exclusive_group(required=True)
+    report_source.add_argument("--evaluation", type=Path, help="Saved evaluate output directory")
+    report_source.add_argument("--database", type=Path, help="TabBench-Bio results.sqlite database")
+    report_p.add_argument("--model", help="Focus model ID (inferred for saved evaluations)")
+    report_p.add_argument(
+        "--output", type=Path, help="Directory for the leaderboard overview and modality reports"
+    )
+    report_p.add_argument(
+        "--cell", action="append", help="Restrict to a cell; repeat to select several"
+    )
+    report_p.add_argument(
+        "--reference-cell", help="Initial cell (default: cap_10000_n100 when available)"
+    )
+    report_p.add_argument(
+        "--metric-cache", type=Path, help="Separate SQLite cache for derived metrics"
+    )
+    report_p.add_argument(
+        "--workers",
+        type=int,
+        default=os.cpu_count(),
+        help="Metric and report worker processes (default: all CPUs)",
+    )
+    report_p.add_argument(
+        "--bootstrap-rounds", type=int, default=DEFAULT_N_BOOT, help="Elo bootstrap draws"
+    )
+    report_p.set_defaults(func=cmd_report)
 
     model_p = sub.add_parser(
         "model",

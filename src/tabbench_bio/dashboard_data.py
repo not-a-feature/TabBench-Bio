@@ -13,7 +13,7 @@ from threadpoolctl import threadpool_limits
 
 from tabbench_bio.bio.datasets import BIO_DATASETS
 from tabbench_bio.coverage import complete_folds, impute_failures
-from tabbench_bio.leaderboard import (
+from tabbench_bio.fold_metrics import (
     _metrics_from_sqlite,
     _open_results_sqlite,
     _validate_results_sqlite,

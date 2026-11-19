@@ -97,6 +97,21 @@ and publishes nothing automatically. See the
 and cache settings. The released database and SHA-256 checksum are listed in the
 [artifact browser](https://tabbench-bio.eu/artifacts.html).
 
+## Generate a model report
+
+Generate a leaderboard overview and one HTML report per dataset modality from scored folds:
+
+```sh
+tabbench-bio report --evaluation my_model_results
+tabbench-bio report --database results/combined/results.sqlite --model MYMODEL --workers 4
+```
+
+Open `report.html` under `my_model_results/category-report/` or
+`results/model-reports/mymodel/`, respectively. Use `--output` to choose a directory.
+The command uses existing results and can run independently of the website build.
+
+Repeat `--cell` to restrict the database input to particular cells.
+
 ## Read a leaderboard
 
 Load a published SQLite bundle in Python:

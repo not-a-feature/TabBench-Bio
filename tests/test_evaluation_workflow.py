@@ -135,7 +135,6 @@ def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeyp
     )
     for name in [
         "leaderboard.csv",
-        "leaderboard.png",
         "leaderboard.svg",
         "metrics/classification_metrics.csv",
     ]:

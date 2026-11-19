@@ -16,8 +16,8 @@ from tabbench_bio import Leaderboard
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.datasets import get_spec
 from tabbench_bio.evaluation_report import write_report
+from tabbench_bio.fold_metrics import _CURRENT_SQLITE_ATTEMPTS, _open_results_sqlite, _sqlite_frame
 from tabbench_bio.io_utils import atomic_write_json, sha256_file
-from tabbench_bio.leaderboard import _CURRENT_SQLITE_ATTEMPTS, _open_results_sqlite, _sqlite_frame
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
 from tabbench_bio.model_registry import MODEL_DISPLAY
 from tabbench_bio.releases import latest_reference
@@ -254,22 +254,30 @@ def generate_report(args, lb, config, status):
     print(f"\nReport: {report_dir / 'report.html'}")
 
 
+def read_saved_evaluation(output):
+    """Load the recorded evaluation scope, fold scores, and attempt outcomes."""
+    config = json.loads((output / "config.json").read_text(encoding="utf-8"))
+    frames = {}
+    for task in ("regression", "classification"):
+        path = output / "metrics" / f"{task}_metrics.csv"
+        frames[task] = pd.read_csv(path) if path.exists() else pd.DataFrame()
+    status_path = output / "attempts.csv"
+    status = (
+        pd.read_csv(status_path, keep_default_na=False)
+        if status_path.exists()
+        else pd.DataFrame(columns=["seed", "key", "model", "status", "reason"])
+    )
+    return config, frames, status
+
+
 def evaluate(args):
     assert args.threads > 0
     if args.report_only:
         assert not args.dataset, "Saved reports use the recorded dataset selection"
-        config = json.loads((args.output / "config.json").read_text(encoding="utf-8"))
-        frames = []
-        for task in ("regression", "classification"):
-            path = args.output / "metrics" / f"{task}_metrics.csv"
-            frames.append(pd.read_csv(path) if path.exists() else pd.DataFrame())
-        status_path = args.output / "attempts.csv"
-        status = (
-            pd.read_csv(status_path, keep_default_na=False)
-            if status_path.exists()
-            else pd.DataFrame(columns=["seed", "key", "model", "status", "reason"])
+        config, frames, status = read_saved_evaluation(args.output)
+        generate_report(
+            args, Leaderboard(frames["regression"], frames["classification"]), config, status
         )
-        generate_report(args, Leaderboard(*frames), config, status)
         return
     output = args.output.resolve()
     assert not output.exists(), f"Choose a new output directory: {output}"

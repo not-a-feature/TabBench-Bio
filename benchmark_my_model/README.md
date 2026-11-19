@@ -104,5 +104,15 @@ tabbench-bio evaluate --report-only --name SVM --output my_model_results
 
 Use the same `--name`, `--task`, `--output` and any `--exclude-model` options as
 the original run. Training runs require a new output directory and cannot resume.
+
+Generate the leaderboard overview with a subreport for each dataset modality from the same saved run:
+
+```sh
+tabbench-bio report --evaluation my_model_results
+```
+
+Open `my_model_results/category-report/report.html`. The command reads the saved fold
+scores and uses the recorded model name. Use `--model` to select a model explicitly.
+
 The [registered-model workflow](INTEGRATION.md) supports resumption and produces
 mergeable SQLite results.

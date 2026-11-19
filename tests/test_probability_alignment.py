@@ -7,7 +7,7 @@ import pytest
 from sklearn.metrics import log_loss
 
 from tabbench_bio.evaluation import _compute_metrics_from_store
-from tabbench_bio.leaderboard import _metrics_from_sqlite
+from tabbench_bio.fold_metrics import _metrics_from_sqlite
 from tabbench_bio.metrics import ClassificationMetrics, compute_metrics
 from tabbench_bio.result_store import ResultRepository
 

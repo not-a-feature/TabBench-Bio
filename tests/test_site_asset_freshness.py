@@ -320,7 +320,7 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         dashboard, "compute_elo", lambda *a, **k: pytest.fail("Unchanged Elo should be cached")
     )
     monkeypatch.setattr(
-        "tabbench_bio.leaderboard._sqlite_frame",
+        "tabbench_bio.fold_metrics._sqlite_frame",
         lambda *a: pytest.fail("Unchanged fold metrics should be cached"),
     )
     assert (tmp_path / "site.cache/fold_metrics.sqlite").is_file()

@@ -5,7 +5,7 @@ import pytest
 
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.exclusions import excluded_dataset_keys, materialize_exclusions
-from tabbench_bio.leaderboard import _metrics_from_sqlite
+from tabbench_bio.fold_metrics import _metrics_from_sqlite
 from tabbench_bio.result_store import ResultRepository
 from tabbench_bio.sample_fallback import _load_status_records
 
