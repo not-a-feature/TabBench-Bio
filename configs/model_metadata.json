@@ -1,5 +1,33 @@
 [
   {
+    "key": "TABOMICS",
+    "display": "TabOmics",
+    "category": "Tabular Foundation",
+    "max_features": null,
+    "supported_tasks": [
+      "classification"
+    ],
+    "max_classes": 10,
+    "hidden": true,
+    "training_data_overlap": false,
+    "source_url": "https://github.com/lbotecur/tabomics",
+    "description": "TabOmics v2.5 is pretrained on synthetic tables for wide omics classification. This entry uses a single-estimator and default configuration for preprocessing, bfloat16 inference on CUDA, and low-memory inference with eight chunks."
+  },
+  {
+    "key": "TABOMICS-8E",
+    "display": "TabOmics (8e)",
+    "category": "Tabular Foundation",
+    "max_features": null,
+    "supported_tasks": [
+      "classification"
+    ],
+    "max_classes": 10,
+    "hidden": false,
+    "training_data_overlap": false,
+    "source_url": "https://github.com/lbotecur/tabomics",
+    "description": "TabOmics v2.5 is pretrained on synthetic tables for wide omics classification. This TabOmics v2.5 configuration averages eight ensemble members, each with a random column order and class numbering, as in the ×8 setting of the TabOmics preprint. Preprocessing, bfloat16 inference on CUDA, low-memory inference and checkpoint match the default configuration."
+  },
+  {
     "key": "DUMMY",
     "display": "Constant",
     "category": "Baseline",

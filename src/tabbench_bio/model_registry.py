@@ -51,6 +51,15 @@ EXECUTION_REGISTRY = {
     "FTFM": ExecutionSpec(
         device="gpu", environment="ftfm", adapter="tabbench_bio.models.ftfm:FTFMModel"
     ),
+    "TABOMICS": ExecutionSpec(
+        device="gpu", environment="tabomics", adapter="tabbench_bio.models.tabomics:TabOmicsModel"
+    ),
+    "TABOMICS-8E": ExecutionSpec(
+        device="gpu",
+        environment="tabomics",
+        adapter="tabbench_bio.models.tabomics:TabOmicsModel",
+        hyperparameters=(("n_estimators", 8),),
+    ),
     "CAUSILO": ExecutionSpec(
         device="gpu", environment="causilo", adapter="tabbench_bio.models.causilo:CausiloModel"
     ),

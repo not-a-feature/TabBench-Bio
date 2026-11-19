@@ -1,0 +1,4 @@
+-r ../requirements-autogluon-fork.txt
+-e .[autogluon]
+tabomics @ git+https://github.com/lbotecur/tabomics.git@0a8984fa0c47a2ecdcbbc80fdf4c4a92a456d712
+torch==2.13.*

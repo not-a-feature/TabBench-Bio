@@ -21,6 +21,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `kumo` | Kumo Tabular Medium and Large, with pinned SDM source and checkpoint revisions |
 | `seldon` | Seldon and Seldon-Mini, with neuralk-oss 0.3.0 and pinned checkpoint revisions |
 | `ftfm` | FTFM-1, with pinned upstream source and checkpoint revisions |
+| `tabomics` | TabOmics v2.5, with pinned upstream source and checkpoint revisions |
 
 The model registry in `src/tabbench_bio/model_registry.py` declares these assignments.
 The roster in `configs/models/all.json` selects benchmark models; explicit per-run
@@ -99,3 +100,11 @@ Use `--full-grid` for all cells, or `--device cpu` for explicit CPU execution.
 and regression with the released defaults and pinned weights. Install the `lightpfn`
 profile, then run `tabbench-bio LIGHTPFN`; add `--device cpu` to use the CPU.
 The regular feature limit is 500, and classification supports up to 10 classes.
+
+`TABOMICS` runs [TabOmics v2.5](https://github.com/lbotecur/tabomics) for
+classification with its released single-estimator defaults and no feature cap.
+Install the `tabomics` profile, then run `tabbench-bio TABOMICS --full-grid`.
+Tasks with more than 10 classes are skipped. Upstream preprocessing learns column
+types and categorical codes from training rows only. The source pin fixes the
+checkpoint revision and verifies its SHA-256. Private weights require Hugging Face
+access and `hf auth login` before running. Code is GPL-3.0-or-later.
