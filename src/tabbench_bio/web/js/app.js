@@ -521,7 +521,7 @@ function renderModelCard() {
   params.set("compare", comparatorId);
   params.set("p", byId("model-card-cap").value);
   history.replaceState(null, "", `${location.pathname}?${params}`);
-  byId("model-page-title").textContent = modelLabel(model);
+  byId("model-page-title").textContent = model.display;
   const domains = DATA.domains.filter((domain) => domain !== "all");
   const cells = DATA.cell_options
     .filter((cell) => sameBudget(cell.feature_cap, featureCap))
@@ -542,7 +542,7 @@ function renderModelCard() {
 
   if (byId("failure-domain").options.length) renderFailures();
   renderModelTuning(model);
-  byId("model-card-name").textContent = modelLabel(model);
+  byId("model-card-name").textContent = model.display;
   byId("model-card-caption").textContent = `Macro-F1 Elo relative to ${comparator.display}. Columns are training-sample caps; rows are dataset modalities. Small labels show the number of binding targets.`;
   byId("model-card-scale-label").textContent = `Elo difference vs. ${comparator.display}`;
   byId("model-card-family").textContent = model.category;
@@ -753,7 +753,7 @@ function eloPlotSpec(rows, mobile, featureCap) {
     const parents = paired.map((row) => byModel.get(DATA.models[row.model_id].tuned_from));
     const labels = parents.map(modelLabel);
     const details = paired.map((row, i) => [
-      modelLabel(row), parents[i].Elo, row.Elo, row.Elo - parents[i].Elo, row.Elo_lo, row.Elo_hi, modelAnnotationTooltip(row),
+      row.display, parents[i].Elo, row.Elo, row.Elo - parents[i].Elo, row.Elo_lo, row.Elo_hi, modelAnnotationTooltip(row),
     ]);
     const hover = "<b>%{customdata[0]}</b><br>Untuned Elo %{customdata[1]:.0f}<br>Tuned Elo %{customdata[2]:.0f}<br>Tuned 95% interval [%{customdata[4]:.0f}, %{customdata[5]:.0f}]%{customdata[6]}<extra></extra>";
     // Explicit bases preserve signed changes: the segment ends at tuned Elo, never their sum.
@@ -1024,7 +1024,7 @@ function renderBudget(prefix, force = false) {
         symbol: categorical ? above.map((value) => value ? `${symbol}-open` : symbol) : symbol,
         line: { color: categorical ? meta.color : css("--surface"), width: categorical ? 2 : 1 },
       },
-      hovertemplate: `<b>${modelLabel(meta)}</b>${modelAnnotationTooltip(meta)}<br>${view.hover} %{x}<br>Elo %{y:.0f}<br>95% interval [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<br>%{customdata[2]} targets · %{customdata[3]}<extra></extra>`,
+      hovertemplate: `<b>${meta.display}</b>${modelAnnotationTooltip(meta)}<br>${view.hover} %{x}<br>Elo %{y:.0f}<br>95% interval [%{customdata[0]:.0f}, %{customdata[1]:.0f}]<br>%{customdata[2]} targets · %{customdata[3]}<extra></extra>`,
     };
   });
 
@@ -1189,7 +1189,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
     y: frontier.map((row) => row[metric]),
     line: { color: css("--ink"), width: 2, dash: "dot" },
     marker: { color: css("--surface"), size: 8, line: { color: css("--ink"), width: 1.5 } },
-    customdata: frontier.map((row) => modelLabel(row) + modelAnnotationTooltip(row)),
+    customdata: frontier.map((row) => row.display + modelAnnotationTooltip(row)),
     hovertemplate: `<b>%{customdata}</b><br>Pareto frontier<br>%{x:.1f} s per fold<br>${metricLabel} %{y:${valueFormat}}<extra></extra>`,
   };
   const categoryTraces = categories.flatMap((category) => {
@@ -1210,7 +1210,7 @@ function costPlotSpec(rows, metric, timing, mobile, chartWidth = mobile ? 360 : 
       y: points.map((row) => row[metric]),
       cliponaxis: false,
       marker: { color: points[0].color, size: points.map((row) => frontierIds.has(row.model_id) ? 12 : 9), opacity: 0.88, line: { color: css("--surface"), width: 1 } },
-      customdata: points.map((row) => modelLabel(row) + modelAnnotationTooltip(row)),
+      customdata: points.map((row) => row.display + modelAnnotationTooltip(row)),
       ...(frontierIds.has(points[0].model_id)
         ? { hoverinfo: "skip" }
         : { hovertemplate: `<b>%{customdata}</b><br>%{x:.1f} s per fold<br>${metricLabel} %{y:${valueFormat}}<extra></extra>` }),

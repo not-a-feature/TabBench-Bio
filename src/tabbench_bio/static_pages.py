@@ -78,8 +78,8 @@ def model_page(template: str, identifier: str, dashboard: dict, project_url: str
         'data-page="model"', f'data-page="model" data-entity-id="{escape(identifier, quote=True)}"'
     )
     for element_id, content in (
-        ("model-page-title", model_label(model)),
-        ("model-card-name", model_label(model)),
+        ("model-page-title", model["display"]),
+        ("model-card-name", model["display"]),
         ("model-card-family", model["category"]),
         ("model-description", description),
     ):
