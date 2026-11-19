@@ -519,14 +519,19 @@ def test_root_citation_matches_package_version():
     assert f"\nversion: {resources.__version__}\n" in root.read_text(encoding="utf-8")
 
 
-def test_citation_version_stamps_site_and_repository(tmp_path, monkeypatch):
+@pytest.mark.parametrize("checkout", [True, False])
+def test_citation_version_stamps_site_and_repository(tmp_path, monkeypatch, checkout):
     package, output = tmp_path / "src/tabbench_bio", tmp_path / "site"
     output.mkdir(parents=True)
-    shutil.copy(Path(__file__).parents[1] / "CITATION.cff", tmp_path)
+    root = Path(__file__).parents[1] / "CITATION.cff"
+    shutil.copy(root, tmp_path)
+    if checkout:
+        (tmp_path / "pyproject.toml").touch()
     for name in ("CITATION.cff", "CITATION.bib"):
         shutil.copy(dashboard.PACKAGE_ROOT / "web" / name, output)
     monkeypatch.setattr(dashboard, "PACKAGE_ROOT", package)
     dashboard.write_citation_version(output, "9.9.9")
-    for path in (output / "CITATION.cff", tmp_path / "CITATION.cff"):
-        assert "\nversion: 9.9.9\n" in path.read_text(encoding="utf-8")
+    assert "\nversion: 9.9.9\n" in (output / "CITATION.cff").read_text(encoding="utf-8")
     assert "{TabBench-Bio version 9.9.9}\n}" in (output / "CITATION.bib").read_text()
+    stamped = "\nversion: 9.9.9\n" in (tmp_path / "CITATION.cff").read_text(encoding="utf-8")
+    assert stamped == checkout

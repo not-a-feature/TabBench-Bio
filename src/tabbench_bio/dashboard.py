@@ -888,11 +888,13 @@ def build_view(
 
 
 def write_citation_version(output: Path, package_version: str) -> None:
-    """Stamp the package version into the published and repository citation files."""
+    """Stamp the package version into the published citation files.
+
+    Builds from a source checkout also update the repository's root CITATION.cff.
+    """
     cff = (r"^version: [^\r\n]*", f"version: {package_version}")
-    for path, (pattern, line) in (
+    targets = [
         (output / "CITATION.cff", cff),
-        (PACKAGE_ROOT.parents[1] / "CITATION.cff", cff),
         (
             output / "CITATION.bib",
             (
@@ -900,7 +902,11 @@ def write_citation_version(output: Path, package_version: str) -> None:
                 f"  note          = {{TabBench-Bio version {package_version}}}",
             ),
         ),
-    ):
+    ]
+    repository = PACKAGE_ROOT.parents[1]
+    if (repository / "pyproject.toml").is_file():
+        targets.append((repository / "CITATION.cff", cff))
+    for path, (pattern, line) in targets:
         text, count = re.subn(pattern, line, path.read_bytes().decode("utf-8"), flags=re.M)
         assert count == 1, f"Expected one version line in {path}"
         path.write_bytes(text.encode("utf-8"))
