@@ -645,7 +645,7 @@ def compute_predictions(
         if spec is not None and spec.device == "gpu":
             gpu_required = True
             break
-    check_reference_hardware(gpu_required=gpu_required)
+    allocation = check_reference_hardware(gpu_required=gpu_required)
     logger.info("=" * 60 + "\nSTEP 1: Computing Predictions")
 
     _gpu_power_handle(os.getpid())
@@ -1018,8 +1018,14 @@ def compute_predictions(
                         "inference_cpu_energy_j": None,
                     }
 
-                    if "TABBENCH_MODEL_HARDWARE" in os.environ:
-                        record["hardware"] = json.loads(os.environ["TABBENCH_MODEL_HARDWARE"])
+                    record["hardware"] = (
+                        json.loads(os.environ["TABBENCH_MODEL_HARDWARE"])
+                        if "TABBENCH_MODEL_HARDWARE" in os.environ
+                        else {}
+                    )
+                    record["hardware"].update(
+                        {key: value for key, value in allocation.items() if value is not None}
+                    )
                     if (
                         "TABBENCH_BIO_RESOURCE_TIER" in os.environ
                         and os.environ["TABBENCH_BIO_RESOURCE_TIER"] == "l40s"

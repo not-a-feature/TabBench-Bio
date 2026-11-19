@@ -12,9 +12,10 @@ from tabbench_bio.result_store import ResultRepository, consolidate_results
 
 
 @pytest.mark.parametrize("failure", [None, "fit_error", "time_limit"])
-@pytest.mark.parametrize("shards", [1, 2])
+@pytest.mark.parametrize(
+    ("shards", "worker_order"), [(1, "forward"), (2, "forward"), (2, "backward")]
+)
 @pytest.mark.parametrize("reverse", [False, True])
-@pytest.mark.parametrize("worker_order", ["forward", "backward"])
 def test_runner_executes_dummy_first_and_gates_all_peers(
     tmp_path, monkeypatch, debug_config, failure, shards, reverse, worker_order
 ):

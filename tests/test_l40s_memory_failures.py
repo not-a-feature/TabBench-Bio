@@ -83,6 +83,8 @@ def test_prediction_pipeline_preserves_terminal_l40s_oom(tmp_path, monkeypatch, 
     assert attempt.record["allocated_cpus"] == 32
     assert attempt.record["slurm_cpus_per_task"] == 18
     assert attempt.record["slurm_memory_mb"] == 92160
+    assert attempt.record["hardware"]["allocated_cpus"] == 18
+    assert attempt.record["hardware"]["allocated_memory_mb"] == 92160
     assert attempt.record["cpu_affinity"] == list(range(32))
     predictions.compute_predictions(debug_config)
     assert len(calls) == 1
