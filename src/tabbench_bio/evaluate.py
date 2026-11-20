@@ -3,6 +3,7 @@
 import argparse
 import hashlib
 import importlib.util
+import io
 import json
 import os
 import sys
@@ -16,11 +17,15 @@ from tabbench_bio import Leaderboard
 from tabbench_bio.bio.cache import default_bio_cache_dir
 from tabbench_bio.bio.datasets import get_spec
 from tabbench_bio.evaluation_report import write_report
-from tabbench_bio.fold_metrics import _CURRENT_SQLITE_ATTEMPTS, _open_results_sqlite, _sqlite_frame
-from tabbench_bio.io_utils import atomic_write_json, sha256_file
+from tabbench_bio.fold_metrics import (
+    _CURRENT_SQLITE_ATTEMPTS,
+    _open_results_sqlite,
+    _validate_results_sqlite,
+)
+from tabbench_bio.io_utils import atomic_write_json, read_result_blob, sha256_file
 from tabbench_bio.metrics import PRIMARY_CLF_METRIC, PRIMARY_REG_METRIC
 from tabbench_bio.model_registry import MODEL_DISPLAY
-from tabbench_bio.releases import latest_reference
+from tabbench_bio.releases import parse_release_version, release_reference
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import split_versions, unit_id
 
@@ -28,6 +33,7 @@ from tabbench_bio.split_manifest import split_versions, unit_id
 def reference_inputs(path, cell, output, datasets, task):
     """Recover the published config and exact held-out row identities read-only."""
     with closing(_open_results_sqlite(path)) as connection:
+        _validate_results_sqlite(connection, path)
         row = connection.execute("SELECT config_json FROM cells WHERE cell=?", (cell,)).fetchone()
         assert row is not None, f"Unknown cell: {cell}"
         config = json.loads(row[0])
@@ -42,7 +48,7 @@ def reference_inputs(path, cell, output, datasets, task):
         available = {
             row[0].rsplit("_", 1)[0]
             for row in connection.execute(
-                "SELECT DISTINCT dataset FROM attempts WHERE cell=? AND ground_truth_sha256 IS NOT NULL",
+                "SELECT DISTINCT dataset FROM attempts WHERE cell=? AND ground_truth_hash IS NOT NULL",
                 (cell,),
             )
         }
@@ -51,11 +57,12 @@ def reference_inputs(path, cell, output, datasets, task):
         assert folds and folds >= 2, "Published comparisons require complete CV partitions"
         truths = {}
         digests = {}
+        checksums = {}
         for dataset in selected:
             key = dataset + "_0"
             rows = connection.execute(
-                "SELECT DISTINCT seed,ground_truth_sha256 FROM attempts "
-                "WHERE dataset=? AND ground_truth_sha256 IS NOT NULL",
+                "SELECT DISTINCT seed,ground_truth_hash FROM attempts "
+                "WHERE dataset=? AND ground_truth_hash IS NOT NULL",
                 (key,),
             )
             for seed, digest in rows:
@@ -63,7 +70,9 @@ def reference_inputs(path, cell, output, datasets, task):
                 if unit in digests:
                     assert digests[unit] == digest, f"Conflicting published test splits: {unit}"
                 digests[unit] = digest
-                truths[unit] = _sqlite_frame(connection, digest).sort_index()
+                payload = read_result_blob(connection, digest)
+                truths[unit] = pd.read_csv(io.BytesIO(payload), index_col=0).sort_index()
+                checksums[unit] = hashlib.sha256(payload).hexdigest()
         units = {}
         seeds = get_seeds(config)
         for dataset in selected:
@@ -76,7 +85,7 @@ def reference_inputs(path, cell, output, datasets, task):
                 units[unit_id(seed, key)] = {
                     "test_indices": test,
                     "train_indices": sorted(set(combined.index) - set(test)),
-                    "ground_truth_sha256": digests[seed, key],
+                    "ground_truth_sha256": checksums[seed, key],
                 }
     atomic_write_json(
         output / "split_manifest.json",
@@ -130,8 +139,10 @@ def add_arguments(parser):
     )
     parser.add_argument(
         "--baseline",
-        default="latest",
-        help="Reference SQLite file, or 'latest' (default: check and cache the current release)",
+        help=(
+            "Reference SQLite path, release version (X.Y.Z), or 'latest'. "
+            "By default, use the installed package's release or the nearest older release with results."
+        ),
     )
     parser.add_argument("--cell", default="cap_10000_n100")
     parser.add_argument("--output", type=Path, default=Path("my_model_results"))
@@ -282,8 +293,12 @@ def evaluate(args):
     output = args.output.resolve()
     assert not output.exists(), f"Choose a new output directory: {output}"
     cache_dir = (args.cache_dir or default_bio_cache_dir().parent).resolve()
-    if args.baseline == "latest":
-        baseline, provenance = latest_reference(cache_dir)
+    if (
+        args.baseline is None
+        or args.baseline == "latest"
+        or parse_release_version(args.baseline) is not None
+    ):
+        baseline, provenance = release_reference(cache_dir, args.baseline)
     else:
         baseline = Path(args.baseline).resolve()
         assert baseline.is_file(), f"Reference SQLite file not found: {baseline}"

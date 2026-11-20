@@ -11,6 +11,7 @@ import pandas as pd
 
 from tabbench_bio.bio.datasets import BIO_DATASETS
 from tabbench_bio.config import resolve_nan_policy
+from tabbench_bio.logging_utils import log_has_memory_failure, text_has_memory_failure
 from tabbench_bio.result_store import (
     CANONICAL_FILENAME,
     WRITER_DIRECTORY,
@@ -19,13 +20,6 @@ from tabbench_bio.result_store import (
 from tabbench_bio.split_manifest import consistent_truth_hashes
 
 MEMORY_FAILURE_REASONS = frozenset({"model_limit", "fit_oom", "inference_oom"})
-_OOM_MARKERS = (
-    "cuda out of memory",
-    "outofmemoryerror",
-    "out of memory error",
-    "not enough cuda memory",
-    "cuda error: out of memory",
-)
 _CELL_RE = re.compile(r"^cap_(full|\d+)(?:_n(\d+))?$")
 _METRIC_FILES = {
     "classification": "classification_metrics.csv",
@@ -90,15 +84,6 @@ def sample_fallback_chain(
     return chain
 
 
-def log_has_memory_failure(log_path: str | os.PathLike[str]) -> bool:
-    """Return whether a legacy unit log explicitly records an OOM."""
-    path = Path(log_path)
-    if not path.is_file():
-        return False
-    text = path.read_text(encoding="utf-8", errors="replace").lower()
-    return any(marker in text for marker in _OOM_MARKERS)
-
-
 def record_is_memory_failure(record: dict, log_path: str | os.PathLike[str]) -> bool:
     """Recognise new and legacy terminal records caused by GPU memory capacity."""
     reason = record["reason"] if "reason" in record else ""
@@ -106,7 +91,9 @@ def record_is_memory_failure(record: dict, log_path: str | os.PathLike[str]) -> 
         return True
     error = record["error"] if "error" in record else ""
     return reason == "fit_error" and (
-        any(marker in error.lower() for marker in _OOM_MARKERS) or log_has_memory_failure(log_path)
+        ("log_memory_failure" in record and record["log_memory_failure"] is True)
+        or text_has_memory_failure(error)
+        or log_has_memory_failure(log_path)
     )
 
 
@@ -168,16 +155,9 @@ def _load_status_records(repository: ResultRepository, cell_names: list[str]) ->
         "Indexed records used for sample fallback lack n_train_samples"
     )
     status = status.rename(columns={"dataset": "key"})
-    memory_failures = []
-    attempts = {attempt.key: attempt for attempt in repository.current_attempts()}
-    for row in status.to_dict("records"):
-        attempt = attempts[(row["cell"], int(row["seed"]), row["key"], row["model"])]
-        memory_failure = record_is_memory_failure(row, Path("__missing_log__"))
-        if not memory_failure and row["reason"] == "fit_error":
-            log_text = repository.log_text(attempt).lower()
-            memory_failure = any(marker in log_text for marker in _OOM_MARKERS)
-        memory_failures.append(memory_failure)
-    status["memory_failure"] = memory_failures
+    status["memory_failure"] = [
+        record_is_memory_failure(row, Path("__missing_log__")) for row in status.to_dict("records")
+    ]
     columns = [
         "cell",
         "seed",
@@ -226,14 +206,14 @@ def resolve_sample_fallbacks(
     consistent_truth_hashes(repository.current_attempts())
     ground_truth_hashes = {}
     for attempt in repository.current_attempts():
-        if attempt.ground_truth_sha256 is None:
+        if attempt.ground_truth_hash is None:
             continue
         unit = (attempt.cell, attempt.seed, attempt.dataset)
         if unit in ground_truth_hashes:
-            assert ground_truth_hashes[unit] == attempt.ground_truth_sha256, (
+            assert ground_truth_hashes[unit] == attempt.ground_truth_hash, (
                 f"Conflicting held-out-target hashes for {unit}"
             )
-        ground_truth_hashes[unit] = attempt.ground_truth_sha256
+        ground_truth_hashes[unit] = attempt.ground_truth_hash
     assert cell_names, "No grid cells supplied for sample-fallback resolution."
     assert len(cell_names) == len(set(cell_names)), "Duplicate grid cells supplied."
     cells = {name: root / name for name in cell_names}

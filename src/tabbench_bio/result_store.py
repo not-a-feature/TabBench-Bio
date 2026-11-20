@@ -30,7 +30,16 @@ import pandas as pd
 from filelock import SoftFileLock
 
 from tabbench_bio.config import load_config
-from tabbench_bio.io_utils import sha256_file
+from tabbench_bio.io_utils import (
+    RESULT_BLOB_ENCODING,
+    decode_result_blob,
+    pack_attempt_record,
+    read_result_blob,
+    result_blob_digest,
+    sha256_file,
+    unpack_attempt_record,
+)
+from tabbench_bio.logging_utils import log_has_memory_failure
 from tabbench_bio.split_manifest import (
     consistent_truth_hashes,
     load_manifest,
@@ -38,13 +47,13 @@ from tabbench_bio.split_manifest import (
     validate_truth,
 )
 
-SCHEMA_VERSION = 1
+SCHEMA_VERSION = 4
 CANONICAL_FILENAME = "results.sqlite"
 WRITER_DIRECTORY = "writers"
 SNAPSHOT_DIRECTORY = "snapshots"
 TERMINAL_STATES = ("pass", "skip", "fail")
 _UNIT_KEY = ("cell", "seed", "dataset", "model")
-_ARTIFACT_KINDS = ("prediction", "probability", "ground_truth", "log")
+_ARTIFACT_KINDS = ("prediction", "probability", "ground_truth")
 _RUNTIME_CONFIG_KEYS = frozenset(
     {
         "output_dir",
@@ -140,6 +149,15 @@ def _connect(path: Path, *, read_only: bool = False) -> Iterator[sqlite3.Connect
             yield connection
 
 
+def _result_metadata(connection: sqlite3.Connection, path: Path) -> dict[str, str]:
+    metadata = dict(connection.execute("SELECT key, value FROM metadata"))
+    version = int(metadata["schema_version"])
+    assert version == SCHEMA_VERSION, (
+        f"Unsupported result schema {version} in {path}; expected {SCHEMA_VERSION}"
+    )
+    return metadata
+
+
 def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_writer: str) -> None:
     for statement in """
         CREATE TABLE IF NOT EXISTS metadata (
@@ -149,10 +167,10 @@ def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_wr
         CREATE TABLE IF NOT EXISTS cells (
             cell TEXT PRIMARY KEY,
             config_json TEXT NOT NULL,
-            config_sha256 TEXT NOT NULL
+            config_hash TEXT NOT NULL
         );
         CREATE TABLE IF NOT EXISTS blobs (
-            sha256 TEXT PRIMARY KEY,
+            hash TEXT PRIMARY KEY,
             kind TEXT NOT NULL,
             encoding TEXT NOT NULL,
             uncompressed_bytes INTEGER NOT NULL,
@@ -168,10 +186,10 @@ def _initialise(connection: sqlite3.Connection, *, experiment_id: str, bundle_wr
             reason TEXT NOT NULL,
             timestamp TEXT NOT NULL,
             record_json TEXT NOT NULL,
-            prediction_sha256 TEXT REFERENCES blobs(sha256),
-            probability_sha256 TEXT REFERENCES blobs(sha256),
-            ground_truth_sha256 TEXT REFERENCES blobs(sha256),
-            log_sha256 TEXT REFERENCES blobs(sha256)
+            prediction_hash TEXT REFERENCES blobs(hash),
+            probability_hash TEXT REFERENCES blobs(hash),
+            ground_truth_hash TEXT REFERENCES blobs(hash),
+            record_zlib BLOB NOT NULL CHECK(typeof(record_zlib) = 'blob')
         );
         CREATE INDEX IF NOT EXISTS attempts_unit
             ON attempts(cell, seed, dataset, model, timestamp, attempt_id);
@@ -224,11 +242,11 @@ def _register_cell(connection: sqlite3.Connection, cell: str, config: dict) -> N
     config_json = _canonical_json(_normalise_config(config))
     config_hash = _sha256(config_json.encode("utf-8"))
     connection.execute(
-        "INSERT OR IGNORE INTO cells(cell, config_json, config_sha256) VALUES (?, ?, ?)",
+        "INSERT OR IGNORE INTO cells(cell, config_json, config_hash) VALUES (?, ?, ?)",
         (cell, config_json, config_hash),
     )
     existing = connection.execute(
-        "SELECT config_json, config_sha256 FROM cells WHERE cell = ?", (cell,)
+        "SELECT config_json, config_hash FROM cells WHERE cell = ?", (cell,)
     ).fetchone()
     assert existing == (config_json, config_hash), f"Configuration drift for result cell {cell}"
 
@@ -237,28 +255,29 @@ def _insert_blob(connection: sqlite3.Connection, kind: str, payload: bytes | Non
     if payload is None:
         return None
     assert kind in _ARTIFACT_KINDS, kind
-    digest = _sha256(payload)
+    digest = result_blob_digest(payload)
     compressed = zlib.compress(payload, level=6)
-    connection.execute(
-        "INSERT OR IGNORE INTO blobs(sha256, kind, encoding, uncompressed_bytes, payload) "
-        "VALUES (?, ?, 'zlib', ?, ?)",
-        (digest, kind, len(payload), compressed),
+    inserted = connection.execute(
+        "INSERT OR IGNORE INTO blobs(hash, kind, encoding, uncompressed_bytes, payload) "
+        "VALUES (?, ?, ?, ?, ?)",
+        (digest, kind, RESULT_BLOB_ENCODING, len(payload), compressed),
     )
-    stored = connection.execute(
-        "SELECT uncompressed_bytes FROM blobs WHERE sha256 = ?", (digest,)
-    ).fetchone()
-    assert stored == (len(payload),), (digest, stored, len(payload))
+    if not inserted.rowcount:
+        assert read_result_blob(connection, digest) == payload, digest
     return digest
 
 
 def _validate_frozen_splits(connection: sqlite3.Connection, manifest: dict | None) -> None:
     if manifest is None:
         return
+    split_checksums = {}
     for seed, dataset, digest in connection.execute(
-        "SELECT DISTINCT seed, dataset, ground_truth_sha256 FROM attempts "
-        "WHERE ground_truth_sha256 IS NOT NULL"
+        "SELECT DISTINCT seed, dataset, ground_truth_hash FROM attempts "
+        "WHERE ground_truth_hash IS NOT NULL"
     ):
-        validate_truth(manifest, seed, dataset, digest)
+        if digest not in split_checksums:
+            split_checksums[digest] = _sha256(read_result_blob(connection, digest))
+        validate_truth(manifest, seed, dataset, split_checksums[digest])
 
 
 @dataclass(frozen=True)
@@ -272,10 +291,9 @@ class StoredAttempt:
     reason: str
     timestamp: str
     record: dict
-    prediction_sha256: str | None
-    probability_sha256: str | None
-    ground_truth_sha256: str | None
-    log_sha256: str | None
+    prediction_hash: str | None
+    probability_hash: str | None
+    ground_truth_hash: str | None
 
     @property
     def key(self) -> tuple[str, int, str, str]:
@@ -284,9 +302,9 @@ class StoredAttempt:
     @property
     def artifact_hashes(self) -> tuple[str | None, ...]:
         return (
-            self.prediction_sha256,
-            self.probability_sha256,
-            self.ground_truth_sha256,
+            self.prediction_hash,
+            self.probability_hash,
+            self.ground_truth_hash,
         )
 
 
@@ -300,18 +318,19 @@ def _attempt_from_row(row: tuple) -> StoredAttempt:
         status=row[5],
         reason=row[6],
         timestamp=row[7],
-        record=json.loads(row[8]),
-        prediction_sha256=row[9],
-        probability_sha256=row[10],
-        ground_truth_sha256=row[11],
-        log_sha256=row[12],
+        record=json.loads(unpack_attempt_record(row[12])),
+        prediction_hash=row[9],
+        probability_hash=row[10],
+        ground_truth_hash=row[11],
     )
 
 
 _ATTEMPT_SELECT = (
     "SELECT attempt_id, cell, seed, dataset, model, status, reason, timestamp, record_json, "
-    "prediction_sha256, probability_sha256, ground_truth_sha256, log_sha256 FROM attempts"
+    "prediction_hash, probability_hash, ground_truth_hash, record_zlib "
+    "FROM attempts"
 )
+_ATTEMPT_PLACEHOLDERS = "(?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)"
 
 
 class ResultRepository:
@@ -416,10 +435,10 @@ class ResultRepository:
         )
         attempts_by_id: dict[str, StoredAttempt] = {}
         blob_sources: dict[str, Path] = {}
+        split_checksums: dict[str, str] = {}
         for path in self.bundle_paths():
             with _connect(path, read_only=True) as connection:
-                metadata = dict(connection.execute("SELECT key, value FROM metadata"))
-                assert int(metadata["schema_version"]) == SCHEMA_VERSION, path
+                metadata = _result_metadata(connection, path)
                 assert metadata["experiment_id"] == self.experiment_id, path
                 query = _ATTEMPT_SELECT
                 parameters: tuple = ()
@@ -428,18 +447,21 @@ class ResultRepository:
                     parameters = (self.cell_filter,)
                 for row in connection.execute(query, parameters):
                     attempt = _attempt_from_row(row)
-                    if self.split_manifest is not None and attempt.ground_truth_sha256 is not None:
+                    if self.split_manifest is not None and attempt.ground_truth_hash is not None:
+                        digest = attempt.ground_truth_hash
+                        if digest not in split_checksums:
+                            split_checksums[digest] = _sha256(read_result_blob(connection, digest))
                         validate_truth(
                             self.split_manifest,
                             attempt.seed,
                             attempt.dataset,
-                            attempt.ground_truth_sha256,
+                            split_checksums[digest],
                         )
                     if attempt.attempt_id in attempts_by_id:
                         assert attempts_by_id[attempt.attempt_id] == attempt
                     else:
                         attempts_by_id[attempt.attempt_id] = attempt
-                    for digest in (*attempt.artifact_hashes, attempt.log_sha256):
+                    for digest in attempt.artifact_hashes:
                         if digest is not None:
                             blob_sources.setdefault(digest, path)
         grouped: dict[tuple[str, int, str, str], list[StoredAttempt]] = {}
@@ -507,25 +529,12 @@ class ResultRepository:
     def _blob(self, digest: str) -> bytes:
         path = self._blob_sources[digest]
         with _connect(path, read_only=True) as connection:
-            row = connection.execute(
-                "SELECT encoding, uncompressed_bytes, payload FROM blobs WHERE sha256 = ?",
-                (digest,),
-            ).fetchone()
-        assert row is not None, digest
-        encoding, size, compressed = row
-        assert encoding == "zlib", encoding
-        payload = zlib.decompress(compressed)
-        assert len(payload) == size
-        assert _sha256(payload) == digest
-        return payload
+            return read_result_blob(connection, digest)
 
     def dataframe(self, attempt: StoredAttempt, kind: str) -> pd.DataFrame | None:
         assert kind in {"prediction", "probability", "ground_truth"}, kind
-        digest = getattr(attempt, f"{kind}_sha256")
+        digest = getattr(attempt, f"{kind}_hash")
         return None if digest is None else _bytes_frame(self._blob(digest))
-
-    def log_text(self, attempt: StoredAttempt) -> str:
-        return "" if attempt.log_sha256 is None else self._blob(attempt.log_sha256).decode("utf-8")
 
     def write(
         self,
@@ -535,7 +544,6 @@ class ResultRepository:
         prediction: pd.DataFrame | pd.Series | None = None,
         probability: pd.DataFrame | None = None,
         ground_truth: pd.DataFrame | None = None,
-        log_text: str = "",
     ) -> StoredAttempt:
         assert record["status"] in TERMINAL_STATES, record["status"]
         assert record["dataset"] and record["model"]
@@ -615,9 +623,6 @@ class ResultRepository:
                     "ground_truth",
                     None if ground_truth is None else _frame_bytes(ground_truth),
                 ),
-                "log": _insert_blob(
-                    connection, "log", log_text.encode("utf-8") if log_text else None
-                ),
             }
             if payload["status"] == "pass":
                 unit_key = (self.cell, int(seed), payload["dataset"], payload["model"])
@@ -635,8 +640,9 @@ class ResultRepository:
                 ), (
                     f"Divergent passing results for {(self.cell, seed, payload['dataset'], payload['model'])}"
                 )
+            summary, compressed_record = pack_attempt_record(_canonical_json(payload))
             connection.execute(
-                "INSERT INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                "INSERT INTO attempts VALUES " + _ATTEMPT_PLACEHOLDERS,
                 (
                     attempt_id,
                     self.cell,
@@ -646,11 +652,11 @@ class ResultRepository:
                     payload["status"],
                     payload["reason"] if "reason" in payload else "",
                     timestamp,
-                    _canonical_json(payload),
+                    summary,
                     hashes["prediction"],
                     hashes["probability"],
                     hashes["ground_truth"],
-                    hashes["log"],
+                    compressed_record,
                 ),
             )
             connection.commit()
@@ -664,10 +670,9 @@ class ResultRepository:
             reason=payload["reason"] if "reason" in payload else "",
             timestamp=timestamp,
             record=payload,
-            prediction_sha256=hashes["prediction"],
-            probability_sha256=hashes["probability"],
-            ground_truth_sha256=hashes["ground_truth"],
-            log_sha256=hashes["log"],
+            prediction_hash=hashes["prediction"],
+            probability_hash=hashes["probability"],
+            ground_truth_hash=hashes["ground_truth"],
         )
         attempts = self._attempts.setdefault(stored.key, [])
         attempts.append(stored)
@@ -716,6 +721,9 @@ def snapshot_writers(
         if path.stem not in excluded
     ]
     assert writers, f"No writer bundles found under {root / WRITER_DIRECTORY}"
+    for source in writers:
+        with _connect(source, read_only=True) as connection:
+            _result_metadata(connection, source)
     snapshot_dir = root / SNAPSHOT_DIRECTORY
     snapshot_dir.mkdir(parents=True, exist_ok=True)
     entries = []
@@ -764,7 +772,7 @@ def install_snapshots(
     filenames = [entry["file"] for entry in manifest["bundles"]]
     assert len(filenames) == len(set(filenames)), "Snapshot manifest repeats a bundle"
     split_manifest = load_manifest(root)
-    installed = []
+    verified = []
     for entry in manifest["bundles"]:
         assert Path(entry["file"]).name == entry["file"], entry["file"]
         source = source_dir / entry["file"]
@@ -772,7 +780,7 @@ def install_snapshots(
         assert sha256_file(source) == entry["sha256"], source
         with _connect(source, read_only=True) as connection:
             assert connection.execute("PRAGMA integrity_check").fetchone()[0] == "ok"
-            metadata = dict(connection.execute("SELECT key, value FROM metadata"))
+            metadata = _result_metadata(connection, source)
             assert metadata["experiment_id"] == root.name
             _validate_frozen_splits(connection, split_manifest)
         destination = root / WRITER_DIRECTORY / source.name
@@ -789,8 +797,8 @@ def install_snapshots(
                 f"Incoming snapshot would discard {len(existing_ids - incoming_ids)} attempt(s) "
                 f"from {destination.name}; transfer a newer append-only snapshot."
             )
-        installed.append(snapshot_database(source, destination))
-    return installed
+        verified.append((source, destination))
+    return [snapshot_database(source, destination) for source, destination in verified]
 
 
 def _merge_cell_config(existing: dict, incoming: dict, cell: str) -> dict:
@@ -839,18 +847,17 @@ def _copy_database_rows(
     source: Path, destination: sqlite3.Connection, *, merge_models: bool = False
 ) -> None:
     with _connect(source, read_only=True) as connection:
-        metadata = dict(connection.execute("SELECT key, value FROM metadata"))
-        assert int(metadata["schema_version"]) == SCHEMA_VERSION, source
+        metadata = _result_metadata(connection, source)
         destination_metadata = dict(destination.execute("SELECT key, value FROM metadata"))
         if not merge_models:
             assert metadata["experiment_id"] == destination_metadata["experiment_id"], source
         else:
             assert not connection.execute("PRAGMA foreign_key_check").fetchall(), source
         for cell, config_json, config_hash in connection.execute(
-            "SELECT cell, config_json, config_sha256 FROM cells"
+            "SELECT cell, config_json, config_hash FROM cells"
         ):
             existing = destination.execute(
-                "SELECT config_json, config_sha256 FROM cells WHERE cell = ?", (cell,)
+                "SELECT config_json, config_hash FROM cells WHERE cell = ?", (cell,)
             ).fetchone()
             if merge_models:
                 assert _sha256(config_json.encode("utf-8")) == config_hash, (source, cell)
@@ -861,7 +868,7 @@ def _copy_database_rows(
                     config_json = _canonical_json(merged)
                     config_hash = _sha256(config_json.encode("utf-8"))
                     destination.execute(
-                        "UPDATE cells SET config_json = ?, config_sha256 = ? WHERE cell = ?",
+                        "UPDATE cells SET config_json = ?, config_hash = ? WHERE cell = ?",
                         (config_json, config_hash, cell),
                     )
             else:
@@ -875,32 +882,31 @@ def _copy_database_rows(
                 "INSERT OR IGNORE INTO cells VALUES (?, ?, ?)", (cell, config_json, config_hash)
             )
         for row in connection.execute(
-            "SELECT sha256, kind, encoding, uncompressed_bytes, payload FROM blobs"
+            "SELECT hash, kind, encoding, uncompressed_bytes, payload FROM blobs"
         ):
+            assert row[2] == RESULT_BLOB_ENCODING, (source, row[2])
             existing = destination.execute(
-                "SELECT sha256, kind, encoding, uncompressed_bytes, payload "
-                "FROM blobs WHERE sha256 = ?",
+                "SELECT hash, kind, encoding, uncompressed_bytes, payload "
+                "FROM blobs WHERE hash = ?",
                 (row[0],),
             ).fetchone()
             if merge_models or existing is not None:
-                assert row[2] == "zlib", (source, row[0])
-                payload = zlib.decompress(row[4])
-                assert len(payload) == row[3] and _sha256(payload) == row[0], (source, row[0])
+                payload = decode_result_blob(row[2], row[3], row[4], row[0])
             if existing is not None:
-                assert existing[2] == "zlib", (source, row[0])
-                existing_payload = zlib.decompress(existing[4])
-                assert len(existing_payload) == existing[3], (source, row[0])
+                existing_payload = decode_result_blob(existing[2], existing[3], existing[4], row[0])
                 assert payload == existing_payload, (source, row[0])
             destination.execute("INSERT OR IGNORE INTO blobs VALUES (?, ?, ?, ?, ?)", row)
         for row in connection.execute(_ATTEMPT_SELECT):
             existing = destination.execute(
                 _ATTEMPT_SELECT + " WHERE attempt_id = ?", (row[0],)
             ).fetchone()
-            assert existing is None or existing == row, (source, row[0])
-            destination.execute(
-                "INSERT OR IGNORE INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
-                row,
-            )
+            if existing is None:
+                destination.execute("INSERT INTO attempts VALUES " + _ATTEMPT_PLACEHOLDERS, row)
+                continue
+            assert existing == row or (
+                existing[:-1] == row[:-1]
+                and unpack_attempt_record(existing[-1]) == unpack_attempt_record(row[-1])
+            ), (source, row[0])
 
 
 def _assert_consistent_passes(connection: sqlite3.Connection) -> None:
@@ -995,7 +1001,7 @@ def merge_results(sources: list[str | os.PathLike[str]], output: str | os.PathLi
                 consistent_truth_hashes(_attempt_from_row(row) for row in cursor)
             missing = connection.execute(
                 "SELECT attempt_id FROM attempts WHERE status = 'pass' "
-                "AND (prediction_sha256 IS NULL OR ground_truth_sha256 IS NULL) LIMIT 1"
+                "AND (prediction_hash IS NULL OR ground_truth_hash IS NULL) LIMIT 1"
             ).fetchone()
             assert missing is None, f"Passing attempt lacks prediction or ground truth: {missing}"
             connection.execute(
@@ -1050,7 +1056,6 @@ def import_legacy_results(
                     "prediction": predictions / f"{dataset}_{model}_predictions.csv",
                     "probability": predictions / f"{dataset}_{model}_proba.csv",
                     "ground_truth": predictions / f"{dataset}_ground_truth.csv",
-                    "log": seed_dir / "logs" / f"{dataset}_{model}.log",
                 }
                 if record["status"] == "pass":
                     assert paths["prediction"].is_file(), paths["prediction"]
@@ -1075,8 +1080,12 @@ def import_legacy_results(
                     kind: _insert_blob(connection, kind, payload)
                     for kind, payload in artifact_payloads.items()
                 }
+                legacy_hashes = {
+                    kind: _sha256(data) if data is not None else None
+                    for kind, data in artifact_payloads.items()
+                }
                 if split_manifest is not None and hashes["ground_truth"] is not None:
-                    validate_truth(split_manifest, seed, dataset, hashes["ground_truth"])
+                    validate_truth(split_manifest, seed, dataset, legacy_hashes["ground_truth"])
                 timestamp = (
                     record["timestamp"]
                     if "timestamp" in record
@@ -1088,14 +1097,26 @@ def import_legacy_results(
                 payload["timestamp"] = timestamp
                 payload["writer_id"] = bundle_writer
                 payload["host"] = "legacy-import"
+                legacy_record_json = _canonical_json(payload)
+                log_file = seed_dir / "logs" / f"{dataset}_{model}.log"
+                # Keep attempt IDs stable for trees imported by earlier versions.
+                log_digest = sha256_file(log_file) if log_file.is_file() else None
                 identity = _canonical_json(
                     {
                         "source": stats_path.relative_to(root).as_posix(),
                         "record": payload,
-                        "artifacts": hashes,
+                        "artifacts": {**legacy_hashes, "log": log_digest},
                     }
                 ).encode("utf-8")
                 attempt_id = _sha256(identity)
+                if (
+                    "reason" in payload
+                    and payload["reason"] == "fit_error"
+                    and log_has_memory_failure(log_file)
+                ):
+                    payload["log_memory_failure"] = True
+                record_json = _canonical_json(payload)
+                summary, compressed_record = pack_attempt_record(record_json)
                 row = (
                     attempt_id,
                     cell,
@@ -1105,18 +1126,24 @@ def import_legacy_results(
                     payload["status"],
                     payload["reason"] if "reason" in payload else "",
                     timestamp,
-                    _canonical_json(payload),
+                    summary,
                     hashes["prediction"],
                     hashes["probability"],
                     hashes["ground_truth"],
-                    hashes["log"],
+                    compressed_record,
                 )
                 existing = connection.execute(
                     _ATTEMPT_SELECT + " WHERE attempt_id = ?", (attempt_id,)
                 ).fetchone()
-                assert existing is None or existing == row, stats_path
+                if existing is not None:
+                    assert (
+                        existing[:8] == row[:8]
+                        and unpack_attempt_record(existing[-1]) in (legacy_record_json, record_json)
+                        and existing[9:12] == row[9:12]
+                    ), stats_path
+                    continue
                 connection.execute(
-                    "INSERT OR IGNORE INTO attempts VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)",
+                    "INSERT INTO attempts VALUES " + _ATTEMPT_PLACEHOLDERS,
                     row,
                 )
             connection.commit()

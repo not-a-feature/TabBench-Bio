@@ -4,7 +4,7 @@ from pathlib import Path
 import pandas as pd
 import pytest
 
-from tabbench_bio.result_store import import_legacy_results
+from tabbench_bio.result_store import ResultRepository, import_legacy_results
 from tabbench_bio.sample_fallback import resolve_sample_fallbacks, sample_fallback_chain
 
 KEY = "toy__target"
@@ -235,6 +235,8 @@ def test_legacy_generic_fit_error_requires_explicit_oom_evidence(tmp_path):
 
     assert (adaptive["classification"]["cell"] == "cap_2000").any()
     assert manifest.iloc[0]["status"] == "resolved"
+    attempt = ResultRepository.from_root(tmp_path).current(0, KEY, MODEL, cell=target.name)
+    assert attempt.record["log_memory_failure"] is True
 
 
 def test_resolver_refuses_reuse_when_test_targets_differ(tmp_path):

@@ -4,11 +4,9 @@ The fold-metric cache hashes this module, so it holds only the code that turns s
 predictions into metric values.
 """
 
-import hashlib
 import io
 import json
 import sqlite3
-import zlib
 from collections import deque
 from concurrent.futures import Executor
 from pathlib import Path
@@ -18,10 +16,11 @@ import pandas as pd
 from tqdm.auto import tqdm
 
 from tabbench_bio.dataset import TaskType
+from tabbench_bio.io_utils import read_result_blob, unpack_attempt_record
 from tabbench_bio.metric_cache import MetricCache
 from tabbench_bio.metrics import compute_metrics
 
-_SQLITE_SCHEMA_VERSION = 1
+_SQLITE_SCHEMA_VERSION = 4
 
 _CURRENT_SQLITE_ATTEMPTS = """
 WITH ranked_attempts AS (
@@ -31,10 +30,10 @@ WITH ranked_attempts AS (
         model,
         status,
         reason,
-        prediction_sha256,
-        probability_sha256,
-        ground_truth_sha256,
-        record_json,
+        prediction_hash,
+        probability_hash,
+        ground_truth_hash,
+        record_zlib,
         ROW_NUMBER() OVER (
             PARTITION BY cell, seed, dataset, model
             ORDER BY
@@ -52,10 +51,10 @@ SELECT
     model,
     status,
     reason,
-    prediction_sha256,
-    probability_sha256,
-    ground_truth_sha256,
-    record_json
+    prediction_hash,
+    probability_hash,
+    ground_truth_hash,
+    record_zlib
 FROM ranked_attempts
 WHERE current_rank = 1
 ORDER BY seed, dataset, model
@@ -93,17 +92,7 @@ def _sqlite_frame(
     connection: sqlite3.Connection,
     digest: str,
 ) -> pd.DataFrame:
-    row = connection.execute(
-        "SELECT encoding, uncompressed_bytes, payload FROM blobs WHERE sha256 = ?",
-        (digest,),
-    ).fetchone()
-    assert row is not None, f"Missing result blob {digest}"
-    encoding, uncompressed_bytes, compressed = row
-    assert encoding == "zlib", (digest, encoding)
-    payload = zlib.decompress(bytes(compressed))
-    assert len(payload) == int(uncompressed_bytes), digest
-    assert hashlib.sha256(payload).hexdigest() == digest, digest
-    return pd.read_csv(io.BytesIO(payload), index_col=0)
+    return pd.read_csv(io.BytesIO(read_result_blob(connection, digest)), index_col=0)
 
 
 def _compute_metric_batch(batch):
@@ -171,15 +160,15 @@ def _metrics_from_sqlite(
             model,
             status,
             reason,
-            prediction_sha256,
-            probability_sha256,
-            ground_truth_sha256,
-            record_json,
+            prediction_hash,
+            probability_hash,
+            ground_truth_hash,
+            record_zlib,
         ) = row
         status_rows.append(
             {
-                **json.loads(record_json),
-                "ground_truth_sha256": ground_truth_sha256,
+                **json.loads(unpack_attempt_record(record_zlib)),
+                "ground_truth_hash": ground_truth_hash,
                 "seed": int(seed),
                 "key": str(dataset),
                 "model": str(model),
@@ -189,18 +178,16 @@ def _metrics_from_sqlite(
         )
         if status != "pass":
             continue
-        assert prediction_sha256 is not None, (cell, seed, dataset, model)
-        assert ground_truth_sha256 is not None, (cell, seed, dataset, model)
+        assert prediction_hash is not None, (cell, seed, dataset, model)
+        assert ground_truth_hash is not None, (cell, seed, dataset, model)
         metric_row: dict[str, object] = {
             "seed": int(seed),
             "key": str(dataset),
             "model": str(model),
         }
-        task_type = (
-            TaskType.Classification if probability_sha256 is not None else TaskType.Regression
-        )
+        task_type = TaskType.Classification if probability_hash is not None else TaskType.Regression
         if cache is not None:
-            cache_key = cache.key(prediction_sha256, probability_sha256, ground_truth_sha256)
+            cache_key = cache.key(prediction_hash, probability_hash, ground_truth_hash)
             cached = cache.read(cache_key)
             if cached is not None:
                 metric_row.update(cached)
@@ -211,18 +198,18 @@ def _metrics_from_sqlite(
                 progress.update(1)
                 continue
             cache_keys[(int(seed), str(dataset), str(model))] = cache_key
-        ground_truth_digest = str(ground_truth_sha256)
+        ground_truth_digest = str(ground_truth_hash)
         if ground_truth_digest not in ground_truth_cache:
             ground_truth_cache[ground_truth_digest] = _sqlite_frame(
                 connection, ground_truth_digest
             ).sort_index()
         data_test = ground_truth_cache[ground_truth_digest]
-        y_pred = _sqlite_frame(connection, str(prediction_sha256)).sort_index()
+        y_pred = _sqlite_frame(connection, str(prediction_hash)).sort_index()
         assert np.array_equal(data_test.index, y_pred.index), (cell, seed, dataset, model)
 
         y_proba = None
-        if probability_sha256 is not None:
-            probability = _sqlite_frame(connection, str(probability_sha256)).sort_index()
+        if probability_hash is not None:
+            probability = _sqlite_frame(connection, str(probability_hash)).sort_index()
             assert np.array_equal(data_test.index, probability.index), (cell, seed, dataset, model)
             y_proba = probability
         batch.append(

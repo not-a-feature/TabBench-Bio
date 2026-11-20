@@ -45,7 +45,7 @@ from tabbench_bio.gpu_exclusivity import (
     GpuContentionError,
     assert_exclusive_from_environment,
 )
-from tabbench_bio.logging_utils import LOG_FORMAT, run_file_logger
+from tabbench_bio.logging_utils import LOG_FORMAT, log_has_memory_failure, run_file_logger
 from tabbench_bio.model_registry import (
     MODEL_REGISTRY,
     REGULAR_MAX_FEATURES,
@@ -53,7 +53,6 @@ from tabbench_bio.model_registry import (
 )
 from tabbench_bio.resource_guard import check_reference_hardware
 from tabbench_bio.result_store import ResultRepository, StoredAttempt
-from tabbench_bio.sample_fallback import log_has_memory_failure
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import validate_prepared
 from tabbench_bio.tuning import tuning_fingerprint
@@ -1159,6 +1158,8 @@ def compute_predictions(
                             record["status"] = "fail"
                             record["reason"] = "fit_error"
                             record["error"] = str(e)
+                            if log_has_memory_failure(active_log_path):
+                                record["log_memory_failure"] = True
 
                 if guarded_gpu:
                     assert_exclusive_from_environment()
@@ -1167,8 +1168,6 @@ def compute_predictions(
                     for candidate in record["tuning"]["candidates"]:
                         if candidate["status"] == "failed":
                             candidate["error"] = record["error"]
-                with open(log_path, encoding="utf-8", errors="replace") as handle:
-                    log_text = handle.read()
                 passed = record["status"] == "pass"
                 repository.write(
                     record,
@@ -1180,7 +1179,6 @@ def compute_predictions(
                         else None
                     ),
                     ground_truth=data_test[["target"]].sort_index() if passed else None,
-                    log_text=log_text,
                 )
                 if model_name == "DUMMY":
                     materialize_dummy_skips(repository, [seed], model_names, [key])

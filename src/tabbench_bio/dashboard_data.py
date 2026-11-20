@@ -193,7 +193,7 @@ def read_inputs(
     status = (
         pd.concat(statuses, ignore_index=True)
         if statuses
-        else pd.DataFrame(columns=[*columns, "status", "reason", "ground_truth_sha256"])
+        else pd.DataFrame(columns=[*columns, "status", "reason", "ground_truth_hash"])
     )
     for field in ("n_train_samples", "recommended_max_n_train", "train_time_s", "inference_time_s"):
         if field not in status:
@@ -204,13 +204,13 @@ def read_inputs(
     ]
     truths = {}
     for row in status.itertuples(index=False):
-        if pd.isna(row.ground_truth_sha256):
+        if pd.isna(row.ground_truth_hash):
             continue
         key = (row.cell, int(row.seed), row.key)
-        assert key not in truths or truths[key] == row.ground_truth_sha256, (
+        assert key not in truths or truths[key] == row.ground_truth_hash, (
             f"Conflicting targets: {key}"
         )
-        truths[key] = row.ground_truth_sha256
+        truths[key] = row.ground_truth_hash
     strict, adaptive, _ = resolve_metric_fallbacks(configs, raw, status, truths)
     views = {}
     for name, metrics in (("strict", strict), ("adaptive", adaptive), ("conditional", strict)):

@@ -17,7 +17,19 @@ from sklearn.dummy import DummyClassifier
 
 from tabbench_bio import Leaderboard
 from tabbench_bio.fold_metrics import _metrics_from_sqlite
+from tabbench_bio.io_utils import RESULT_BLOB_ENCODING, pack_attempt_record, result_blob_digest
 from tabbench_bio.metric_cache import MetricCache
+from tabbench_bio.result_store import SCHEMA_VERSION
+
+
+def test_sqlite_loader_rejects_legacy_sha256_schema(tmp_path):
+    database = tmp_path / "results.sqlite"
+    _build_release_bundle(database)
+    with closing(sqlite3.connect(database)) as connection:
+        connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
+        connection.commit()
+    with pytest.raises(ValueError, match="Unsupported result schema 1"):
+        Leaderboard.from_sqlite(database, cell="cap_10000_n100")
 
 
 def test_public_sqlite_loader_reuses_metrics_without_reading_blobs(tmp_path, monkeypatch, capsys):
@@ -68,8 +80,8 @@ def test_metric_cache_keeps_completed_batches_after_interruption(tmp_path, monke
         for seed in range(1, 20):
             connection.execute(
                 "INSERT INTO attempts SELECT attempt_id || ?, cell, ?, dataset, model, "
-                "status, reason, timestamp, record_json, prediction_sha256, probability_sha256, "
-                "ground_truth_sha256, log_sha256 FROM attempts WHERE seed = 0",
+                "status, reason, timestamp, record_json, prediction_hash, probability_hash, "
+                "ground_truth_hash, record_zlib FROM attempts WHERE seed = 0",
                 (f"-{seed}", seed),
             )
         connection.commit()
@@ -112,7 +124,7 @@ def test_metric_cache_recomputes_only_changed_artifacts(tmp_path, capsys, artifa
         )
         digest = _add_blob(connection, artifact, changed)
         connection.execute(
-            f"UPDATE attempts SET {artifact}_sha256 = ? WHERE model = 'PERFECT'", (digest,)
+            f"UPDATE attempts SET {artifact}_hash = ? WHERE model = 'PERFECT'", (digest,)
         )
         connection.commit()
         expected = _metrics_from_sqlite(connection, "cap_10000_n100")
@@ -149,8 +161,8 @@ def test_parallel_metrics_match_serial_across_batches(tmp_path):
         for seed in range(1, 40):
             connection.execute(
                 "INSERT INTO attempts SELECT attempt_id || ?, cell, ?, dataset, model, "
-                "status, reason, timestamp, record_json, prediction_sha256, probability_sha256, "
-                "ground_truth_sha256, log_sha256 FROM attempts WHERE seed = 0",
+                "status, reason, timestamp, record_json, prediction_hash, probability_hash, "
+                "ground_truth_hash, record_zlib FROM attempts WHERE seed = 0",
                 (f"-{seed}", seed),
             )
         connection.commit()
@@ -168,14 +180,14 @@ def _frame_payload(frame: pd.DataFrame) -> tuple[str, bytes, int]:
     buffer = io.StringIO(newline="")
     frame.to_csv(buffer, index=True, lineterminator="\n")
     payload = buffer.getvalue().encode("utf-8")
-    return hashlib.sha256(payload).hexdigest(), zlib.compress(payload, level=6), len(payload)
+    return result_blob_digest(payload), zlib.compress(payload, level=6), len(payload)
 
 
 def _add_blob(connection: sqlite3.Connection, kind: str, frame: pd.DataFrame) -> str:
     digest, compressed, size = _frame_payload(frame)
     connection.execute(
-        "INSERT OR IGNORE INTO blobs VALUES (?, ?, 'zlib', ?, ?)",
-        (digest, kind, size, compressed),
+        "INSERT OR IGNORE INTO blobs VALUES (?, ?, ?, ?, ?)",
+        (digest, kind, RESULT_BLOB_ENCODING, size, compressed),
     )
     return digest
 
@@ -199,10 +211,10 @@ def _build_release_bundle(path: Path) -> None:
             CREATE TABLE cells (
                 cell TEXT PRIMARY KEY,
                 config_json TEXT NOT NULL,
-                config_sha256 TEXT NOT NULL
+                config_hash TEXT NOT NULL
             );
             CREATE TABLE blobs (
-                sha256 TEXT PRIMARY KEY,
+                hash TEXT PRIMARY KEY,
                 kind TEXT NOT NULL,
                 encoding TEXT NOT NULL,
                 uncompressed_bytes INTEGER NOT NULL,
@@ -218,15 +230,15 @@ def _build_release_bundle(path: Path) -> None:
                 reason TEXT NOT NULL,
                 timestamp TEXT NOT NULL,
                 record_json TEXT NOT NULL,
-                prediction_sha256 TEXT REFERENCES blobs(sha256),
-                probability_sha256 TEXT REFERENCES blobs(sha256),
-                ground_truth_sha256 TEXT REFERENCES blobs(sha256),
-                log_sha256 TEXT REFERENCES blobs(sha256)
+                prediction_hash TEXT REFERENCES blobs(hash),
+                probability_hash TEXT REFERENCES blobs(hash),
+                ground_truth_hash TEXT REFERENCES blobs(hash),
+                record_zlib BLOB NOT NULL
             );
             """)
         connection.executemany(
             "INSERT INTO metadata VALUES (?, ?)",
-            [("schema_version", "1"), ("experiment_id", "test-release")],
+            [("schema_version", str(SCHEMA_VERSION)), ("experiment_id", "test-release")],
         )
         connection.executemany(
             "INSERT INTO cells VALUES "
@@ -239,7 +251,7 @@ def _build_release_bundle(path: Path) -> None:
             probability_digest = _add_blob(connection, "probability", probabilities[model])
             connection.execute(
                 "INSERT INTO attempts VALUES (?, ?, 0, 'synthetic_0', ?, 'pass', '', ?, "
-                "'{}', ?, ?, ?, NULL)",
+                "'{}', ?, ?, ?, ?)",
                 (
                     f"attempt-{model}",
                     "cap_10000_n100",
@@ -248,6 +260,7 @@ def _build_release_bundle(path: Path) -> None:
                     prediction_digest,
                     probability_digest,
                     truth_digest,
+                    pack_attempt_record("{}")[1],
                 ),
             )
 
@@ -286,8 +299,9 @@ def test_sqlite_loader_filters_dataset_targets_and_cached_metrics(tmp_path, data
         for target in (0, 1):
             connection.execute(
                 "INSERT INTO attempts SELECT attempt_id || ?, cell, seed, ?, model, "
-                "status, reason, timestamp, record_json, prediction_sha256, probability_sha256, "
-                "ground_truth_sha256, log_sha256 FROM attempts WHERE dataset = 'synthetic_0'",
+                "status, reason, timestamp, record_json, prediction_hash, probability_hash, "
+                "ground_truth_hash, record_zlib FROM attempts "
+                "WHERE dataset = 'synthetic_0'",
                 (f"-selected-{target}", f"selected_with_underscores_{target}"),
             )
     checksum = hashlib.sha256(path.read_bytes()).hexdigest()

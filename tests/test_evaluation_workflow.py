@@ -150,7 +150,7 @@ def test_evaluation_writes_reports_and_matches_published_folds(tmp_path, monkeyp
 @pytest.mark.parametrize("task", ["classification", "regression"])
 @pytest.mark.parametrize("outcome", ["fail", "skip", "missing"])
 @pytest.mark.parametrize("peer_outcome", ["pass", "skip"])
-@pytest.mark.parametrize("baseline_mode", ["path", "latest", "default"])
+@pytest.mark.parametrize("baseline_mode", ["path", "latest", "default", "1.4.0"])
 def test_published_dummy_outcome_gates_custom_fits(
     tmp_path, monkeypatch, task, outcome, peer_outcome, baseline_mode
 ):
@@ -240,15 +240,15 @@ def test_published_dummy_outcome_gates_custom_fits(
     monkeypatch.setattr(evaluate, "load_model_factory", lambda _: lambda task: Model())
     checks = []
 
-    def latest(cache_dir):
-        checks.append(cache_dir)
+    def release(cache_dir, selection):
+        checks.append((cache_dir, selection))
         return database, {
             "tag": "v-test",
             "path": str(database),
             "sha256": hashlib.sha256(before).hexdigest(),
         }
 
-    monkeypatch.setattr(evaluate, "latest_reference", latest)
+    monkeypatch.setattr(evaluate, "release_reference", release)
     reports = []
     monkeypatch.setattr(
         evaluate, "generate_report", lambda args, lb, cfg, status: reports.append(lb)
@@ -265,16 +265,23 @@ def test_published_dummy_outcome_gates_custom_fits(
         str(tmp_path / "cache"),
     ]
     if baseline_mode != "default":
-        arguments += ["--baseline", str(database) if baseline_mode == "path" else "latest"]
+        arguments += ["--baseline", str(database) if baseline_mode == "path" else baseline_mode]
+    expected_checks = (
+        []
+        if baseline_mode == "path"
+        else [
+            ((tmp_path / "cache").resolve(), None if baseline_mode == "default" else baseline_mode)
+        ]
+    )
     if outcome == "missing":
         with pytest.raises(AssertionError, match="Reference is missing DUMMY outcomes"):
             main(arguments)
         assert fits == []
-        assert checks == ([] if baseline_mode == "path" else [(tmp_path / "cache").resolve()])
+        assert checks == expected_checks
         assert database.read_bytes() == before
         return
     main(arguments)
-    assert checks == ([] if baseline_mode == "path" else [(tmp_path / "cache").resolve()])
+    assert checks == expected_checks
     assert fits == [[4, 5, 6, 7]]
     metrics = pd.read_csv(output / "fold_metrics.csv")
     assert metrics.seed.tolist() == [0]

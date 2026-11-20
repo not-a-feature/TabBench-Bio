@@ -29,15 +29,15 @@ def consistent_truth_hashes(attempts) -> dict[tuple[int, str], str]:
     """Require one held-out target artifact across all models and grid cells."""
     hashes = {}
     for attempt in attempts:
-        if attempt.ground_truth_sha256 is None:
+        if attempt.ground_truth_hash is None:
             continue
         key = (attempt.seed, attempt.dataset)
         if key in hashes:
-            assert hashes[key] == attempt.ground_truth_sha256, (
+            assert hashes[key] == attempt.ground_truth_hash, (
                 f"Conflicting held-out-target hashes across cells for {key}: "
                 f"{attempt.cell}/{attempt.model}"
             )
-        hashes[key] = attempt.ground_truth_sha256
+        hashes[key] = attempt.ground_truth_hash
     return hashes
 
 
@@ -113,7 +113,7 @@ def freeze_manifest(repository, *, folds: int) -> Path:
     consistent_truth_hashes(attempts)
     representatives = {}
     for attempt in attempts:
-        if attempt.ground_truth_sha256 is not None:
+        if attempt.ground_truth_hash is not None:
             representatives.setdefault((attempt.seed, attempt.dataset), attempt)
     assert representatives, "No passing split artifacts to freeze"
     frames = {key: repository.dataframe(a, "ground_truth") for key, a in representatives.items()}
@@ -134,10 +134,11 @@ def freeze_manifest(repository, *, folds: int) -> Path:
     units = {}
     for (seed, dataset), frame in frames.items():
         test_indices = frame.sort_index().index.tolist()
+        digest = representatives[(seed, dataset)].ground_truth_hash
         units[unit_id(seed, dataset)] = {
             "test_indices": test_indices,
             "train_indices": sorted(universes[(dataset, seed // folds)] - set(test_indices)),
-            "ground_truth_sha256": representatives[(seed, dataset)].ground_truth_sha256,
+            "ground_truth_sha256": hashlib.sha256(repository._blob(digest)).hexdigest(),
         }
     manifest = {
         "schema_version": 1,

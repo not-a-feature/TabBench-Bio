@@ -24,9 +24,10 @@ tabbench-bio evaluate --model benchmark_my_model/my_model.py \
   --name SVM --dataset OpenML-1083 --dataset OpenML-1088
 ```
 
-Open `my_model_results/report/report.html`. The helper checks the latest published
-reference on each run and downloads it when needed. Only your model is fitted,
-on the reference's frozen folds where DUMMY passed.
+Open `my_model_results/report/report.html`. The helper uses the release matching
+the installed package version and reuses its verified cached database when available.
+If that release or its `results.sqlite` asset is missing, the helper checks older
+releases. It fits your model on the selected reference's frozen folds where DUMMY passed.
 
 ## Supply your estimator
 
@@ -73,6 +74,8 @@ tabbench-bio evaluate --model benchmark_my_model/my_model.py \
 Use `--task regression` for regression alone. Other useful options are:
 
 - `--baseline results.sqlite` to use a particular local reference.
+- `--baseline 1.4.0` to use the database from release `v1.4.0`.
+- `--baseline latest` to use GitHub's latest release.
 - `--cell cap_2000_n100` to select another published feature/sample budget.
 - `--threads 4` to limit CPU threads during fitting.
 - `--output my_results` to choose a new output directory.

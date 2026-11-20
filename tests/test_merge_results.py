@@ -138,6 +138,23 @@ def test_incompatible_runs_leave_no_output(tmp_path, change, message):
     assert not list(tmp_path.glob(".merge-results-*"))
 
 
+def test_merge_rejects_wrong_attempt_record_type(tmp_path):
+    source = bundle(tmp_path / "experiment", "RF")
+    with closing(sqlite3.connect(source)) as connection:
+        connection.executescript(
+            """
+            CREATE TABLE loose_attempts AS SELECT * FROM attempts;
+            DROP TABLE attempts;
+            ALTER TABLE loose_attempts RENAME TO attempts;
+            UPDATE attempts SET record_zlib = 'not compressed' WHERE status = 'fail';
+            """
+        )
+    output = tmp_path / "merged.sqlite"
+    with pytest.raises(sqlite3.IntegrityError, match="CHECK constraint failed"):
+        merge_results([source], output)
+    assert not output.exists()
+
+
 @pytest.mark.parametrize(
     "settings,message",
     [
@@ -163,9 +180,9 @@ def test_corrupt_source_is_rejected(tmp_path, corruption):
         if corruption == "blob":
             connection.execute("UPDATE blobs SET uncompressed_bytes = 1")
         elif corruption == "config":
-            connection.execute("UPDATE cells SET config_sha256 = 'wrong'")
+            connection.execute("UPDATE cells SET config_hash = 'wrong'")
         elif corruption == "foreign_key":
-            connection.execute("UPDATE attempts SET prediction_sha256 = 'missing'")
+            connection.execute("UPDATE attempts SET prediction_hash = 'missing'")
         else:
             connection.execute("UPDATE attempts SET attempt_id = ? WHERE rowid = 1", (attempt_id,))
         connection.commit()

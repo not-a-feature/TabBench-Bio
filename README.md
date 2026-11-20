@@ -34,8 +34,10 @@ classifier or regressor. See the [SVM example](https://github.com/not-a-feature/
 tabbench-bio evaluate --model my_model.py --task overall
 ```
 
-This checks the latest published reference, reuses its verified local cache or
-downloads the current database, and uses its frozen folds. It writes
+By default, evaluation uses the GitHub release matching the installed package
+version, or the nearest older release with `results.sqlite`. Use `--baseline 1.4.0`
+for a specific release, `--baseline latest` for GitHub's latest release, or pass a
+local SQLite path. Evaluation uses the selected database's frozen folds. It writes
 `my_model_results/report/report.html`, Elo plots and CSV metrics.
 See [Benchmark my model](https://github.com/not-a-feature/TabBench-Bio/blob/main/benchmark_my_model/README.md) for options.
 
@@ -141,6 +143,13 @@ Strict results use recorded DUMMY metrics for failed fits and omit incomplete
 model-target fold sets. Elo needs RF and at least one comparable model.
 The website also provides adaptive and conditional views, explained in the model guide.
 Use `--task` to select classification or regression.
+
+For direct SQLite queries, `attempts.record_json` contains the timing, resource,
+and failure summary. For example, use `json_extract(record_json, '$.train_time_s')`
+to read fit time. The complete attempt record, including tuning trials, is stored
+in `attempts.record_zlib` as zlib-compressed UTF-8 JSON. TabBench-Bio reads it automatically.
+The artifact columns `prediction_hash`, `probability_hash`, and `ground_truth_hash`
+reference the BLAKE2b-128 keys in `blobs.hash`. The cell-level `config_hash` uses SHA-256.
 
 ## Caches
 

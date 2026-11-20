@@ -6,15 +6,48 @@ import hashlib
 import json
 import os
 import shutil
+import sqlite3
 import stat
 import tempfile
 import uuid
+import zlib
 from contextlib import contextmanager
 from datetime import datetime
 from pathlib import Path
 from urllib.request import urlopen
 
 import pandas as pd
+
+RESULT_BLOB_ENCODING = "zlib+blake2b-128"
+ATTEMPT_SUMMARY_FIELDS = (
+    "task_type",
+    "n_train_samples",
+    "n_test_samples",
+    "n_features",
+    "train_time_s",
+    "inference_time_s",
+    "inference_time_per_sample_ms",
+    "inference_batch_size",
+    "inference_oom_retries",
+    "train_peak_memory_mb",
+    "inference_peak_memory_mb",
+    "train_gpu_energy_j",
+    "train_cpu_energy_j",
+    "inference_gpu_energy_j",
+    "inference_cpu_energy_j",
+    "hardware",
+    "slurm_cpus_per_task",
+    "slurm_memory_mb",
+    "allocated_cpus",
+    "resource_profile",
+    "recommended_max_n_train",
+    "memory_failure_source",
+    "memory_failure_scope",
+    "memory_failure_stage",
+    "memory_retry_version",
+    "log_memory_failure",
+    "error",
+)
 
 
 def archive_existing(
@@ -36,6 +69,41 @@ def sha256_file(path: Path) -> str:
     """Hash a file without reading its contents into memory."""
     with path.open("rb") as handle:
         return hashlib.file_digest(handle, "sha256").hexdigest()
+
+
+def result_blob_digest(payload: bytes) -> str:
+    return hashlib.blake2b(payload, digest_size=16).hexdigest()
+
+
+def decode_result_blob(encoding: str, size: int, compressed: bytes, digest: str) -> bytes:
+    """Decode a result blob and verify the digest declared by its encoding."""
+    assert encoding == RESULT_BLOB_ENCODING, encoding
+    payload = zlib.decompress(compressed)
+    assert len(payload) == size and result_blob_digest(payload) == digest, digest
+    return payload
+
+
+def read_result_blob(connection: sqlite3.Connection, digest: str) -> bytes:
+    row = connection.execute(
+        "SELECT encoding, uncompressed_bytes, payload FROM blobs WHERE hash = ?", (digest,)
+    ).fetchone()
+    assert row is not None, f"Missing result blob {digest}"
+    encoding, size, compressed = row
+    return decode_result_blob(encoding, int(size), compressed, digest)
+
+
+def pack_attempt_record(text: str) -> tuple[str, bytes]:
+    """Return SQL-readable metadata and a lossless copy of the full JSON."""
+    record = json.loads(text)
+    summary = {key: record[key] for key in ATTEMPT_SUMMARY_FIELDS if key in record}
+    return (
+        json.dumps(summary, separators=(",", ":"), ensure_ascii=False),
+        zlib.compress(text.encode("utf-8"), level=6),
+    )
+
+
+def unpack_attempt_record(compressed: bytes) -> str:
+    return zlib.decompress(compressed).decode("utf-8")
 
 
 @contextmanager

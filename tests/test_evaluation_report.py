@@ -135,7 +135,7 @@ def test_report_only_does_not_load_estimator_or_reference(tmp_path, monkeypatch,
         lambda *args: pytest.fail("No reference access during report regeneration"),
     )
     monkeypatch.setattr(
-        "tabbench_bio.evaluate.latest_reference",
+        "tabbench_bio.evaluate.release_reference",
         lambda *args: pytest.fail("No release check during report regeneration"),
     )
     arguments = [

@@ -13,7 +13,7 @@ import pytest
 from tabbench_bio import result_store
 from tabbench_bio.dataset import TaskType
 from tabbench_bio.evaluation import _compute_metrics_from_store
-from tabbench_bio.io_utils import atomic_write_json
+from tabbench_bio.io_utils import atomic_write_json, sha256_file
 from tabbench_bio.result_store import (
     ResultRepository,
     _connect,
@@ -182,13 +182,13 @@ def test_pass_roundtrip_and_blob_deduplication(tmp_path, monkeypatch):
     probability = pd.DataFrame({"0": [0.8, 0.1], "1": [0.2, 0.9]}, index=[10, 11])
     truth = pd.DataFrame({"target": [0, 1]}, index=[10, 11])
 
+    tuning = {"candidates": [{"score": 0.12345678912345}]}
     first = repository.write(
-        _pass_record(),
+        {**_pass_record(), "tuning": tuning},
         seed=42,
         prediction=prediction,
         probability=probability,
         ground_truth=truth,
-        log_text="fit complete\n",
     )
     second = repository.write(
         _pass_record(dataset="second"),
@@ -201,11 +201,24 @@ def test_pass_roundtrip_and_blob_deduplication(tmp_path, monkeypatch):
     pd.testing.assert_frame_equal(repository.dataframe(first, "prediction"), prediction)
     pd.testing.assert_frame_equal(repository.dataframe(first, "probability"), probability)
     pd.testing.assert_frame_equal(repository.dataframe(first, "ground_truth"), truth)
-    assert repository.log_text(first) == "fit complete\n"
-    assert first.ground_truth_sha256 == second.ground_truth_sha256
+    assert first.ground_truth_hash == second.ground_truth_hash
     with sqlite3.connect(repository.writer_path) as connection:
+        columns = {row[1] for row in connection.execute("PRAGMA table_info(attempts)")}
+        assert {name for name in columns if name.endswith("_hash")} == {
+            "prediction_hash",
+            "probability_hash",
+            "ground_truth_hash",
+        }
+        assert not any(name.startswith("log_") for name in columns)
         assert connection.execute("SELECT count(*) FROM attempts").fetchone()[0] == 2
-        assert connection.execute("SELECT count(*) FROM blobs").fetchone()[0] == 3
+        assert connection.execute("SELECT count(*) FROM blobs").fetchone()[0] == 2
+        assert connection.execute(
+            "SELECT json_extract(record_json, '$.train_time_s'), "
+            "json_type(record_json, '$.tuning') FROM attempts WHERE attempt_id=?",
+            (first.attempt_id,),
+        ).fetchone() == (1.25, None)
+    repository.reload()
+    assert repository.current(42, "dataset", "LR").record["tuning"] == tuning
 
 
 def test_named_prediction_series_is_stored_as_target_frame(tmp_path, monkeypatch):
@@ -362,7 +375,6 @@ def test_legacy_import_is_read_only_and_idempotent(tmp_path, monkeypatch):
     assert len(repository.attempts()) == 1
     attempt = repository.current(42, "dataset", "LR", cell="cap_2000_n20")
     pd.testing.assert_frame_equal(repository.dataframe(attempt, "prediction"), frame)
-    assert repository.log_text(attempt) == original[logs / "dataset_LR.log"].decode("utf-8")
     assert all(path.read_bytes() == content for path, content in original.items())
 
 
@@ -466,6 +478,33 @@ def test_writer_snapshot_can_exclude_frozen_legacy_bundle(tmp_path, monkeypatch)
 
     manifest = snapshot_writers(source, exclude_writers=("legacy",))
     assert {path.name for path in manifest.parent.glob("*.sqlite")} == {"node-a.sqlite"}
+
+
+def test_writer_snapshots_reject_mixed_schema_before_installing(tmp_path, monkeypatch):
+    source = tmp_path / "source" / "experiment"
+    cell = source / "cap_2000_n20"
+    for writer in ("node-a", "node-b"):
+        monkeypatch.setenv("TABBENCH_WRITER_ID", writer)
+        ResultRepository(cell, _config(cell))
+    manifest_path = snapshot_writers(source)
+    manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    old_writer = source / "writers" / "node-b.sqlite"
+    with closing(sqlite3.connect(old_writer)) as connection:
+        connection.execute("UPDATE metadata SET value='1' WHERE key='schema_version'")
+        connection.commit()
+
+    with pytest.raises(AssertionError, match=r"Unsupported result schema 1 .*node-b\.sqlite"):
+        snapshot_writers(source)
+
+    old_snapshot = snapshot_database(old_writer, manifest_path.parent / old_writer.name)
+    entry = next(entry for entry in manifest["bundles"] if entry["file"] == old_writer.name)
+    entry.update(bytes=old_snapshot.stat().st_size, sha256=sha256_file(old_snapshot))
+    atomic_write_json(manifest_path, manifest)
+
+    destination = tmp_path / "destination" / "experiment"
+    with pytest.raises(AssertionError, match=r"Unsupported result schema 1 .*node-b\.sqlite"):
+        install_snapshots(destination, manifest_path.parent)
+    assert not (destination / "writers").exists()
 
 
 @pytest.mark.parametrize("frozen", [False, True])

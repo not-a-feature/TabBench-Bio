@@ -108,8 +108,8 @@ def test_freeze_rejects_incomplete_or_overlapping_folds(tmp_path, monkeypatch):
     with pytest.raises(AssertionError, match="Incomplete CV"):
         freeze_manifest(repo, folds=3)
     with sqlite3.connect(repo.writer_path) as c:
-        digest = c.execute("SELECT ground_truth_sha256 FROM attempts WHERE seed=0").fetchone()[0]
-        c.execute("UPDATE attempts SET ground_truth_sha256=? WHERE seed=1", (digest,))
+        digest = c.execute("SELECT ground_truth_hash FROM attempts WHERE seed=0").fetchone()[0]
+        c.execute("UPDATE attempts SET ground_truth_hash=? WHERE seed=1", (digest,))
     with pytest.raises(AssertionError, match="Overlapping CV"):
         freeze_manifest(ResultRepository.from_root(repo.root), folds=2)
 

@@ -11,6 +11,26 @@ from tabbench_bio.io_utils import archive_existing
 LOG_FORMAT = "%(asctime)s %(levelname)s %(name)s:%(funcName)s:%(lineno)d: %(message)s"
 
 _RUN_FORMAT = logging.Formatter(fmt=LOG_FORMAT, datefmt="%Y-%m-%d %H:%M:%S")
+_OOM_MARKERS = (
+    "cuda out of memory",
+    "outofmemoryerror",
+    "out of memory error",
+    "not enough cuda memory",
+    "cuda error: out of memory",
+)
+
+
+def text_has_memory_failure(text: str) -> bool:
+    text = text.lower()
+    return any(marker in text for marker in _OOM_MARKERS)
+
+
+def log_has_memory_failure(log_path: str | os.PathLike[str]) -> bool:
+    path = Path(log_path)
+    if not path.is_file():
+        return False
+    with path.open(encoding="utf-8", errors="replace") as handle:
+        return any(text_has_memory_failure(line) for line in handle)
 
 
 @contextmanager
