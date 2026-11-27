@@ -15,6 +15,9 @@ _REPOSITORY = "not-a-feature/TabBench-Bio"
 _RELEASES = f"https://api.github.com/repos/{_REPOSITORY}/releases"
 _LATEST = f"{_RELEASES}/latest"
 LATEST_RESULTS_URL = f"https://github.com/{_REPOSITORY}/releases/latest/download/results.sqlite"
+EXTERNAL_RESULTS_URL = (
+    f"https://github.com/{_REPOSITORY}/releases/download/v{__version__}/external-results.sqlite"
+)
 
 
 def parse_release_version(value: str) -> tuple[int, ...] | None:
