@@ -22,6 +22,7 @@ from tabbench_bio.fold_metrics import (
     _validate_results_sqlite,
 )
 from tabbench_bio.io_utils import _atomic_path, read_result_blob, sha256_file, unpack_attempt_record
+from tabbench_bio.releases import EXTERNAL_RESULTS_URL
 from tabbench_bio.result_store import _merge_cell_config
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import unit_id
@@ -387,7 +388,7 @@ def write_external_comparison(
         with _atomic_path(deployed_app) as temporary:
             temporary.write_bytes(app_bytes)
     index.write_text(html, encoding="utf-8")
-    _clear_legacy_artifacts(output, [database, *(item.source for item in evaluations)])
+    _update_external_artifacts(output, [database], link_release=True)
 
 
 def refresh_external_comparison(
@@ -422,15 +423,33 @@ def remove_legacy_page(output: Path) -> None:
 
 def clear_external_comparison(output: Path, database: Path) -> None:
     """Remove a previously generated comparison when the external input is omitted."""
-    _clear_legacy_artifacts(output, [database])
+    _update_external_artifacts(output, [database])
 
 
-def _clear_legacy_artifacts(output: Path, keep: Sequence[Path]) -> None:
+def _update_external_artifacts(
+    output: Path, keep: Sequence[Path], *, link_release: bool = False
+) -> None:
     remove_legacy_page(output)
     artifacts = output / "artifacts.html"
     if artifacts.is_file():
         html = artifacts.read_text(encoding="utf-8")
         cleaned = re.sub(rf'\n[ \t]*<a id="{DOWNLOAD_ID}(?:-\d+)?"[^\n]*</a>', "", html)
+        if link_release:
+            card = (
+                f'<a id="{DOWNLOAD_ID}" class="data-file" href="{EXTERNAL_RESULTS_URL}">'
+                "<span><strong>External evaluation results</strong>"
+                "<span>Download from the GitHub release</span></span> "
+                '<b aria-hidden="true">↓</b></a>'
+            )
+            cleaned, count = re.subn(
+                r'(<div id="raw-files"[^>]*>.*?)\n( +</div>)',
+                lambda match: f"{match[1]}\n          {card}\n{match[2]}",
+                cleaned,
+                count=1,
+                flags=re.DOTALL,
+            )
+            if count != 1:
+                raise ValueError(f"Missing download list in {artifacts}")
         if cleaned != html:
             artifacts.write_text(cleaned, encoding="utf-8")
     protected = {path.resolve() for path in keep}

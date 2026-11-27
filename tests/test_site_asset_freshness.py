@@ -19,6 +19,7 @@ from tabbench_bio.external_results import load_external_evaluations
 from tabbench_bio.io_utils import pack_attempt_record, read_result_blob
 from tabbench_bio.leaderboard import Leaderboard
 from tabbench_bio.model_metadata import PUBLIC_METADATA_FIELDS
+from tabbench_bio.releases import EXTERNAL_RESULTS_URL
 from tabbench_bio.result_store import ResultRepository, consolidate_results
 from tabbench_bio.split_manifest import unit_id
 
@@ -283,7 +284,8 @@ def test_external_database_is_ranked_on_shared_folds(database, tmp_path, monkeyp
     assert not page.exists()
     artifacts = output / "artifacts.html"
     artifacts_html = artifacts.read_text(encoding="utf-8")
-    assert "external-results-download" not in artifacts_html
+    assert f'href="{EXTERNAL_RESULTS_URL}"' in artifacts_html
+    assert 'href="data/external-results.sqlite"' not in artifacts_html
     assert not list((output / "data").glob("external-results*"))
     main_dashboard = output / "data/dashboard.json"
     assert "Contributor" not in json.loads(main_dashboard.read_text())["models"]
