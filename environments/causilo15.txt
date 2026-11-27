@@ -1,4 +1,4 @@
 -r ../requirements-autogluon-fork.txt
 -e .[bio,autogluon]
-causilo==1.5.0
+causilo==1.5.1
 torch==2.13.*

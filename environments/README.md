@@ -15,7 +15,7 @@ live in `environments/<profile>.txt`, and its installed Python environment lives
 | `standard` | Existing model roster except TabPFN 3.5, using the established `full` extra |
 | `tabpfn35` | TabPFN 3.5, using its separate extra |
 | `causilo` | Causilo, with its pinned source revision |
-| `causilo15` | Causilo 1.5, with the standard eight-estimator settings |
+| `causilo15` | Causilo 1.5.1, with four estimators for classification and eight for regression |
 | `geneicl` | GeneICL 1.0.0, with its bundled seed-0 checkpoint |
 | `lightpfn` | LightPFN 1.5.1, with its pinned classification and regression checkpoints |
 | `limix2` | LimiX2, with its pinned source revision and PyTorch version |

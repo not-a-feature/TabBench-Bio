@@ -12,16 +12,16 @@ class CausiloModel(AbstractModel):
     ag_key = "CAUSILO"
     ag_name = "Causilo"
 
-    def _checkpoint_options(self):
+    def _estimator_options(self):
         from causilo.checkpoints import RELEASE_COMMIT
 
         assert RELEASE_COMMIT == CHECKPOINT_REVISION, (
             "Unexpected Causilo checkpoint revision; reinstall the causilo profile."
         )
-        return {}
+        return {"n_estimators": 8}
 
     def _fit(self, X, y, num_cpus=1, num_gpus=0, **kwargs):
-        checkpoint_options = self._checkpoint_options()
+        estimator_options = self._estimator_options()
         assert num_cpus >= 1
         if num_gpus and not torch.cuda.is_available():
             raise RuntimeError("Causilo requested a GPU, but CUDA is unavailable.")
@@ -29,11 +29,10 @@ class CausiloModel(AbstractModel):
         estimator = CausiloRegressor if self.problem_type == "regression" else CausiloClassifier
         self.model = estimator(
             device="cuda:0" if num_gpus else "cpu",
-            n_estimators=8,
             random_state=42,
             use_kv_cache=False,
             retain_preprocessing=True,
-            **checkpoint_options,
+            **estimator_options,
         )
         self.model.fit(self.preprocess(X), y)
         if self.problem_type != "regression":
@@ -66,5 +65,8 @@ class Causilo15Model(CausiloModel):
     ag_key = "CAUSILO-1.5"
     ag_name = "Causilo15"
 
-    def _checkpoint_options(self):
+    def _more_tags(self):
+        return {"can_refit_full": True}
+
+    def _estimator_options(self):
         return {"model_version": "1.5", "max_context": None}

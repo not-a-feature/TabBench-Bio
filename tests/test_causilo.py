@@ -1,5 +1,8 @@
 """Exercise the real Causilo backend with tiny, local test weights on CPU."""
 
+import hashlib
+import json
+
 import numpy as np
 import pandas as pd
 import pytest
@@ -10,17 +13,22 @@ pytest.importorskip("causilo.checkpoints")
 
 import torch
 from causilo import checkpoints
-from causilo.model import Model, ModelConfig
 
-from tabbench_bio.model import _resolve_hyperparameters
-from tabbench_bio.models.causilo import CausiloModel
+from tabbench_bio.dataset import TaskType
+from tabbench_bio.model import AutoGluonModel, _resolve_hyperparameters
+from tabbench_bio.models.causilo import Causilo15Model, CausiloModel
 
 
-def _test_weights(task):
+@pytest.fixture
+def legacy_model():
+    return pytest.importorskip("causilo.model")
+
+
+def _test_weights(task, legacy_model):
     with torch.random.fork_rng():
         torch.manual_seed(12)
-        model = Model(
-            ModelConfig(
+        model = legacy_model.Model(
+            legacy_model.ModelConfig(
                 task=task,
                 width=16,
                 expansion=2,
@@ -43,12 +51,12 @@ def _test_weights(task):
 
 
 @pytest.fixture
-def checkpoint_tasks(monkeypatch):
+def checkpoint_tasks(monkeypatch, legacy_model):
     tasks = []
 
     def load(task):
         tasks.append(task)
-        return _test_weights(task)
+        return _test_weights(task, legacy_model)
 
     monkeypatch.setattr(checkpoints, "load_pretrained_model", load)
     return tasks
@@ -97,12 +105,14 @@ def test_regression_preserves_target_units(tmp_path, checkpoint_tasks):
     np.testing.assert_allclose(predictions[1] - predictions[0], 500, atol=1e-4)
 
 
+@pytest.mark.usefixtures("legacy_model")
 def test_explicit_gpu_never_falls_back_to_cpu(monkeypatch):
     monkeypatch.setattr(torch.cuda, "is_available", lambda: False)
     with pytest.raises(RuntimeError, match="CUDA is unavailable"):
         CausiloModel()._fit(None, None, num_gpus=1)
 
 
+@pytest.mark.usefixtures("legacy_model")
 def test_wrong_checkpoint_revision_fails_before_fitting(monkeypatch):
     monkeypatch.setattr(checkpoints, "RELEASE_COMMIT", "wrong-revision")
     with pytest.raises(AssertionError, match="checkpoint revision"):
@@ -111,3 +121,81 @@ def test_wrong_checkpoint_revision_fails_before_fitting(monkeypatch):
 
 def test_registry_resolves_adapter():
     assert _resolve_hyperparameters(["CAUSILO"], 1) == {CausiloModel: [{"ag.num_gpus": 1}]}
+
+
+@pytest.mark.parametrize(
+    ("task_type", "task", "max_classes", "prediction_shape"),
+    [
+        (TaskType.Classification, "classification", 10, (4, 2)),
+        (TaskType.Regression, "regression", 0, (4,)),
+    ],
+)
+def test_refits_on_all_training_rows(
+    tmp_path, monkeypatch, task_type, task, max_classes, prediction_shape
+):
+    runtime_model = pytest.importorskip("causilo.v1_5.nn.model")
+    from causilo.model_selection import RUNTIME15_FORMAT
+    from causilo.v1_5 import checkpoints as runtime_checkpoints
+    from safetensors.torch import save_file
+
+    config = runtime_model.ModelConfig(
+        max_classes=max_classes, width=16, column_depth=1, prediction_depth=1
+    )
+    config_bytes = json.dumps(
+        {
+            "architecture": RUNTIME15_FORMAT,
+            "format_version": 1,
+            "config_version": 1,
+            "task": task,
+            "model": config.to_dict(),
+        }
+    ).encode("utf-8")
+    (tmp_path / "config.json").write_bytes(config_bytes)
+    with torch.random.fork_rng(devices=[]):
+        torch.manual_seed(42)
+        weights = runtime_model.Model(config).state_dict()
+    save_file(
+        weights,
+        tmp_path / "model.safetensors",
+        metadata={
+            "architecture": RUNTIME15_FORMAT,
+            "format_version": "1",
+            "task": task,
+            "config_sha256": hashlib.sha256(config_bytes).hexdigest(),
+        },
+    )
+    monkeypatch.setattr(runtime_checkpoints, "download_checkpoint", lambda source: tmp_path)
+    monkeypatch.setenv("TABBENCH_MODEL_CPUS", "1")
+    monkeypatch.setattr(torch.cuda, "device_count", lambda: 0)
+
+    fit_rows = []
+    original_fit = Causilo15Model._fit
+
+    def record_fit(self, X, y, **kwargs):
+        fit_rows.append(set(X.index))
+        return original_fit(self, X, y, **kwargs)
+
+    monkeypatch.setattr(Causilo15Model, "_fit", record_fit)
+
+    rng = np.random.default_rng(42)
+    features = pd.DataFrame(rng.normal(size=(104, 3)), columns=list("abc"))
+    train = features.iloc[:100].copy()
+    train["target"] = np.arange(100) % 2 if max_classes else rng.normal(size=100)
+    test = features.iloc[100:]
+    model = AutoGluonModel(
+        ["CAUSILO-1.5"],
+        ensemble=False,
+        optimize=False,
+        task_type=task_type,
+        autogluon_presets="medium_quality",
+        autogluon_path=str(tmp_path / "autogluon"),
+    )
+    predictor = model.fit(train)
+    holdout_fit, full_fit = fit_rows
+    assert holdout_fit < full_fit
+    assert full_fit == set(train.index)
+    assert predictor.model_best == predictor.model_refit_map()["Causilo15"]
+
+    predictions = model.predict_proba(test) if max_classes else model.predict(test)
+    assert predictions.shape == prediction_shape
+    assert np.isfinite(np.asarray(predictions)).all()

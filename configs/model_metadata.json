@@ -249,7 +249,7 @@
     "hidden": false,
     "training_data_overlap": false,
     "source_url": "https://huggingface.co/nums-ai/causilo-1.5",
-    "description": "Causilo 1.5 is the second release of Nums AI's tabular foundation model for classification and regression. Nums AI reports higher benchmark scores than Causilo 1.0 and consistent predictions across column orders. TabBench-Bio uses the standard eight-estimator version, which takes all training rows and features supplied by each grid cell."
+    "description": "Causilo 1.5 is the second release of Nums AI's tabular foundation model for classification and regression. Nums AI reports higher benchmark scores than Causilo 1.0 and consistent predictions across column orders. TabBench-Bio uses the Causilo 1.5.1 defaults of four estimators for classification and eight for regression."
   },
   {
     "key": "LIGHTPFN",
