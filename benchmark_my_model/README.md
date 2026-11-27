@@ -119,3 +119,9 @@ scores and uses the recorded model name. Use `--model` to select a model explici
 
 The [registered-model workflow](INTEGRATION.md) supports resumption and produces
 mergeable SQLite results.
+
+To include a classification quickstart run in a website's external reference
+comparison, pass its directory as `--external-evaluation my_model_results` to
+`tabbench-bio leaderboard`. For a registered run, pass its `results.sqlite` with
+`--external-sqlite`. Both options can be repeated to compare several submissions
+on their shared classification folds.
