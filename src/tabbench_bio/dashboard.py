@@ -18,6 +18,11 @@ from tqdm.auto import tqdm
 
 from tabbench_bio.dashboard_data import dataset_metadata, progress_summary, read_inputs
 from tabbench_bio.elo import DEFAULT_N_BOOT, compute_elo, fold_scores
+from tabbench_bio.external_results import (
+    clear_external_comparison,
+    load_external_evaluations,
+    write_external_comparison,
+)
 from tabbench_bio.io_utils import atomic_write_json, sha256_file
 from tabbench_bio.model_metadata import (
     hidden_model_ids,
@@ -1022,6 +1027,8 @@ def build_website(
     workers=1,
     n_boot=DEFAULT_N_BOOT,
     reference_cell=None,
+    external_database: Path | None = None,
+    external_inputs: list[Path] | None = None,
 ):
     """Write the deployable static website and return its dashboard and strict metrics."""
     assert workers > 0 and n_boot > 0
@@ -1035,6 +1042,9 @@ def build_website(
     if reference_cell is None:
         reference_cell = "cap_10000_n100" if "cap_10000_n100" in configs else ordered_cells[0]
     assert reference_cell in configs, f"Reference cell absent: {reference_cell}"
+    inputs = [external_database] if external_database is not None else []
+    inputs.extend(external_inputs or [])
+    external = load_external_evaluations(database, inputs, reference_cell) if inputs else []
     model_ids = sorted(
         {model for config in configs.values() for model in config["models"]} | set(status["model"])
     )
@@ -1153,6 +1163,17 @@ def build_website(
     write_artifacts(output, dashboard)
     write_dataset_explorer(output, dashboard, summary, frames["strict"]["regression"])
     write_home_summary(output, dashboard)
+    if external:
+        write_external_comparison(
+            output,
+            external,
+            frames["strict"]["classification"],
+            dashboard,
+            n_boot,
+            database,
+        )
+    else:
+        clear_external_comparison(output, database)
     write_agent_metadata(output, dashboard)
     write_social_preview(output)
     print(f"Website: {output / 'index.html'}", flush=True)

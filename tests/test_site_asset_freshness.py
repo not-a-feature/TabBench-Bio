@@ -4,7 +4,10 @@ import hashlib
 import json
 import re
 import shutil
+import sqlite3
+from contextlib import closing
 from pathlib import Path
+from zipfile import ZipFile
 
 import pandas as pd
 import pytest
@@ -14,9 +17,12 @@ from tabbench_bio.cli import main
 from tabbench_bio.config import config_for_cell
 from tabbench_bio.dashboard_data import read_inputs
 from tabbench_bio.elo import compute_elo, fold_scores
+from tabbench_bio.external_results import load_external_evaluations
+from tabbench_bio.io_utils import pack_attempt_record, read_result_blob
 from tabbench_bio.leaderboard import Leaderboard
 from tabbench_bio.model_metadata import PUBLIC_METADATA_FIELDS
 from tabbench_bio.result_store import ResultRepository, consolidate_results
+from tabbench_bio.split_manifest import unit_id
 
 
 @pytest.mark.parametrize("parent", ["RF", "XT", "LR", "XGB"])
@@ -184,6 +190,205 @@ def database(tmp_path):
     return consolidate_results(root)
 
 
+def test_external_database_is_ranked_on_shared_folds(database, tmp_path, monkeypatch):
+    external = tmp_path / "external.sql"
+    shutil.copyfile(database, external)
+    cell = "cap_100_n20"
+    with sqlite3.connect(external) as db:
+        db.execute(
+            "DELETE FROM attempts WHERE cell != ? OR dataset != 'toy_0' OR model != 'RF'",
+            (cell,),
+        )
+        db.execute("DELETE FROM cells WHERE cell != ?", (cell,))
+        config = json.loads(db.execute("SELECT config_json FROM cells").fetchone()[0])
+        config.update(models=["Contributor"], datasets_regression=[])
+        encoded = json.dumps(config)
+        db.execute(
+            "UPDATE cells SET config_json=?, config_hash=?",
+            (encoded, hashlib.sha256(encoded.encode()).hexdigest()),
+        )
+        db.execute(
+            "INSERT INTO metadata VALUES (?, ?)",
+            (
+                "external_provenance",
+                json.dumps(
+                    {
+                        "task": "classification",
+                        "model": "Contributor",
+                        "cell": cell,
+                        "hardware": {"gpu": "NVIDIA H100"},
+                    }
+                ),
+            ),
+        )
+        summary, blob = pack_attempt_record(
+            '{"task_type":"classification","reported_metrics":{"f1_macro":0.8}}'
+        )
+        db.execute(
+            "UPDATE attempts SET model='Contributor', prediction_hash=NULL, probability_hash=NULL, "
+            "record_json=?, record_zlib=?",
+            (summary, blob),
+        )
+
+    native = tmp_path / "native.sqlite"
+    shutil.copyfile(database, native)
+    with sqlite3.connect(native) as db:
+        db.execute(
+            "DELETE FROM attempts WHERE cell != ? OR dataset != 'toy_0' OR model NOT IN ('RF', 'DUMMY')",
+            (cell,),
+        )
+        db.execute("DELETE FROM cells WHERE cell != ?", (cell,))
+        db.execute("UPDATE attempts SET model='Native' WHERE model='RF'")
+        encoded = json.dumps({**config, "models": ["DUMMY", "Native"]})
+        db.execute(
+            "UPDATE cells SET config_json=?, config_hash=?",
+            (encoded, hashlib.sha256(encoded.encode()).hexdigest()),
+        )
+
+    quickstart = tmp_path / "quickstart"
+    (quickstart / "report").mkdir(parents=True)
+    (quickstart / "config.json").write_text(json.dumps(config), encoding="utf-8")
+    (quickstart / "report/report_config.json").write_text(
+        json.dumps({"cell": cell, "name": "Quickstart", "task": "classification"}), encoding="utf-8"
+    )
+    with sqlite3.connect(database) as db:
+        witnesses = db.execute(
+            "SELECT seed, dataset, ground_truth_hash FROM attempts WHERE cell=? AND model='RF' AND dataset='toy_0'",
+            (cell,),
+        ).fetchall()
+        manifest = {
+            "units": {
+                unit_id(seed, key): {
+                    "ground_truth_sha256": hashlib.sha256(read_result_blob(db, digest)).hexdigest()
+                }
+                for seed, key, digest in witnesses
+            }
+        }
+    (quickstart / "split_manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+    (quickstart / "fold_metrics.csv").write_text(
+        "seed,key,model,f1_macro\n0,toy_0,Quickstart,0.9\n", encoding="utf-8"
+    )
+    (quickstart / "attempts.csv").write_text(
+        "seed,key,model,status\n0,toy_0,Quickstart,pass\n1,toy_0,Quickstart,fail\n",
+        encoding="utf-8",
+    )
+
+    output = tmp_path / "site"
+    _, _ = dashboard.build_website(
+        database,
+        output,
+        external_inputs=[external, native, quickstart],
+        reference_cell=cell,
+        n_boot=4,
+    )
+    page = output / "external-results.html"
+    assert not page.exists()
+    artifacts = output / "artifacts.html"
+    artifacts_html = artifacts.read_text(encoding="utf-8")
+    assert 'href="data/external-results.sqlite" download="external.sql"' in artifacts_html
+    assert "Contributor SQLite" in artifacts_html
+    assert "NVIDIA H100 · author-reported Macro-F1" in artifacts_html
+    for source, name in (
+        (external, "external-results.sqlite"),
+        (native, "external-results-2.sqlite"),
+    ):
+        published = output / "data" / name
+        with (
+            closing(sqlite3.connect(source)) as original,
+            closing(sqlite3.connect(published)) as public,
+        ):
+            source_metadata = dict(original.execute("SELECT key, value FROM metadata"))
+            assert {"host", "platform"} <= source_metadata.keys()
+            assert dict(public.execute("SELECT key, value FROM metadata")) == {
+                key: value
+                for key, value in source_metadata.items()
+                if key not in {"host", "platform"}
+            }
+            for table in ("attempts", "blobs", "cells"):
+                query = f"SELECT * FROM {table} ORDER BY 1"
+                assert public.execute(query).fetchall() == original.execute(query).fetchall()
+    with ZipFile(output / "data/external-results-3.zip") as archive:
+        assert set(archive.namelist()) == {
+            "fold_metrics.csv",
+            "split_manifest.json",
+            "attempts.csv",
+            "config.json",
+            "report/report_config.json",
+        }
+        portable = tmp_path / "portable"
+        archive.extractall(portable)
+    portable_results = load_external_evaluations(database, [portable], cell)
+    assert portable_results[0].model == "Quickstart"
+    main_dashboard = output / "data/dashboard.json"
+    assert "Contributor" not in json.loads(main_dashboard.read_text())["models"]
+    index = output / "index.html"
+    home = index.read_text(encoding="utf-8")
+    app_id = hashlib.sha256((output / "js/app.js").read_bytes()).hexdigest()[:12]
+    assert f'js/app.js?v={app_id}"' in home
+    advanced = re.search(r'<div class="analysis-view-options"[^>]*>(.*?)</div>', home, re.S)[1]
+    assert 'id="external-elo-toggle"' in advanced
+    assert 'aria-pressed="false" aria-controls="elo-chart"' in advanced
+    assert "Hide external models" in advanced
+    assert 'id="external-elo-scope"' not in home
+    assert re.search(r'id="external-elo-warning"[^>]*\bhidden\b', home)
+    assert "may be less reliable than reference results and may use different hardware" in home
+    assert (
+        home.index('id="elo-note"')
+        < home.index('id="external-elo-warning"')
+        < home.index('id="elo-overlap-warning"')
+    )
+    payload = json.loads(re.search(r'id="external-elo-data">([^<]+)</script>', home)[1])
+    assert payload["cell"] == cell
+    models = payload["models"]
+    assert models["Contributor"]["provenance"] == "NVIDIA H100 · author-reported"
+    assert models["Contributor"]["classification_only"] is False
+    assert "1 shared classification dataset" in payload["scope"][0]
+    assert models["Contributor"]["artifact_url"] == "artifacts.html#external-results-download"
+    assert models["Native"]["provenance"] == "External run · scored from predictions"
+    assert models["Quickstart"]["artifact_url"] == "artifacts.html#external-results-download-3"
+    rows = {row["model_id"]: row for row in payload["rows"]}
+    assert {"Contributor", "Native", "Quickstart", "RF"} <= rows.keys()
+    assert "PARTIAL" not in rows
+    assert rows["RF"]["Elo"] == 1000
+    assert rows["Native"]["Elo"] == rows["RF"]["Elo"]
+    assert all(row["n_targets"] == 1 for row in rows.values())
+
+    original = main_dashboard.read_bytes()
+    page.write_text("<!-- Generated by tabbench-bio external comparison. -->", encoding="utf-8")
+    monkeypatch.setattr(
+        "sys.argv",
+        [
+            "tabbench-bio",
+            "leaderboard",
+            str(database),
+            "--external-sqlite",
+            str(external),
+            "--external-sqlite",
+            str(native),
+            "--external-evaluation",
+            str(quickstart),
+            "--external-only",
+            "--out",
+            str(output),
+            "--bootstrap-rounds",
+            "4",
+        ],
+    )
+    main()
+    assert main_dashboard.read_bytes() == original
+    assert index.read_text(encoding="utf-8") == home
+    assert artifacts.read_text(encoding="utf-8") == artifacts_html
+    assert not page.exists()
+    assert "external-results.html" not in (output / "sitemap.txt").read_text(encoding="utf-8")
+    with pytest.raises(ValueError, match="duplicates"):
+        load_external_evaluations(database, [quickstart, quickstart], cell)
+
+    with sqlite3.connect(external) as db:
+        db.execute("UPDATE attempts SET ground_truth_hash=NULL WHERE seed=0")
+    with pytest.raises(ValueError, match="Held-out targets differ"):
+        load_external_evaluations(database, [external], cell)
+
+
 def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, monkeypatch):
     original = hashlib.sha256(database.read_bytes()).hexdigest()
     monkeypatch.chdir(tmp_path)
@@ -215,6 +420,7 @@ def test_dashboard_schema_ratings_fallbacks_and_read_only(database, tmp_path, mo
         row for row in parsed["failure_summary"] if row["model_id"] == "RF"
     ]
     artifacts = (output / "artifacts.html").read_text(encoding="utf-8")
+    assert 'id="external-elo-toggle"' not in (output / "index.html").read_text(encoding="utf-8")
     assert 'href="data/leaderboard.json" download' in artifacts
     assert (
         'href="https://github.com/not-a-feature/TabBench-Bio/releases/latest/download/results.sqlite"'

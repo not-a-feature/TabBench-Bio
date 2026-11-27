@@ -148,9 +148,27 @@ def cmd_leaderboard(args):
     """Print a leaderboard built from a result directory or published SQLite bundle."""
     from tabbench_bio.leaderboard import Leaderboard
 
+    if args.external_inputs and (args.sqlite or args.results_dir):
+        raise ValueError("External inputs require the website-building form of leaderboard")
+    if args.external_only and not args.external_inputs:
+        raise ValueError("--external-only requires --external-sqlite or --external-evaluation")
     if args.database or not (args.sqlite or args.results_dir):
         database = Path(args.database or "results/merged/results.sqlite")
         output = Path(args.out or "website")
+        if args.external_only:
+            if args.cell or args.reference_cell:
+                raise ValueError("--external-only uses the existing website's reference cell")
+            from tabbench_bio.external_results import refresh_external_comparison
+
+            refresh_external_comparison(
+                database,
+                args.external_inputs,
+                output,
+                workers=args.workers,
+                n_boot=args.bootstrap_rounds,
+            )
+            print(f"External comparison: {output / 'index.html'}")
+            return
         from tabbench_bio.dashboard import build_website
 
         dashboard, frames = build_website(
@@ -160,6 +178,7 @@ def cmd_leaderboard(args):
             workers=args.workers,
             n_boot=args.bootstrap_rounds,
             reference_cell=args.reference_cell,
+            external_inputs=args.external_inputs,
         )
         for option in dashboard["cell_options"]:
             cell = option["id"]
@@ -440,6 +459,25 @@ def main():
     )
     lb_p.add_argument(
         "--out", help="Website directory; PNG/CSV exports go in local/ (default: website/)"
+    )
+    lb_p.add_argument(
+        "--external-sqlite",
+        dest="external_inputs",
+        type=Path,
+        action="append",
+        help="Contributed results SQLite database (repeatable)",
+    )
+    lb_p.add_argument(
+        "--external-evaluation",
+        dest="external_inputs",
+        type=Path,
+        action="append",
+        help="Benchmark My Model quickstart output directory (repeatable)",
+    )
+    lb_p.add_argument(
+        "--external-only",
+        action="store_true",
+        help="Refresh only the external comparison on an existing website",
     )
     lb_p.add_argument(
         "--workers", type=int, default=1, help="Parallel fold-metric and dashboard Elo workers"

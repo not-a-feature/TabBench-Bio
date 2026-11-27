@@ -99,6 +99,21 @@ and publishes nothing automatically. See the
 and cache settings. The released database and SHA-256 checksum are listed in the
 [artifact browser](https://tabbench-bio.eu/artifacts.html).
 
+### Add external results
+
+Use `--external-sqlite` for a submitted SQLite file or `--external-evaluation`
+for a folder created by `tabbench-bio evaluate`. Repeat either flag to add more
+models. To update an existing site built from the same main database, use
+`--external-only`.
+
+```bash
+tabbench-bio leaderboard results.sqlite --external-sqlite external.sql --external-only --out website
+```
+
+The leaderboard compares models on shared classification folds at the reference
+setting. Use **Advanced options → Hide external models** to return to the
+standard ranking. Each submission is available under **Artifacts**.
+
 ## Generate a model report
 
 Generate a leaderboard overview and one HTML report per dataset modality from scored folds:
