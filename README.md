@@ -112,7 +112,7 @@ tabbench-bio leaderboard results.sqlite --external-sqlite external.sql --externa
 
 The leaderboard compares models on shared classification folds at the reference
 setting. Use **Advanced options → Hide external models** to return to the
-standard ranking. Each submission is available under **Artifacts**.
+standard ranking. External results are distributed with the GitHub release.
 
 ## Generate a model report
 

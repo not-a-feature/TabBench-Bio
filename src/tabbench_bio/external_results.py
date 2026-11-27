@@ -6,13 +6,10 @@ import hashlib
 import json
 import math
 import re
-import sqlite3
 from collections.abc import Sequence
 from contextlib import ExitStack, closing
 from dataclasses import dataclass
-from html import escape
 from pathlib import Path
-from zipfile import ZIP_DEFLATED, ZipFile
 
 import pandas as pd
 
@@ -25,7 +22,7 @@ from tabbench_bio.fold_metrics import (
     _validate_results_sqlite,
 )
 from tabbench_bio.io_utils import _atomic_path, read_result_blob, sha256_file, unpack_attempt_record
-from tabbench_bio.result_store import _merge_cell_config, _normalise_config
+from tabbench_bio.result_store import _merge_cell_config
 from tabbench_bio.seeds import get_seeds
 from tabbench_bio.split_manifest import unit_id
 from tabbench_bio.web_metadata import write_sitemaps
@@ -55,18 +52,6 @@ def _cell_config(db, cell):
     if row is None:
         raise ValueError(f"Missing cell {cell} in results database")
     return json.loads(row[0])
-
-
-def _write_public_sqlite(source: Path, destination: Path) -> None:
-    """Copy the evaluation without metadata identifying the packaging workstation."""
-    with (
-        closing(_open_results_sqlite(source)) as original,
-        closing(sqlite3.connect(destination)) as public,
-    ):
-        original.backup(public)
-        public.execute("DELETE FROM metadata WHERE key IN ('host', 'platform')")
-        public.commit()
-        public.execute("VACUUM")
 
 
 def _read_quickstart_scores(source, reference, truth, expected):
@@ -320,6 +305,8 @@ def write_external_comparison(
     database: Path,
 ) -> None:
     meta = dashboard["meta"]
+    if any(item.source.is_relative_to(output.resolve()) for item in evaluations):
+        raise ValueError("Keep external submissions outside the deployable website directory")
     evaluation = evaluations[0]
     datasets = set.intersection(*(item.datasets for item in evaluations))
     if not datasets:
@@ -349,38 +336,13 @@ def write_external_comparison(
         f"Macro-F1 Elo · {count:,} shared classification {dataset_label}",
         f"{folds} {fold_label} each · {feature_label} · {sample_label}",
     ]
-    by_source = {}
-    for item in evaluations:
-        by_source.setdefault(item.source, []).append(item)
-    downloads = {}
-    external_models = {}
-    cards = []
-    for i, (source, items) in enumerate(by_source.items(), 1):
-        suffix = "" if i == 1 else f"-{i}"
-        anchor_id = DOWNLOAD_ID + suffix
-        extension = ".zip" if source.is_dir() else ".sqlite"
-        download = f"data/external-results{suffix}{extension}"
-        downloads[source] = output / download
-        if downloads[source].resolve() == database.resolve():
-            raise ValueError("External download would overwrite the main results database")
-        if downloads[source].resolve() in by_source.keys() - {source}:
-            raise ValueError("External download would overwrite another submission")
-        for item in items:
-            external_models[item.model] = {
-                "provenance": item.provenance,
-                "classification_only": item.classification_only,
-                "artifact_url": f"artifacts.html#{anchor_id}",
-            }
-        names = ", ".join(item.model for item in items)
-        kind = "evaluation ZIP" if source.is_dir() else "SQLite"
-        filename = "external.sql" if not suffix and not source.is_dir() else Path(download).name
-        cards.append(
-            f'<a id="{anchor_id}" class="data-file" href="{download}" download="{filename}">'
-            f"<span><strong>{escape(names)} {kind}</strong>"
-            f"<span>{escape(items[0].provenance)}"
-            f"{' Macro-F1' if items[0].provenance.endswith('author-reported') else ''}</span></span> "
-            '<b aria-hidden="true">↓</b></a>'
-        )
+    external_models = {
+        item.model: {
+            "provenance": item.provenance,
+            "classification_only": item.classification_only,
+        }
+        for item in evaluations
+    }
     payload = json.dumps(
         {
             "cell": evaluation.cell,
@@ -420,43 +382,12 @@ def write_external_comparison(
     html, updated = re.subn(r'(?<=src="js/app\.js)\?[^"]*', f"?v={app_id}", html)
     if updated != 1:
         raise ValueError(f"Missing leaderboard app script in {index}")
-    artifacts = output / "artifacts.html"
-    artifact_html = artifacts.read_text(encoding="utf-8")
-    artifact_html = re.sub(rf'\n[ \t]*<a id="{DOWNLOAD_ID}(?:-\d+)?"[^\n]*</a>', "", artifact_html)
-    cards_html = "\n          ".join(cards)
-    artifact_html, updated = re.subn(
-        r'(<div id="raw-files"[^>]*>.*?)\n( +</div>)',
-        lambda match: f"{match[1]}\n          {cards_html}\n{match[2]}",
-        artifact_html,
-        count=1,
-        flags=re.DOTALL,
-    )
-    if updated != 1:
-        raise ValueError(f"Missing download list in {artifacts}")
-    with ExitStack() as stack:
-        for source, destination in downloads.items():
-            temporary = stack.enter_context(_atomic_path(destination))
-            if source.is_dir():
-                with ZipFile(temporary, "w", compression=ZIP_DEFLATED) as archive:
-                    for name in (
-                        "fold_metrics.csv",
-                        "split_manifest.json",
-                        "attempts.csv",
-                        "report/report_config.json",
-                    ):
-                        archive.write(source / name, name)
-                    config = _normalise_config(json.loads((source / "config.json").read_bytes()))
-                    archive.writestr("config.json", json.dumps(config, indent=2))
-            else:
-                _write_public_sqlite(source, temporary)
     deployed_app = output / WEB_APP
     if not deployed_app.is_file() or deployed_app.read_bytes() != app_bytes:
         with _atomic_path(deployed_app) as temporary:
             temporary.write_bytes(app_bytes)
-    artifacts.write_text(artifact_html, encoding="utf-8")
     index.write_text(html, encoding="utf-8")
-    remove_legacy_page(output)
-    _clear_downloads(output, [database, *downloads, *downloads.values()])
+    _clear_legacy_artifacts(output, [database, *(item.source for item in evaluations)])
 
 
 def refresh_external_comparison(
@@ -491,11 +422,17 @@ def remove_legacy_page(output: Path) -> None:
 
 def clear_external_comparison(output: Path, database: Path) -> None:
     """Remove a previously generated comparison when the external input is omitted."""
+    _clear_legacy_artifacts(output, [database])
+
+
+def _clear_legacy_artifacts(output: Path, keep: Sequence[Path]) -> None:
     remove_legacy_page(output)
-    _clear_downloads(output, [database])
-
-
-def _clear_downloads(output: Path, keep: Sequence[Path]) -> None:
+    artifacts = output / "artifacts.html"
+    if artifacts.is_file():
+        html = artifacts.read_text(encoding="utf-8")
+        cleaned = re.sub(rf'\n[ \t]*<a id="{DOWNLOAD_ID}(?:-\d+)?"[^\n]*</a>', "", html)
+        if cleaned != html:
+            artifacts.write_text(cleaned, encoding="utf-8")
     protected = {path.resolve() for path in keep}
     for download in (output / "data").glob("external-results*"):
         if re.fullmatch(r"external-results(?:-\d+)?\.(?:sqlite|zip)", download.name):

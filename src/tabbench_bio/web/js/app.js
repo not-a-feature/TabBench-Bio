@@ -918,9 +918,7 @@ function renderElo(comparison = EXTERNAL_ELO) {
       if (event.event?.button != null && event.event.button !== 0) return;
       const point = event.points[0];
       const modelId = point.data.ids?.[point.pointNumber];
-      if (modelId && external && Object.hasOwn(external.models, modelId)) {
-        location.href = siteUrl(external.models[modelId].artifact_url);
-      } else if (modelId && DATA.models[modelId]) location.href = detailPageUrl("model", modelId);
+      if (modelId && Object.hasOwn(DATA.models, modelId)) location.href = detailPageUrl("model", modelId);
     });
     showChart();
   });
