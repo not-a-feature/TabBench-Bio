@@ -231,7 +231,7 @@
       "regression"
     ],
     "max_classes": null,
-    "hidden": false,
+    "hidden": true,
     "training_data_overlap": false,
     "source_url": "https://github.com/nums-ai/causilo",
     "description": "Causilo, by Nums AI, is pretrained on synthetic tables and uses labelled examples as context for classification or regression. It processes relationships across rows and columns, combining information about individual features with patterns shared by samples."
